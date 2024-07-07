@@ -12,7 +12,7 @@ use App\Http\Controllers\Users\StaffController;
 /**
  * Sementara - karena sudah digunakan pada sistemnya
  */
-Route::get('/users/staff/detail', [StaffController::class, 'getDetailByUserId'])->middleware('auth.staff.secretary');
+Route::get('/users/staff/detail', [StaffController::class, 'getDetailByUserId'])->middleware(['auth.jwt', 'auth.staff.secretary']);
 
 Route::prefix('/surat')
     ->middleware('auth.jwt')

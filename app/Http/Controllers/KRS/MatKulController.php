@@ -13,7 +13,7 @@ use App\Exceptions\ErrorHandler;
 use App\Models\KRS\MatKulView;
 use App\Models\KurikulumView;
 use App\Models\KRS\MatkulDiselenggarakanView;
-
+use App\Models\KRS\NilaiAkhirView;
 
 // ? Models - table
 use App\Models\Users\Mahasiswa;
@@ -101,52 +101,68 @@ class MatKulController extends Controller
         $totalSemuaNilaiE = 0;
 
         if (count($listMatkul) > 0) {
-            // grouping per semester
-            foreach ($listMatkul->all() as $mk) {
-                $semester = $mk['semester'];
-                $nilaiAkhir = $mk->nilaiAkhir()
-                    ->where('mhs_id', $this->user['mhs_id'])
-                    ->first();
+            $latestKRS = $mahasiswa->krs()->first();
 
-                if ($nilaiAkhir) {
+            // get nilai akhir
+            $allNilaiAkhir = NilaiAkhirView::where('mhs_id', $this->user['mhs_id'])->get();
+            $allMkIdNilaiAkhir = $allNilaiAkhir->pluck('mk_id')->toArray();
+            $mappedListMatkulWithNilaiAkhir = $listMatkul->map(function ($mk) use ($allMkIdNilaiAkhir, $allNilaiAkhir) {
+                if (in_array($mk['mk_id'], $allMkIdNilaiAkhir)) {
+                    $tempNilaiAkhir = $allNilaiAkhir->where('mk_id', $mk['mk_id'])->first();
                     $mk['nilai_akhir'] = [
-                        'nilai' => $nilaiAkhir['nilai'],
-                        'mutu' => $nilaiAkhir['mutu']
+                        'nilai' => $tempNilaiAkhir['nilai'],
+                        'mutu' => $tempNilaiAkhir['mutu'],
                     ];
                 } else {
                     $mk['nilai_akhir'] = null;
                 }
 
-                $latestKRS = $mahasiswa->krs()->first();
-                $kdMK = $mk['kd_mk'];
+                return $mk;
+            });
 
-                $isKrsMatkul = count($latestKRS->krsMatkul()
-                    ->where('mk_id', $mk['mk_id'])
-                    ->get()) > 0 ?? false;
+            // get latest krs matkul
+            $allKrsMatkul = $latestKRS->krsMatkul()->get();
+            $allMkIdKrsMatkul = $allKrsMatkul->pluck('mk_id')->toArray();
+            $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir->map(function ($mk) use ($allMkIdKrsMatkul) {
+                $isSameSmt = $mk['smt'] === $this->currentSemester['smt'] ?? false;
 
-                $mk['krs'] = [
-                    'is_aktif' => $mk['smt'] === $this->currentSemester['smt'] ?? false,
-                    'is_checked' => $isKrsMatkul,
-                ];
+                if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
+                    $mk['krs'] = [
+                        'is_aktif' => $isSameSmt,
+                        'is_checked' => true,
+                    ];
+                } else {
+                    $mk['krs'] = [
+                        'is_aktif' => $isSameSmt,
+                        'is_checked' => false,
+                    ];
+                }
 
                 // mk pilihan
-                if (strpos($kdMK, 'P-') === 0) {
+                if (strpos($mk['kd_mk'], 'P-') === 0) {
                     $mk['krs'] = [
                         'is_aktif' => false,
                         'is_checked' => false,
                     ];
-                } else {
-                    $mk['krs'] = [
-                        'is_aktif' => $mk['smt'] === $this->currentSemester['smt'] ?? false,
-                        'is_checked' => is_null($latestKRS
-                            ->krsMatkul()
-                            ->where('mk_id', $mk['mk_id'])
-                            ->first())
-                            ? false
-                            : true,
-                    ];
                 }
 
+                /**
+                 * banyak isi kolom yang kotor sama white space
+                 * jadi harus dibersihin dulu biar gk ganggu di front end
+                 */
+                $mk['kd_mk'] = trim($mk['kd_mk']);
+                $mk['nm_mk'] = trim($mk['nm_mk']);
+
+                if (array_key_exists('nm_jurusan', $mk->toArray())) {
+                    $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
+                }
+
+                return $mk;
+            });
+
+            // grouping per semester
+            foreach ($mappedWithKrsMatkul->toArray() as $mk) {
+                $semester = $mk['semester'];
                 $tempMatkul[$semester]['semester'] = $semester;
                 $tempMatkul[$semester]['mata_kuliah'][] = $mk;
             }
