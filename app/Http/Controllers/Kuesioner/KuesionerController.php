@@ -82,10 +82,16 @@ class KuesionerController extends Controller
                     $krsMatkul[$index] = $item;
                 }
 
+                $mappedListMatkul = collect($krsMatkul)->filter(function ($mk) {
+                    if (!is_null($mk['matakuliah'])) {
+                        return $mk;
+                    }
+                });
+
                 return $this->successfulResponseJSON([
                     'tahun_id' => $tahunAjaran['tahun_id'],
                     'tahun' => $tahunAjaran['tahun'],
-                    'list_matkul' => $krsMatkul,
+                    'list_matkul' => array_values($mappedListMatkul->toArray()),
                 ]);
             }
 

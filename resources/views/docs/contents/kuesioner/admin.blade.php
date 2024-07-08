@@ -213,7 +213,7 @@
 <section>
     <h5 class="mt-5 mb-3 fw-bold">(ADM) Hasil Kuesioner Perkuliahan - Get List Mata Kuliah yang Diampu Dosen</h5>
     <p>
-        Gunakan nilai <b>tahun_id</b>, <b>semester</b>, dan <b>dosen_id</b> yang dipilih berdasarkan dari list sebelumnya sebagai query parameter untuk mendapatkan list mata kuliah yang diampu dosen dan telah tersedia pada kuesioner perkuliahan. Gunakan HTTP method <span class="badge bg-info">get</span> dengan mengirimkan permintaan ke <span class="badge bg-dark">kuesioner/perkuliahan/hasil/matkul</span>.    
+        Gunakan nilai <b>tahun_id</b>, <b>semester</b>, dan <b>dosen_id</b> yang dipilih berdasarkan dari list sebelumnya sebagai query parameter untuk mendapatkan list mata kuliah yang diampu dosen dan telah tersedia pada kuesioner perkuliahan. Gunakan HTTP method <span class="badge bg-info">get</span> dengan mengirimkan permintaan ke <span class="badge bg-dark">kuesioner/perkuliahan/hasil/matkul</span>.
     </p>
     <p>
         Contoh penggunaannya adalah <span class="badge bg-dark">/kuesioner/perkuliahan/hasil/matkul?tahun_id=335&semester=7&dosen_id=573</span>. Hasilnya:
@@ -352,6 +352,145 @@
                 ...
             }
         }
+    }
+}</code></pre>
+</section>
+
+<section>
+    <h5 class="mt-5 mb-3 fw-bold">(ADM) Hasil Kuesioner Perkuliahan - Get Hasil By Tahun Ajaran</h5>
+    <p>
+        Digunakan untuk get hasil kuesioner untuk setiap mata kuliah yang ada di tahun ajaran. Gunakan get list tahun ajaran untuk hasil kuesioner perkuliahan agar list tahun ajaran yang didapat adalah list tahun ajaran yang telah tersedia atau pernah dibuka oleh admin sistem kuesioner.
+    </p>
+    <p>
+        Kirimkan permintaan ke <span class="badge bg-dark">/kuesioner/perkuliahan/hasil/v2/rata-rata?tahun_id=348</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span> dan sesuaikan nilai <span class="badge bg-secondary">tahun_id</span>. API menyediakan dua response berbeda untuk hasil kuesioner ini. Response pertama adalah list matkul beserta kuesioner dan rata-rata jawaban untuk setiap pertanyaan, seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "kuesioner_perkuliahan": [
+            {
+                "mk_id": 137,
+                "nm_mk": "HAKI &Etika Profesi",
+                "nm_dosen": "Dani Pradana Kartaputra, S.Si., M.T",
+                "semester": 8,
+                "total_mahasiswa": 29,
+                "total_mahasiswa_mengisi_kuesioner": 2,
+                "pertanyaan_dan_jawaban": {
+                    "Teknologi Pembelajaran": [
+                        {
+                            "pertanyaan_id": 1,
+                            "jenis_pertanyaan_id": 1,
+                            "kelompok_pertanyaan_id": 1,
+                            "kd_jenis_pertanyaan": "P",
+                            "jenis": "Perkuliahan",
+                            "kelompok": "Teknologi Pembelajaran",
+                            "pertanyaan": "Apakah pembelajaran menggunakan media zoom efektif untuk pembelajaran?",
+                            "jawaban": {
+                                "point_id": 2,
+                                "kd_point": "S",
+                                "ket_point": "Setuju",
+                                "mutu": 4,
+                                "rata_rata": 3.5
+                            }
+                        },
+                        ...
+                    ],
+                    ...
+                }
+            },
+            {
+                "mk_id": 145,
+                "nm_mk": "Cloud Computing",
+                "nm_dosen": "M. RIZKI PRATAMA. S, S.Kom",
+                "semester": 7,
+                "total_mahasiswa": 50,
+                "total_mahasiswa_mengisi_kuesioner": 2,
+                "pertanyaan_dan_jawaban": {
+                    "Teknologi Pembelajaran": [
+                        {
+                            "pertanyaan_id": 1,
+                            "jenis_pertanyaan_id": 1,
+                            "kelompok_pertanyaan_id": 1,
+                            "kd_jenis_pertanyaan": "P",
+                            "jenis": "Perkuliahan",
+                            "kelompok": "Teknologi Pembelajaran",
+                            "pertanyaan": "Apakah pembelajaran menggunakan media zoom efektif untuk pembelajaran?",
+                            "jawaban": {
+                                "point_id": 2,
+                                "kd_point": "S",
+                                "ket_point": "Setuju",
+                                "mutu": 4,
+                                "rata_rata": 3.5
+                            }
+                        },
+                        ...
+                    ],
+                    ...
+                }
+            }
+        ]
+    }
+}</code></pre>
+    <p>
+        Response kedua adalah jika ingin digunakan langsung ke dalam diagram seperti Pie Chart, sehingga tidak perlu diolah lagi pada sisi client untuk ditampilkan sebagai chart. Untuk mendapatkan response kedua, maka tambahkan query parameter <span class="badge bg-secondary">chart</span> dan isikan dengan nilai true. Sehingga URL-nya menjadi, <span class="badge bg-dark">/kuesioner/perkuliahan/hasil/v2/rata-rata?tahun_id=348&chart=true</span>. Hasilnya:
+    </p>
+    <pre><code class="language json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "kuesioner_perkuliahan": [
+            {
+                "mk_id": 137,
+                "nm_mk": "HAKI &Etika Profesi",
+                "nm_dosen": "Dani Pradana Kartaputra, S.Si., M.T",
+                "semester": 8,
+                "total_mahasiswa": 29,
+                "total_mahasiswa_mengisi_kuesioner": 2,
+                "pertanyaan_dan_jawaban": [
+                    {
+                        "label": "Teknologi Pembelajaran",
+                        "value": 25
+                    },
+                    {
+                        "label": "Kegiatan Awal Pembelajaran",
+                        "value": 22.41
+                    },
+                    {
+                        "label": "Pelaksanaan Pembelajaran",
+                        "value": 27.3
+                    },
+                    {
+                        "label": "Penilaian Hasil Belajar",
+                        "value": 25.29
+                    }
+                ]
+            },
+            {
+                "mk_id": 145,
+                "nm_mk": "Cloud Computing",
+                "nm_dosen": "M. RIZKI PRATAMA. S, S.Kom",
+                "semester": 7,
+                "total_mahasiswa": 50,
+                "total_mahasiswa_mengisi_kuesioner": 2,
+                "pertanyaan_dan_jawaban": [
+                    {
+                        "label": "Teknologi Pembelajaran",
+                        "value": 26.06
+                    },
+                    {
+                        "label": "Kegiatan Awal Pembelajaran",
+                        "value": 18.61
+                    },
+                    {
+                        "label": "Pelaksanaan Pembelajaran",
+                        "value": 28.85
+                    },
+                    {
+                        "label": "Penilaian Hasil Belajar",
+                        "value": 26.47
+                    }
+                ]
+            }
+        ]
     }
 }</code></pre>
 </section>

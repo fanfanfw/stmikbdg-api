@@ -49,19 +49,20 @@ Route::prefix('/kuesioner')
         Route::middleware('auth.admin')
             ->group(function () {
                 Route::get('/tahun-ajaran', [TahunAjaranController::class, 'getTahunAjaranAktifForKuesioner']);
-                
+
                 // kuesioner perkuliahan
                 Route::controller(KuesionerController::class)
                     ->prefix('/perkuliahan')
                     ->group(function () {
                         Route::get('/', 'getMatkulByTahunAjaran');
                         Route::post('/open', 'openKuesionerPerkuliahan');
-                        
+
                         // hasil kuesiner
                         Route::get('/hasil/rata-rata', 'getAverageJawabanKuesioner');
                         Route::controller(HasilPerkuliahanController::class)
                             ->prefix('/hasil')
                             ->group(function () {
+                                Route::get('/v2/rata-rata', 'getAverageJawabanByTahunId');
                                 Route::get('/tahun-ajaran', 'getListTahunAjaran');
                                 Route::get('/semester', 'getListSemester');
                                 Route::get('/dosen', 'getListDosen');

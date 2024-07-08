@@ -1,10 +1,10 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>08-07-2024 | <a href="/docs/api/kuesioner" class="text-decoration-none fw-bold">Kuesioner (Admin - Hasil Kuesioner Perkuliahan)</a></li>
         <li>07-07-2024 | <a href="/docs/api/android/krs" class="text-decoration-none fw-bold">Android - KRS Mahasiswa (Optimasi Kode untuk List Matkul)</a></li>
         <li>20-06-2024 | <a href="/docs/api/surat" class="text-decoration-none fw-bold">Surat Masuk dan Keluar</a></li>
         <li>17-06-2024 | <a href="/docs/api/android/pengumuman" class="text-decoration-none fw-bold">Android - Pengumuman</a></li>
-        <li>11-06-2024 | <a href="/docs/api/kuesioner" class="text-decoration-none fw-bold">Kuesioner (Admin - Hasil Kuesioner Perkuliahan)</a></li>
         <li>07-06-2024 | <a href="/docs/api/android/krs" class="text-decoration-none fw-bold">Android - IP Semester (di KRS - Mahasiswa)</a></li>
         <li>04-06-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian</a></li>
         <li>03-06-2024 | <a href="/docs/api/marketing" class="text-decoration-none fw-bold">Marketing</a></li>
