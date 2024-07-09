@@ -14,6 +14,7 @@ use Kreait\Firebase\Messaging\Notification;
 
 // ? Models - Views
 use App\Models\KelasKuliah\KelasKuliahJoinView;
+use App\Models\KRS\MatkulDiselenggarakanView;
 
 // ? Models - Table
 use App\Models\KRS\KRSMatkul;
@@ -162,11 +163,32 @@ class MainController extends Controller
 
     private function sendNotif($mhsIdArr = null, $pengumuman) {
         try {
-            $title = 'STMIK Bandung';
-            $body = $pengumuman['target'] === 0
-                ? 'Pengumuman penting untuk Mahasiswa STMIK Bandung!'
-                : 'Pengumuman penting untuk Mahasiswa dari ' . $pengumuman['nm_pengirim'];
+            $body = $pengumuman['message'];
 
+            // buat judul untuk notifikasi
+            if ($pengumuman['target'] === 0) {
+                // pengumuman dari admin
+                $title = 'Pengumuman untuk Seluruh Civitas';
+            } else {
+                // pengumuman mata kuliah
+                $kelas = KelasKuliahJoinView::where('kelas_kuliah_id', $pengumuman['target'])
+                    ->select('kelas_kuliah_id', 'mk_id')
+                    ->first();
+
+                if (!$kelas or !array_key_exists('mk_id', $kelas->toArray())) {
+                    $kelas = KelasKuliahJoinView::where('join_kelas_kuliah_id', $pengumuman['target'])
+                        ->select('kelas_kuliah_id', 'mk_id')
+                        ->first();
+                }
+
+                $matkul = MatkulDiselenggarakanView::where('mk_id', $kelas['mk_id'])
+                    ->select('mk_id', 'nm_mk')
+                    ->first();
+
+                $title = 'Pengumuman Mata Kuliah ' . trim($matkul['nm_mk']);
+            }
+
+            // jika null, maka pengumuman dari admin dan ditujukan untuk semua mahasiswa
             if (is_null($mhsIdArr)) {
                 $tokens = FCMClients::where('sts_mhs', 'A')
                     ->select('fcm_client_id', 'client_token')
@@ -182,12 +204,17 @@ class MainController extends Controller
             // send notifikasi
             $messaging = app('firebase.messaging');
 
-            foreach ($tokens as $token) {
-                $message = CloudMessage::withTarget('token', $token)
-                    ->withNotification(Notification::create($title, $body));
+            // kirim secara bertahap (chunk)
+            $tokensCollection = collect($tokens);
 
-                $messaging->send($message);
-            }
+            $tokensCollection->chunk(50)->each(function ($chunk) use ($messaging, $title, $body) {
+                foreach ($chunk as $token) {
+                    $message = CloudMessage::withTarget('token', $token)
+                        ->withNotification(Notification::create($title, $body));
+
+                    $messaging->send($message);
+                }
+            });
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
