@@ -155,3 +155,14 @@
     }
 }</code></pre>
 </section>
+
+<section>
+    <h5 class="mt-5 mb-3 fw-bold">(MHS) Verifikasi Data Pengajuan Wisuda</h5>
+    <p>
+        Kirimkan permintaan ke <span class="badge bg-dark">/wisuda/pengajuan/verifikasi</span> dengan menggunakan HTTP method <span class="badge bg-info">post</span> dan sertakan request payload seperti di bawah ini. Sesuaikan nilai <b>pengajuan_id</b> dengan nilai yang didapat saat get detail pengajuan wisuda oleh mahasiswa.
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "pengajuan_id": 8,
+    "is_verified": true
+}</code></pre>
+</section>

@@ -1,6 +1,7 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>09-07-2024 | <a href="/docs/api/pengajuan-wisuda" class="text-decoration-none fw-bold">Pengajuan Wisuda (Mahasiswa)</a></li>
         <li>08-07-2024 | <a href="/docs/api/kuesioner" class="text-decoration-none fw-bold">Kuesioner (Admin - Hasil Kuesioner Perkuliahan)</a></li>
         <li>07-07-2024 | <a href="/docs/api/android/krs" class="text-decoration-none fw-bold">Android - KRS Mahasiswa (Optimasi Kode untuk List Matkul)</a></li>
         <li>20-06-2024 | <a href="/docs/api/surat" class="text-decoration-none fw-bold">Surat Masuk dan Keluar</a></li>

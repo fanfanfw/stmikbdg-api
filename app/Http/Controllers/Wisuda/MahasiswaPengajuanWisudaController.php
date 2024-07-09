@@ -17,6 +17,7 @@ use App\Models\Wisuda\JadwalWisudaAktifView;
 // ? Models - Tables
 use App\Models\Wisuda\PengajuanWisuda;
 use App\Models\Wisuda\File;
+use Illuminate\Support\Facades\DB;
 
 class MahasiswaPengajuanWisudaController extends Controller
 {
@@ -346,6 +347,43 @@ class MahasiswaPengajuanWisudaController extends Controller
                 'jadwal_wisuda' => $jadwalWisudaAktif,
             ]);
         } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function verifikasi(Request $request) {
+        try {
+            $request->validate([
+                'pengajuan_id' => 'required|integer',
+                'is_verified' => 'required|boolean',
+            ]);
+
+            /**
+             * cek pengajuan dan kepemilikannya
+             */
+            $pengajuan = PengajuanWisudaView::where('pengajuan_id', (int) $request->pengajuan_id)
+                ->first();
+            $mahasiswa = $this->getUserAuth();
+
+            if ($pengajuan and ($mahasiswa['nim'] === $pengajuan['nim'])) {
+                DB::beginTransaction();
+                $update = PengajuanWisuda::where('pengajuan_id', (int) $request->pengajuan_id)
+                    ->update([
+                        'is_verified' => $request->is_verified
+                    ]);
+
+                if ($update) {
+                    DB::commit();
+                    return $this->successfulResponseJSONV2('Pengajuan wisuda berhasil diverifikasi');
+                }
+
+                DB::rollBack();
+                return $this->failedResponseJSON('Pengajuan wisuda gagal diverifikasi');
+            }
+
+            return $this->failedResponseJSON('Pengajuan wisuda tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
             return ErrorHandler::handle($e);
         }
     }

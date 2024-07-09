@@ -13,6 +13,7 @@ Route::prefix('/wisuda')
             ->middleware('auth.mahasiswa')
             ->group(function () {
                 Route::post('/pengajuan', 'addPengajuan');
+                Route::post('/pengajuan/verifikasi', 'verifikasi');
                 Route::put('/pengajuan/{nim}/update', 'updatePengajuan');
                 Route::get('/pengajuan/{nim}', 'getDetailPengajuan');
                 Route::get('/pengajuan/{nim}/status', 'getStatusPengajuan');
