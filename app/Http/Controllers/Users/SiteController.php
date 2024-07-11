@@ -18,29 +18,33 @@ use App\Models\Users\UserSite;
 
 // ? Models - view
 use App\Models\Users\UserSitesView;
+use App\Models\Users\UserView;
 
 class SiteController extends Controller
 {
     public function getAll(Request $request) {
         try {
             $siteId = $request->query('site_id');
+            $siteRole = $request->query('site_role');
+
+            if ($siteRole) {
+                $sites = self::getSitesByRole($siteRole);
+
+                return $this->successfulResponseJSON([
+                    'sites' => $sites
+                ]);
+            }
 
             if ($siteId) {
                 $site = Site::where('id', (int) $siteId)->first();
                 $tempSiteUsers = UserSitesView::where('site_id', $siteId)
                     ->whereNot('user_id', auth()->user()->id)
+                    ->orderBy('user_site_id', 'DESC')
                     ->get();
-                $siteUsers = [];
-
-                foreach ($tempSiteUsers as $index => $item) {
-                    $userEmail = User::where('id', $item['user_id'])->first()['email'];
-                    $item['user_email'] = $userEmail;
-                    $siteUsers[$index] = $item;
-                }
 
                 return $this->successfulResponseJSON([
                     'site_detail' => $site,
-                    'site_users' => array_values($siteUsers),
+                    'site_users' => $tempSiteUsers,
                 ]);
             }
 
@@ -145,28 +149,85 @@ class SiteController extends Controller
     public function deleteAccess(Request $request) {
         try {
             $request->validate([
-                'site_id' => 'required',
-                'user_id'=> 'required',
+                'site_id' => 'required|integer|exists:sites,id',
+                'user_id'=> 'required|integer|exists:users,id',
             ]);
 
+            DB::beginTransaction();
             $deletedAccess = UserSite::where('site_id', $request->site_id)
                 ->where('user_id', $request->user_id)
                 ->delete();
 
+            /**
+             * jika user memiliki role developer
+             * maka ubah nilai is_dev menjadi false
+             */
+            $user = UserView::where('id', $request->user_id)->first();
+
+            if ($user['is_dev']) {
+                User::where('id', $request->user_id)
+                    ->update([
+                        'is_dev' => false
+                    ]);
+            }
+
             if ($deletedAccess) {
+                DB::commit();
                 return $this->successfulResponseJSON([
                     'user_id' => $request->user_id,
                     'site_id' => $request->site_id,
                 ], 'Akses user ke url berhasil dihapus');
             }
 
+            DB::rollBack();
             return response()->json([
                 'status' => 'fail',
                 'message' => 'Gagal menghapus akses user ke web'
-            ], 400);
+            ], 500);
         } catch (\Exception $e) {
+            DB::rollBack();
             return ErrorHandler::handle($e);
         }
+    }
+
+    private function getSitesByRole($role) {
+        switch ($role) {
+            case 'dev':
+                $sites = Site::where('is_dev', true)
+                    ->select('id', 'url', 'name')
+                    ->orderBy('id', 'DESC')
+                    ->get();
+                break;
+            case 'mhs':
+                $sites = Site::where('is_mhs', true)
+                    ->select('id', 'url', 'name')
+                    ->orderBy('id', 'DESC')
+                    ->get();
+                break;
+            case 'dsn':
+                $sites = Site::where('is_dosen', true)
+                    ->select('id', 'url', 'name')
+                    ->orderBy('id', 'DESC')
+                    ->get();
+                break;
+            case 'stf':
+                $sites = Site::where('is_staff', true)
+                    ->select('id', 'url', 'name')
+                    ->orderBy('id', 'DESC')
+                    ->get();
+                break;
+            case 'adm':
+                $sites = Site::where('is_admin', true)
+                    ->select('id', 'url', 'name')
+                    ->orderBy('id', 'DESC')
+                    ->get();
+                break;
+            default:
+                $sites = [];
+                break;
+        }
+
+        return $sites;
     }
 
     //jangan dulu dipake

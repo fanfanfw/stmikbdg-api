@@ -300,4 +300,19 @@ class UserController extends Controller {
             return ErrorHandler::handle($e);
         }
     }
+
+    public function getAllUsers() {
+        try {
+            $users = UserView::whereNot('is_admin', true)
+                ->select('id', 'email')
+                ->orderBy('id', 'DESC')
+                ->get();
+
+            return $this->successfulResponseJSON([
+                'users' => $users
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
 }

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Users\AdminController;
+use App\Http\Controllers\Users\DevController;
 use App\Http\Controllers\Users\DosenController;
 use App\Http\Controllers\Users\MahasiswaController;
 use App\Http\Controllers\Users\SiteController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\Users\UserController;
 Route::prefix('/sso')
     ->middleware(['auth.jwt', 'auth.admin'])
     ->group(function () {
+        Route::get('/users/list', [UserController::class, 'getAllUsers']);
         Route::get('/users/statistik', [UserController::class, 'getStatistik']);
 
        // staff
@@ -61,12 +63,18 @@ Route::prefix('/sso')
 
         Route::controller(SiteController::class)
             ->prefix('/sites')
-            ->middleware(['auth.jwt', 'auth.admin'])
             ->group(function () {
                 Route::get('/list', 'getAll');
                 Route::post('/add', 'addSite');
                 Route::post('/user-access', 'addAccess');
                 Route::delete('/user-access', 'deleteAccess');
             });
-        });
+
+        Route::controller(DevController::class)
+            ->prefix('/developer')
+            ->group(function () {
+                Route::get('/list', 'getAllDevelopers');
+                Route::put('/access', 'changeAccess');
+            });
+    });
 
