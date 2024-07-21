@@ -46,11 +46,11 @@
                     <li><a class="dropdown-item" href="/docs/api/antrian">Antrian</a></li>
                     <li><a class="dropdown-item" href="/docs/api/kuesioner">Kuesioner</a></li>
                     <li><a class="dropdown-item" href="/docs/api/marketing">Marketing</a></li>
-                    <li><a class="dropdown-item" href="/docs/api/berita-acara">Berita Acara</a></li>
+                    {{-- <li><a class="dropdown-item" href="/docs/api/berita-acara">Berita Acara</a></li> --}}
                     <li><a class="dropdown-item" href="/docs/api/pengajuan-wisuda">Pengajuan Wisuda</a></li>
                     <li><a class="dropdown-item" href="/docs/api/surat">Surat Masuk dan Keluar</a></li>
                     <hr>
-                    <li><a class="dropdown-item" href="/docs/api/acl">ACL (For Admin)</a></li>
+                    <li><a class="dropdown-item" href="/docs/api/acl">Access Control Level</a></li>
                 </ul>
             </li>
 

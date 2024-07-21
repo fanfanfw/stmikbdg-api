@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Docs\DocAclController;
 use App\Http\Controllers\Docs\DocsController;
 use App\Http\Controllers\Docs\DocsAuthController;
 use App\Http\Controllers\Docs\DocSuratController;
@@ -23,7 +24,6 @@ Route::controller(DocsController::class)
         // ? Routes sesudah login
         Route::get('/authentications', 'authentications');
         Route::get('/users', 'users');
-        Route::get('/acl', 'acl');
         Route::get('/kelas-mahasiswa', 'kelasKuliahMahasiswa');
         Route::get('/kelas-dosen', 'kelasKuliahDosen');
         Route::get('/kamus', 'kamus');
@@ -61,5 +61,13 @@ Route::controller(DocsController::class)
             ->group(function () {
                 Route::get('', 'index');
                 Route::get('/tabs/{name}', 'suratTabs');
+            });
+
+        // * ACL
+        Route::controller(DocAclController::class)
+            ->prefix('/acl')
+            ->group(function () {
+                Route::get('', 'index');
+                Route::get('/tabs/{name}', 'aclTabs');
             });
     });
