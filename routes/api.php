@@ -33,6 +33,9 @@ require __DIR__.'/api/surat.php';
 // ? ACL Routes
 require __DIR__.'/api/acl.php';
 
+// ? Verdig Routes
+require __DIR__.'/api/verdig.php';
+
 // ? Additional Routes (Tambahan)
 require __DIR__.'/api/additional.php';
 require __DIR__.'/api/file.php';
