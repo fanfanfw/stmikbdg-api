@@ -5,5 +5,5 @@
     </p>
 </div>
 <div class="alert alert-info">
-    Untuk informasi tambahan lainnya bisa mengunjungi halaman <a href="/docs/api/kamus"><b>Kamus</b></a> dan <a href="/docs/api/additional"><b>Additional</b></a>. Anda juga dapat memantau perubahan apa saja yang dilakukan secara langsung di halaman <a href="https://github.com/suhaefifzn/stmikbdg-api/commits/master/" target="_blank" rel="noopener"><b>GitHub Commit History STMIK Bandung API</b></a>.
+    Untuk informasi tambahan lainnya bisa mengunjungi halaman <a href="/docs/api/kamus"><b>Kamus</b></a> dan <a href="/docs/api/additional"><b>Additional</b></a>.
 </div>
