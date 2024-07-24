@@ -42,5 +42,6 @@ Route::middleware('auth.jwt')
                 Route::get('/list', 'getListPengumuman');
                 Route::get('/kelas-kuliah', 'getListKelasKuliah');
                 Route::post('/token/add', 'registerToken');
+                Route::get('/token/check', 'checkFCMToken');
             });
     });

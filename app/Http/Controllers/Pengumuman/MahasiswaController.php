@@ -176,4 +176,24 @@ class MahasiswaController extends Controller
             return ErrorHandler::handle($e);
         }
     }
+
+    public function checkFCMToken() {
+        try {
+            $mahasiswa = $this->getUserAuth();
+            $token = FCMClients::where('mhs_id', $mahasiswa['mhs_id'])->first();
+
+            if ($token) {
+                return $this->successfulResponseJSON([
+                    'token' => $token['client_token']
+                ]);
+            }
+
+            return response()->json([
+                'status' => 'failed',
+                'message' => 'FCM token tidak ditemukan'
+            ], 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
 }
