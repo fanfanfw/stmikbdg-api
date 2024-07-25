@@ -160,6 +160,16 @@ class MahasiswaController extends Controller
 
             DB::beginTransaction();
 
+            /**
+             * jika mahasiswa telah memiliki fcm token
+             * maka hapus yang lama
+             */
+            $tokenExists = FCMClients::where('mhs_id', $mahasiswa['mhs_id'])->first();
+
+            if ($tokenExists) {
+                FCMClients::where('mhs_id', $mahasiswa['mhs_id'])->delete();
+            }
+
             $insert = FCMClients::insert($data);
 
             if ($insert) {
