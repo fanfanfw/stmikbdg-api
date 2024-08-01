@@ -61,6 +61,7 @@ Route::prefix('/antrian')
                         Route::post('/add', 'addAntrianSidang');
                         Route::put('/update', 'updateAntrianSidang');
                         Route::delete('/delete', 'deleteAntrianSidang');
+                        Route::get('/jenis', 'getJenisSidang');
                     });
             });
 

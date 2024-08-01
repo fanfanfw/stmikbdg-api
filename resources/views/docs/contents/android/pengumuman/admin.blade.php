@@ -30,6 +30,33 @@
         ]
     }
 }</code></pre>
+    <p>
+        Jika ingin dibuat pagination, maka tambahkan query parameter <span class="badge bg-secondary">page</span> dan isi nilai query tersebut dengan nomor halaman. Contohnya adalah <span class="badge bg-dark">/pengumuman/admin/list?page=2</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "list_oengumuman": [
+            {
+                "pengumuman_id": 12,
+                "target": 0,
+                "pengirim": 1,
+                "nm_pengirim": "Admin",
+                "tgl_dikirim": "2024-08-01 17:26:54",
+                "image": null,
+                "message": "Test pengumuman ke-1 oleh Admin",
+                "avatar_pengirim": "admin.png"
+            }
+        ]
+    },
+    "meta": {
+        "current_page": 2,
+        "total_items": 6,
+        "items_per_page": 5,
+        "prev_page_url": "http://stmikbdg-api.test/api/pengumuman/admin/list?page=1",
+        "next_page_url": null
+    }
+}</code></pre>
 </section>
 
 <section>

@@ -1,6 +1,8 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>01-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Jenis Sidang)</a></li>
+        <li>01-08-2024 | <a href="/docs/api/android/pengumuman" class="text-decoration-none fw-bold">Android - Pengumuman (Pagination)</a></li>
         <li>21-07-2024 | <a href="/docs/api/acl" class="text-decoration-none fw-bold">Access Control Level</a></li>
         <li>09-07-2024 | <a href="/docs/api/pengajuan-wisuda" class="text-decoration-none fw-bold">Pengajuan Wisuda (Mahasiswa)</a></li>
         <li>08-07-2024 | <a href="/docs/api/kuesioner" class="text-decoration-none fw-bold">Kuesioner (Admin - Hasil Kuesioner Perkuliahan)</a></li>

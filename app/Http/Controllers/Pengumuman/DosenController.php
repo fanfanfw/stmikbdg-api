@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Pengumuman;
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Collection;
 
 // ? Models - views
 use App\Models\TahunAjaranView;
@@ -75,6 +77,7 @@ class DosenController extends Controller
 
     public function getListPengumuman(Request $request) {
         try {
+            $page = $request->query('page');
             $dosen = $this->getUserAuth();
 
             $kelasKuliahId = $request->query('kelas_kuliah_id');
@@ -119,6 +122,35 @@ class DosenController extends Controller
             $listPengumuman = Pengumuman::whereIn('target', $filteredKelasKuliah)
                 ->orderBy('tgl_dikirim', 'DESC')
                 ->get();
+
+            if ($page) {
+                $perPage = 5;
+                $currentPage = (integer) $page ?? Paginator::resolveCurrentPage();
+                $currentPageData = Collection::make($listPengumuman)->slice(($currentPage - 1) * $perPage, $perPage);
+                $paginator = new Paginator($currentPageData->all(), $perPage, $currentPage);
+                $paginatedData = array_values($paginator->items());
+                $totalNextItems = count($listPengumuman) - ($currentPage == 1
+                    ? $currentPageData->count()
+                    : $currentPageData->count() + ($perPage * $currentPage)
+                );
+
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [
+                        'list_oengumuman' => $paginatedData,
+                    ],
+                    'meta' => [
+                        'current_page' => $currentPage,
+                        'total_items' => count($listPengumuman),
+                        'items_per_page' => $paginator->perPage(),
+                        'prev_page_url' => $currentPage == 1 ? null
+                            :  config('app.url') . 'api/pengumuman/dosen/list' . substr($paginator->previousPageUrl(), 1),
+                        'next_page_url' => ($totalNextItems > -1 and count($listPengumuman) > $perPage)
+                            ? config('app.url') . 'api/pengumuman/dosen/list?page=' . $currentPage + 1
+                            : null,
+                    ],
+                ], 200);
+            }
 
             return $this->successfulResponseJSON([
                 'list_pengumuman' => $listPengumuman

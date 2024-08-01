@@ -11,12 +11,23 @@ use Illuminate\Support\Carbon;
 // ? Models - Tables
 use App\Models\Antrian\Sidang;
 use App\Models\Antrian\Dosen;
+use App\Models\Antrian\JenisSidang;
 
 class AdminController extends Controller
 {
-    public function getAllAntrianSidang() {
+    public function getAllAntrianSidang(Request $request) {
         try {
-            $allSidang = Sidang::orderBy('created_at', 'DESC')->get();
+            $query = $request->query('jenis_sidang_id');
+
+            if ($query) {
+                $jenisSidangId = filter_var($query, FILTER_VALIDATE_INT);
+                $allSidang = Sidang::where('jenis_sidang_id', $jenisSidangId)
+                    ->with('jenisSidang')
+                    ->orderBy('created_at', 'DESC')
+                    ->get();
+            } else {
+                $allSidang = Sidang::with('jenisSidang')->orderBy('created_at', 'DESC')->get();
+            }
 
             return $this->successfulResponseJSON([
                 'list_antrian' => $allSidang,
@@ -29,7 +40,7 @@ class AdminController extends Controller
     public function getAntrianSidang($sidangId) {
         try {
             if ($sidangId) {
-                $sidang = Sidang::where('sidang_id', (int) $sidangId)->first();
+                $sidang = Sidang::where('sidang_id', (int) $sidangId)->with('jenisSidang')->first();
 
                 if ($sidang) {
                     return $this->successfulResponseJSON([
@@ -80,14 +91,16 @@ class AdminController extends Controller
                 'nm_mhs' => 'required|string',
                 'tgl_sidang' => 'required|string',
                 'dosen_penguji1' => 'required|string',
-                'dosen_penguji2' => 'required|string'
+                'dosen_penguji2' => 'required|string',
+                'jenis_sidang_id' => 'required|integer'
             ]);
 
             $data = [
                 'nim' => $request->nim,
                 'nm_mhs' => strtoupper($request->nm_mhs),
                 'dosen_penguji1' => strtoupper($request->dosen_penguji1),
-                'dosen_penguji2' => strtoupper($request->dosen_penguji2)
+                'dosen_penguji2' => strtoupper($request->dosen_penguji2),
+                'jenis_sidang_id' => $request->jenis_sidang_id
             ];
 
             /**
@@ -95,7 +108,7 @@ class AdminController extends Controller
              */
             $dosen = Dosen::where('nm_dosen', 'like', '%' . strtoupper($request->dosen_pembimbing) . '%')
                 ->first();
-            
+
             if (!$dosen) {
                 return $this->failedResponseJSON('Data dosen pembimbing tidak ditemukan', 404);
             }
@@ -137,14 +150,16 @@ class AdminController extends Controller
                     'nm_mhs' => 'required|string',
                     'tgl_sidang' => 'required|string',
                     'dosen_penguji1' => 'required|string',
-                    'dosen_penguji2' => 'required|string'
+                    'dosen_penguji2' => 'required|string',
+                    'jenis_sidang_id' => 'required|integer'
                 ]);
 
                 $data = [
                     'nim' => $request->nim,
                     'nm_mhs' => strtoupper($request->nm_mhs),
                     'dosen_penguji1' => strtoupper($request->dosen_penguji1),
-                    'dosen_penguji2' => strtoupper($request->dosen_penguji2)
+                    'dosen_penguji2' => strtoupper($request->dosen_penguji2),
+                    'jenis_sidang_id' => $request->jenis_sidang_id
                 ];
 
                 /**
@@ -178,6 +193,17 @@ class AdminController extends Controller
             return $this->failedResponseJSON('Antrian sidang tidak ditemukan', 404);
         } catch (\Exception $e){
             DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getJenisSidang() {
+        try {
+            $jenisSidangAll = JenisSidang::all();
+            return $this->successfulResponseJSON([
+                'jenis_sidang' => $jenisSidangAll
+            ]);
+        } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
     }

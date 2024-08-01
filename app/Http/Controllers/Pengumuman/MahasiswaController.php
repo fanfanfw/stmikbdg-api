@@ -7,15 +7,17 @@ use App\Http\Controllers\Controller;
 use App\Models\KampusView;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Collection;
 
 // ? Models - Views
 use App\Models\KelasKuliah\KelasKuliahJoinView;
 use App\Models\Users\DosenView;
+use App\Models\TahunAjaranView;
 
 // ? Models - Tables
 use App\Models\Perkuliahan\Pengumuman;
 use App\Models\KRS\KRSMatkul;
-use App\Models\TahunAjaranView;
 use App\Models\Users\Mahasiswa;
 use App\Models\KRS\KRS;
 use App\Models\Perkuliahan\FCMClients;
@@ -24,6 +26,7 @@ class MahasiswaController extends Controller
 {
     public function getListPengumuman(Request $request) {
         try {
+            $page = $request->query('page');
             $nim = explode('-', auth()->user()->kd_user)[1];
             $lastKrs = Mahasiswa::where('nim', $nim)
                 ->select('mhs_id', 'krs_id_last')
@@ -65,6 +68,35 @@ class MahasiswaController extends Controller
             $listPengumuman = Pengumuman::whereIn('target', $kelasKuliahIdArr)
                 ->orderBy('tgl_dikirim', 'DESC')
                 ->get();
+
+            if ($page) {
+                $perPage = 5;
+                $currentPage = (integer) $page ?? Paginator::resolveCurrentPage();
+                $currentPageData = Collection::make($listPengumuman)->slice(($currentPage - 1) * $perPage, $perPage);
+                $paginator = new Paginator($currentPageData->all(), $perPage, $currentPage);
+                $paginatedData = array_values($paginator->items());
+                $totalNextItems = count($listPengumuman) - ($currentPage == 1
+                    ? $currentPageData->count()
+                    : $currentPageData->count() + ($perPage * $currentPage)
+                );
+
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [
+                        'list_oengumuman' => $paginatedData,
+                    ],
+                    'meta' => [
+                        'current_page' => $currentPage,
+                        'total_items' => count($listPengumuman),
+                        'items_per_page' => $paginator->perPage(),
+                        'prev_page_url' => $currentPage == 1 ? null
+                            :  config('app.url') . 'api/pengumuman/mahasiswa/list' . substr($paginator->previousPageUrl(), 1),
+                        'next_page_url' => ($totalNextItems > -1 and count($listPengumuman) > $perPage)
+                            ? config('app.url') . 'api/pengumuman/mahasiswa/list?page=' . $currentPage + 1
+                            : null,
+                    ],
+                ], 200);
+            }
 
             return $this->successfulResponseJSON([
                 'list_pengumuman' => $listPengumuman

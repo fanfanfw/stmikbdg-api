@@ -8,16 +8,21 @@
     "data": {
         "list_antrian": [
             {
-                "sidang_id": 1,
+                "sidang_id": 2,
                 "dosen_id": 2,
-                "kd_dosen": "MN",
+                "kd_dosen": "IF054",
                 "nm_dosen": "MINA ISMU RAHAYU, M.T",
                 "nim": "1220001",
                 "nm_mhs": "SUHAEFI FAUZIAN",
-                "dosen_penguji1": "RENA WIJAWA, S.KOM",
-                "dosen_penguji2": "M. RIZKY PRATAMA, S.KOM",
-                "tgl_sidang": "2024-08-25",
-                "created_at": "2024-05-27 20:40:55"
+                "dosen_penguji1": "KHOIRIDA AELANI",
+                "dosen_penguji2": "LINDA APRIYANTI",
+                "tgl_sidang": "2024-07-31",
+                "jenis_sidang_id": 1,
+                "created_at": "2024-08-01 16:48:22",
+                "jenis_sidang": {
+                    "jenis_sidang_id": 1,
+                    "nama": "Sidang Kerja Praktek"
+                }
             }
         ]
     }
@@ -32,16 +37,21 @@
     "status": "success",
     "data": {
         "antrian": {
-            "sidang_id": 1,
+            "sidang_id": 2,
             "dosen_id": 2,
-            "kd_dosen": "MN",
+            "kd_dosen": "IF054",
             "nm_dosen": "MINA ISMU RAHAYU, M.T",
             "nim": "1220001",
             "nm_mhs": "SUHAEFI FAUZIAN",
-            "dosen_penguji1": "RENA WIJAWA, S.KOM",
-            "dosen_penguji2": "M. RIZKY PRATAMA, S.KOM",
-            "tgl_sidang": "2024-08-25",
-            "created_at": "2024-05-27 20:40:55"
+            "dosen_penguji1": "KHOIRIDA AELANI",
+            "dosen_penguji2": "LINDA APRIYANTI",
+            "tgl_sidang": "2024-07-31",
+            "jenis_sidang_id": 1,
+            "created_at": "2024-08-01 16:48:22",
+            "jenis_sidang": {
+                "jenis_sidang_id": 1,
+                "nama": "Sidang Kerja Praktek"
+            }
         }
     }
 }</code></pre>
@@ -54,10 +64,11 @@
     <pre><code class="language-json bg-primary-subtle">{
     "nim": "1220001",
     "nm_mhs": "Suhaefi Fauzian",
-    "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
-    "dosen_penguji1": "Rena Wijawa, S.Kom",
-    "dosen_penguji2": "M. Rizky Pratama, S.Kom",
-    "tgl_sidang": "25-08-2024"
+    "dosen_pembimbing": "Mina Ismu Rahayu",
+    "dosen_penguji1": "Khoirida Aelani",
+    "dosen_penguji2": "Linda Apriyanti",
+    "tgl_sidang": "31-07-2024",
+    "jenis_sidang_id": 2
 }</code></pre>
 </section>
 <section>
@@ -66,13 +77,14 @@
         Sertakan payload seperti di bawah ini dan kirimkan permintaan ke <span class="badge bg-dark">/antrian/sidang/update</span> dengan menggunakan HTTP method <span class="badge bg-info">put</span>. Contoh payload:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
-    "sidang_id": 1,
+    "sidang_id": 2,
     "nim": "1220001",
-    "nm_mhs": "Suhaefi Fauzian - EDIT",
-    "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
-    "dosen_penguji1": "Rena Wijawa, S.Kom",
-    "dosen_penguji2": "M. Rizky Pratama, S.Kom",
-    "tgl_sidang": "25-10-2024"
+    "nm_mhs": "Suhaefi Fauzian",
+    "dosen_pembimbing": "Mina Ismu Rahayu",
+    "dosen_penguji1": "Khoirida Aelani",
+    "dosen_penguji2": "Linda Apriyanti",
+    "tgl_sidang": "31-07-2024",
+    "jenis_sidang_id": 1
 }</code></pre>
 </section>
 <section>
@@ -82,5 +94,26 @@
     </p>
     <pre><code class="language-json bg-primary-subtle">{
     "sidang_id": 1
+}</code></pre>
+</section>
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(ADM) Get Jenis Sidang</h5>
+    <p>
+        Untuk mendapatkan list jenis sidang kirimkan permintaan ke <span class="badge bg-dark">/antrian/sidang/jenis</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json">{
+    "status": "success",
+    "data": {
+        "jenis_sidang": [
+            {
+                "jenis_sidang_id": 1,
+                "nama": "Sidang Kerja Praktek"
+            },
+            {
+                "jenis_sidang_id": 2,
+                "nama": "Sidang Skripsi"
+            }
+        ]
+    }
 }</code></pre>
 </section>

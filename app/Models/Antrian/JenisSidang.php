@@ -5,20 +5,18 @@ namespace App\Models\Antrian;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-use App\Models\Antrian\JenisSidang;
-
-class Sidang extends Model
+class JenisSidang extends Model
 {
     /**
-     * Model ini mengarah ke tabel sidang db simak baru skema antrian
+     * Model ini mengarah ke tabel jenis sidang db simak baru skema antrian
      */
     use HasFactory;
 
-    protected $table = 'antrian.sidang';
+    protected $table = 'antrian.jenis_sidang';
     protected $connection;
-    protected $guarded = ['sidang_id'];
+    protected $guarded = ['jenis_sidang_id'];
 
-    public $primaryKey = 'sidang_id';
+    public $primaryKey = 'jenis_sidang_id';
     public $timestamps = false;
 
     public function __construct()
@@ -26,7 +24,7 @@ class Sidang extends Model
         $this->connection = config('myconfig.database.first_connection');
     }
 
-    public function jenisSidang() {
-        return $this->belongsTo(JenisSidang::class, 'jenis_sidang_id');
+    public function sidang() {
+        return $this->hasMany(Sidang::class, 'jenis_sidang_id', 'jenis_sidang_id');
     }
 }
