@@ -124,6 +124,7 @@ class DosenController extends Controller
                         Staff::insert($staff);
                     }
 
+
                     if (($dosenSites->count() > 0)) {
                         $siteAccess = array_map(function ($item) use ($insertUser) {
                             $item['user_id'] = $insertUser->id;
@@ -134,20 +135,15 @@ class DosenController extends Controller
                             return $item;
                         }, $dosenSites->toArray());
 
-                        $inserSiteAccess = UserSite::insert($siteAccess);
-
-                        if ($inserSiteAccess) {
-                            DB::commit();
-
-                            return $this->successfulResponseJSONV2('Akun dosen berhasil ditambahkan dan sudah dapat mengakses setiap sistem informasi untuk dosen yang ada saat ini yang sudah terintegrasi dengan SSO');
-                        }
-
-
-                        DB::rollBack();
-
-                        return $this->failedResponseJSON('Akun dosen gagal ditambahkan');
+                        UserSite::insert($siteAccess);
                     }
+
+                    DB::commit();
+                    return $this->successfulResponseJSONV2('Akun dosen berhasil ditambahkan dan sudah dapat mengakses setiap sistem informasi untuk dosen yang ada saat ini yang sudah terintegrasi dengan SSO');
                 }
+
+                DB::rollBack();
+                return $this->failedResponseJSON('Akun dosen gagal ditambahkan');
             }
 
             return $this->failedResponseJSON('Data dosen tidak ditemukan', 404);
