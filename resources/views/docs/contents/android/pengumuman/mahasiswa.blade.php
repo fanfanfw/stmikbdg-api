@@ -133,3 +133,18 @@
     }
 }</code></pre>
 </section>
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(MHS) Check Token</h5>
+    <p>
+        Untuk cek apakah FCM token mahasiswa telah terdaftar atau tidak, kirimkan permintaan ke <span class="badge bg-dark">/pengumuman/mahasiswa/token/check</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika token telah tersedia API akan memberikan response seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "token": "asdXxxxxx....................."
+    }
+}</code></pre>
+    <p>
+        Lalu bagaimana jika user mengganti perangkat mobile miliknya? Maka cukup subcribe atau kirim ulang FCM token yang baru, secara otomatis sistem pada API akan menghapus FCM token lama milik user.
+    </p>
+</section>
