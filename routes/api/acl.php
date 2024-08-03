@@ -68,6 +68,7 @@ Route::prefix('/sso')
                 Route::post('/add', 'addSite');
                 Route::post('/user-access', 'addAccess');
                 Route::delete('/user-access', 'deleteAccess');
+                Route::post('/user-access/all', 'addAllAccesses');
             });
 
         Route::controller(DevController::class)

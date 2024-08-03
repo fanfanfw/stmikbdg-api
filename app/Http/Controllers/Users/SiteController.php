@@ -190,6 +190,50 @@ class SiteController extends Controller
         }
     }
 
+    public function addAllAccesses(Request $request) {
+        try {
+            $request->validate([
+                'user_id' => 'integer|exists:users,id'
+            ]);
+
+            DB::beginTransaction();
+            UserSite::where('user_id', $request->user_id)->delete();
+            User::where('id', $request->user_id)
+                ->update([
+                    'is_dev' => true,
+                    'is_dosen' => true,
+                    'is_doswal' => true,
+                    'is_prodi' => true,
+                    'is_wk' => true,
+                    'is_staff' => true,
+                    'is_admin' => true
+                ]);
+
+            $siteIds = Site::select('id')->get();
+            $userSites = [];
+
+            foreach ($siteIds as $item) {
+                array_push($userSites, [
+                    'user_id' => $request->user_id,
+                    'site_id' => $item['id']
+                ]);
+            }
+
+            $insert = UserSite::insert($userSites);
+
+            if ($insert) {
+                DB::commit();
+                return $this->successfulResponseJSONV2('Berhasil menambahkan semua akses untuk user');
+            }
+
+            DB::rollBack();
+            return $this->failedResponseJSON('Gagal menambahkan semua akses');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
     private function getSitesByRole($role) {
         switch ($role) {
             case 'dev':
