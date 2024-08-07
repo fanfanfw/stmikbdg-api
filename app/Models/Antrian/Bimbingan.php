@@ -5,6 +5,8 @@ namespace App\Models\Antrian;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+use App\Models\Antrian\JenisBimbingan;
+
 class Bimbingan extends Model
 {
     /**
@@ -22,5 +24,9 @@ class Bimbingan extends Model
     public function __construct()
     {
         $this->connection = config('myconfig.database.first_connection');
+    }
+
+    public function jenisBimbingan() {
+        return $this->belongsTo(JenisBimbingan::class, 'jenis_bimbingan_id');
     }
 }

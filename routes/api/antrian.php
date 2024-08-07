@@ -39,6 +39,7 @@ Route::prefix('/antrian')
                         Route::put('/update', 'updateAntrianBimbingan');
                         Route::get('/detail/{bimbingan_id}', 'getAntrianBimbingan');
                         Route::put('/status/update', 'updateStatusAntrianBimbingan');
+                        Route::get('/list/jenis-bimbingan', 'getAllJenisBimbingan');
                     });
 
                 // mengelola antrian tamu

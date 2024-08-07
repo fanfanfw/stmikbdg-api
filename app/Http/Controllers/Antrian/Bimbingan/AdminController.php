@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 // ? Models - Tables
 use App\Models\Antrian\Bimbingan;
 use App\Models\Antrian\Dosen;
+use App\Models\Antrian\JenisBimbingan;
 
 class AdminController extends Controller
 {
@@ -21,9 +22,10 @@ class AdminController extends Controller
                 'nm_mhs' => 'required|string',
                 'dosen_pembimbing' => 'required|string',
                 'kd_dosen' => 'required|string',
-                'tgl_bimbingan' => 'required|string'
+                'tgl_bimbingan' => 'required|string',
+                'jenis_bimbingan_id' => 'required|integer',
+                'judul' => 'required|string'
             ]);
-
 
             /**
              * cek dosen pembimbing
@@ -32,6 +34,16 @@ class AdminController extends Controller
 
             if (!$dosen) {
                 return $this->failedResponseJSON('Dosen tidak ditemukan', 404);
+            }
+
+            /**
+             * cek jenis bimbingan id
+             */
+            $jenisBimbingan = JenisBimbingan::where('jenis_bimbingan_id', $request->jenis_bimbingan_id)
+                ->first();
+
+            if (!$jenisBimbingan) {
+                return $this->failedResponseJSON('Jenis bimbingan tidak ditemukan', 404);
             }
 
             /**
@@ -44,6 +56,8 @@ class AdminController extends Controller
                 'kd_dosen' => $dosen['kd_dosen'],
                 'nm_dosen' => $dosen['nm_dosen'],
                 'tgl_bimbingan' => Carbon::createFromFormat('d-m-Y', $request->tgl_bimbingan),
+                'jenis_bimbingan_id' => $request->jenis_bimbingan_id,
+                'judul' => $request->judul,
                 'created_at' => Carbon::now()
             ];
 
@@ -72,19 +86,26 @@ class AdminController extends Controller
             if ($isSudah and !$kdDosen) {
                 // filter is_sudah saja
                 $filteredIsSudah = filter_var($isSudah, FILTER_VALIDATE_BOOLEAN);
-                $antrianBimbingan = Bimbingan::where('is_sudah', $filteredIsSudah)->get();
+                $antrianBimbingan = Bimbingan::where('is_sudah', $filteredIsSudah)
+                    ->with('jenisBimbingan')
+                    ->get();
             } else if ($kdDosen and !$isSudah) {
                 // filter kd_dosen saja
-                $antrianBimbingan = Bimbingan::where('kd_dosen', $kdDosen)->get();
+                $antrianBimbingan = Bimbingan::where('kd_dosen', $kdDosen)
+                    ->with('jenisBimbingan')
+                    ->get();
             } else if ($isSudah and $kdDosen) {
                 // filter is_sudah dan kd_dosen
                 $filteredIsSudah = filter_var($isSudah, FILTER_VALIDATE_BOOLEAN);
                 $antrianBimbingan = Bimbingan::where('is_sudah', $filteredIsSudah)
                     ->where('kd_dosen', $kdDosen)
+                    ->with('jenisBimbingan')
                     ->get();
             } else {
                 // tanpa filter dan jika filter tidak sesuai
-                $antrianBimbingan = Bimbingan::orderBy('created_at', 'DESC')->get();
+                $antrianBimbingan = Bimbingan::orderBy('created_at', 'DESC')
+                    ->with('jenisBimbingan')
+                    ->get();
             }
 
             return $this->successfulResponseJSON([
@@ -98,7 +119,9 @@ class AdminController extends Controller
     public function getAntrianBimbingan($bimbinganId) {
         try {
             if ($bimbinganId) {
-                $bimbingan = Bimbingan::where('bimbingan_id', (int) $bimbinganId)->first();
+                $bimbingan = Bimbingan::where('bimbingan_id', (int) $bimbinganId)
+                    ->with('jenisBimbingan')
+                    ->first();
 
                 if ($bimbingan) {
                     return $this->successfulResponseJSON([
@@ -156,13 +179,26 @@ class AdminController extends Controller
                     'dosen_pembimbing' => 'required|string',
                     'kd_dosen' => 'required|string',
                     'tgl_bimbingan' => 'required|string',
+                    'jenis_bimbingan_id' => 'required|integer',
+                    'judul' => 'required|string',
                 ]);
+
+                /**
+                 * cek jenis bimbingan
+                 */
+                $jenisBimbingan = JenisBimbingan::where('jenis_bimbingan_id', $request->jenis_bimbingan_id)->first();
+
+                if (!$jenisBimbingan) {
+                    return $this->failedResponseJSON('Jenis bimbingan tidak ditemukan', 404);
+                }
 
                 $data = [
                     'nim' => $request->nim,
                     'nm_mhs' => strtoupper($request->nm_mhs),
                     'tgl_bimbingan' => Carbon::createFromFormat('d-m-Y', $request->tgl_bimbingan),
-                    'created_at' => Carbon::now()
+                    'created_at' => Carbon::now(),
+                    'jenis_bimbingan_id' => $request->jenis_bimbingan_id,
+                    'judul' => $request->judul
                 ];
 
                 /**
@@ -225,6 +261,17 @@ class AdminController extends Controller
             return $this->failedResponseJSON('Antrian bimbingan tidak ditemukan', 404);
         } catch (\Exception $e) {
             DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getAllJenisBimbingan() {
+        try {
+            $allJenisBimbingan = JenisBimbingan::all();
+            return $this->successfulResponseJSON([
+                'jenis_bimbingan' => $allJenisBimbingan
+            ]);
+        } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
     }

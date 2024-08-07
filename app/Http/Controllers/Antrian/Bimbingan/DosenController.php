@@ -26,11 +26,13 @@ class DosenController extends Controller
                     $filteredIsSudah = filter_var($isSudah, FILTER_VALIDATE_BOOLEAN);
                     $antrianBimbingan = Bimbingan::where('dosen_id', $dosen['dosen_id'])
                         ->where('is_sudah', $filteredIsSudah)
+                        ->with('jenisBimbingan')
                         ->orderBy('bimbingan_id', 'DESC')
                         ->get();
                 } else {
                     // tanpa filter
                     $antrianBimbingan = Bimbingan::where('dosen_id', $dosen['dosen_id'])
+                        ->with('jenisBimbingan')
                         ->orderBy('bimbingan_id', 'DESC')
                         ->get();
                 }

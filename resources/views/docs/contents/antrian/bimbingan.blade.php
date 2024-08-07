@@ -1,25 +1,35 @@
+<section class="mt-4">
+    <h5 class="mb-3 fw-bold">(ADM) Get All Jenis Bimbingan</h5>
+    <p>
+        Untuk melihat jenis bimbingan yang telah tersedia, kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/list/jenis-bimbingan</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "jenis_bimbingan": [
+            {
+                "jenis_bimbingan_id": 1,
+                "nama": "Bimbingan Kerja Praktek"
+            },
+            {
+                "jenis_bimbingan_id": 2,
+                "nama": "Bimbingan Skripsi"
+            }
+        ]
+    }
+}</code></pre>
+</section>
 <section>
     <h5 class="mt-4 mb-3 fw-bold">(ADM) Get List Antrian Bimbingan</h5>
     <p>
-        Kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/list</span> dengan menggunakan HTTP metod <span class="badge bg-info">get</span>. Tambahkan query parameter <span class="badge bg-secondary">sudah</span> dengan isian nilai berupa boolean jika ingin memfilter hasil yang diinginkan, jika nilai yang dikirim false berarti list antrian bimbingannya adalah belum selesai. Penggunaannya seperti <span class="badge bg-dark">/antrian/bimbingan/list?sudah=false</span>. Response yang diberikan:
+        Kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/list</span> dengan menggunakan HTTP metod <span class="badge bg-info">get</span>. Tambahkan query parameter <span class="badge bg-secondary">is_sudah</span> dengan isian nilai berupa boolean jika ingin memfilter hasil yang diinginkan, jika nilai yang dikirim false berarti list antrian bimbingannya adalah belum selesai. Penggunaannya seperti <span class="badge bg-dark">/antrian/bimbingan/list?is_sudah=false</span>. Response yang diberikan:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
     "status": "success",
     "data": {
         "list_antrian": [
             {
-                "bimbingan_id": 6,
-                "dosen_id": 2,
-                "kd_dosen": "IF054",
-                "nm_dosen": "MINA ISMU RAHAYU, M.T",
-                "nim": "1220313",
-                "nm_mhs": "YOGA PRATAMA",
-                "tgl_bimbingan": "2024-06-16",
-                "is_sudah": false,
-                "created_at": "2024-06-04 20:48:30"
-            },
-            {
-                "bimbingan_id": 5,
+                "bimbingan_id": 9,
                 "dosen_id": 2,
                 "kd_dosen": "IF054",
                 "nm_dosen": "MINA ISMU RAHAYU, M.T",
@@ -27,7 +37,13 @@
                 "nm_mhs": "SUHAEFI FAUZIAN",
                 "tgl_bimbingan": "2024-06-07",
                 "is_sudah": false,
-                "created_at": "2024-06-04 20:41:07"
+                "jenis_bimbingan_id": 2,
+                "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO",
+                "created_at": "2024-08-07 17:47:50",
+                "jenis_bimbingan": {
+                    "jenis_bimbingan_id": 2,
+                    "nama": "Bimbingan Skripsi"
+                }
             }
         ]
     }
@@ -52,18 +68,24 @@
     "status": "success",
     "data": {
         "antrian": {
-            "bimbingan_id": 6,
+            "bimbingan_id": 9,
             "dosen_id": 2,
             "kd_dosen": "IF054",
             "nm_dosen": "MINA ISMU RAHAYU, M.T",
-            "nim": "1220313",
-            "nm_mhs": "YOGA PRATAMA",
-            "tgl_bimbingan": "2024-06-16",
+            "nim": "1220001",
+            "nm_mhs": "SUHAEFI FAUZIAN",
+            "tgl_bimbingan": "2024-06-07",
             "is_sudah": false,
-            "created_at": "2024-06-04 20:48:30"
+            "jenis_bimbingan_id": 2,
+            "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO",
+            "created_at": "2024-08-07 17:47:50",
+            "jenis_bimbingan": {
+                "jenis_bimbingan_id": 2,
+                "nama": "Bimbingan Skripsi"
+            }
         }
     }
-}}</code></pre>
+}</code></pre>
 </section>
 <section>
     <h5 class="mt-5 mb-3 fw-bold">(ADM) Add Antrian Bimbingan</h5>
@@ -71,11 +93,13 @@
         Kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/add</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span> dan sertakan payload dalam format JSON seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
-    "nim": "1220313",
-    "nm_mhs": "Yoga Pratama",
+    "nim": "1220001",
+    "nm_mhs": "Suhaefi Fauzian",
     "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
     "kd_dosen": "IF054",
-    "tgl_bimbingan": "07-06-2024"
+    "tgl_bimbingan": "07-06-2024",
+    "jenis_bimbingan_id": 2,
+    "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO"
 }</code></pre>
 </section>
 <section>
@@ -94,12 +118,14 @@
         Kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/update</span> dengan menggunakan HTTP method <span class="badge bg-blue">put</span> dan sertakan payload dalam JSON seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
-    "bimbingan_id": 6,
-    "nim": "1220313",
-    "nm_mhs": "Yoga Pratama",
+    "bimbingan_id": 9,
+    "nim": "1220001",
+    "nm_mhs": "Suhaefi Fauzian",
     "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
     "kd_dosen": "IF054",
-    "tgl_bimbingan": "16-06-2024"
+    "tgl_bimbingan": "16-06-2024",
+    "jenis_bimbingan_id": 2,
+    "judul": "CONTOH UPDATE - INTEGRASI SISTEM INFORMASI STMIK BANDUNG BERBASIS REST API DAN SSO"
 }</code></pre>
 </section>
 <section>
@@ -108,39 +134,34 @@
         Untuk menghapus antrian bimbingan tertentu, kirimkan permintaan ke <span class="badge bg-dark">/antrian/bimbingan/delete</span> dengan menggunakan HTTP method <span class="badge bg-info">delete</span> dan sertakan nilai <b>bimbingan_id</b> yang akan dihapus dalam payload dengan bentuk JSON seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
-    "bimbingan_id": 6
+    "bimbingan_id": 9
 }</code></pre>
 </section>
 <section>
     <h5 class="mt-5 mb-3 fw-bold">(DSN) Get List Antrian Bimbingan</h5>
     <p>
-        Digunakan oleh dosen untuk get list antrian bimbingan. Kirimkan permintaan ke <span class="badge bg-dark">/antrian/list/bimbingan</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. API akan memberikan response:
+        Digunakan oleh dosen untuk get list antrian bimbingan untuk mahasiswa yang dibimbing olehnya. Kirimkan permintaan ke <span class="badge bg-dark">/antrian/list/bimbingan</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. API akan memberikan response:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
     "status": "success",
     "data": {
         "list_antrian": [
             {
-                "bimbingan_id": 6,
-                "dosen_id": 2,
-                "kd_dosen": "IF054",
-                "nm_dosen": "MINA ISMU RAHAYU, M.T",
-                "nim": "1220313",
-                "nm_mhs": "YOGA PRATAMA",
-                "tgl_bimbingan": "2024-06-16",
-                "is_sudah": false,
-                "created_at": "2024-06-04 20:48:30"
-            },
-            {
-                "bimbingan_id": 5,
+                "bimbingan_id": 9,
                 "dosen_id": 2,
                 "kd_dosen": "IF054",
                 "nm_dosen": "MINA ISMU RAHAYU, M.T",
                 "nim": "1220001",
                 "nm_mhs": "SUHAEFI FAUZIAN",
-                "tgl_bimbingan": "2024-06-07",
-                "is_sudah": true,
-                "created_at": "2024-06-04 20:41:07"
+                "tgl_bimbingan": "2024-06-16",
+                "is_sudah": false,
+                "jenis_bimbingan_id": 2,
+                "judul": "INTEGRASI SISTEM INFORMASI STMIK BANDUNG BERBASIS REST API DAN SSO",
+                "created_at": "2024-08-07 17:50:43",
+                "jenis_bimbingan": {
+                    "jenis_bimbingan_id": 2,
+                    "nama": "Bimbingan Skripsi"
+                }
             }
         ]
     }
