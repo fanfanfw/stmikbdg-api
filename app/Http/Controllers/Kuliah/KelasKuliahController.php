@@ -23,24 +23,18 @@ class KelasKuliahController extends Controller {
         try {
             $filterHari = $request->query('hari');
             $dosen = $this->getUserAuth();
-            $allTahunAjaranAktif = TahunAjaranView::all();
+            $allTahunAjaranAktif = TahunAjaranView::all()->pluck('tahun_id');
 
             // get all kelas kuliah by tahun ajaran aktif and dosen id
-            $kelasKuliah = [];
-
-            foreach ($allTahunAjaranAktif as $index => $item) {
-                $kelasKuliah[$index] = KelasKuliahJoinView::getKelasKuliahByDosen($item['tahun_id'], $dosen['dosen_id']);
-            }
-
-            $kelasKuliah = collect($kelasKuliah)->flatten();
+            $kelasKuliah = KelasKuliahJoinView::getKelasKuliahByDosen($allTahunAjaranAktif, $dosen['dosen_id']);
+            $kelasJoinIdArr = $kelasKuliah->filter(function ($item) {
+                return $item['kjoin_kelas'];
+            })->pluck('kelas_kuliah_id');
+            $filteredKelasKuliah = $kelasKuliah->whereNotIn('kelas_kuliah_id', $kelasJoinIdArr)->flatten();
 
             // get setiap jadwal
-            foreach ($kelasKuliah as $index => $item) {
-                if ($item['kjoin_kelas']) {
-                    $jadwal = JadwalView::getJadwalKelasKuliah($item['join_kelas_kuliah_id'], $dosen['dosen_id'], true);
-                } else {
-                    $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $dosen['dosen_id'], true);
-                }
+            foreach ($filteredKelasKuliah as $index => $item) {
+                $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $dosen['dosen_id'], true);
 
                 // get riwayat pertemuan
                 $riwayatPertemuan = Pertemuan::getRiwayatPertemuanKelasKuliahByDosen($item['kelas_kuliah_id'], $dosen['dosen_id']);
@@ -65,15 +59,15 @@ class KelasKuliahController extends Controller {
                 ];
 
                 // atur response properti kelas dan jadwal
-                $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
+                $filteredKelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
             }
 
             // urutkan berdasarkan nama hari, Senin, Selasa, ... Minggu, Unknown
-            $orderedKelasKuliahByNamaHari = self::orderingKelasKuliahByNamaHari($kelasKuliah);
+            $orderedKelasKuliahByNamaHari = self::orderingKelasKuliahByNamaHari($filteredKelasKuliah);
 
             // terdapat query 'hari'
             if ($filterHari) {
-                    return self::filterKelasKuliahByHari($orderedKelasKuliahByNamaHari, $filterHari);
+                return self::filterKelasKuliahByHari($orderedKelasKuliahByNamaHari, $filterHari);
             }
 
             // ubah ke array

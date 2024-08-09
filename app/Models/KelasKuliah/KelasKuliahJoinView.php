@@ -35,7 +35,7 @@ class KelasKuliahJoinView extends Model
     }
 
     public function scopeGetKelasKuliahByDosen(Builder $query, $tahunId, $dosenId) {
-        return $query->where('tahun_id', $tahunId)
+        return $query->whereIn('tahun_id', $tahunId)
             ->where('pengajar_id', $dosenId)
             ->select(
                 'kelas_kuliah_id', 'tahun_id', 'jur_id', 'mk_id', 'join_kelas_kuliah_id', 'kjoin_kelas', 'kelas_kuliah', 'jns_mhs', 'sts_kelas', 'pengajar_id', 'join_jur'
