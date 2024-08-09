@@ -1,13 +1,14 @@
-@extends('docs.template.index')
-@section('docs_contents')
-<h4 class="mt-4"><b>#</b> Kelas Kuliah - Sisi Dosen</h4>
+<section class="mt-4">
+    <div class="alert alert-warning">
+        <b>Note:</b>
+        Route-route API pada halaman ini digunakan untuk mendapatkan jadwal kuliah untuk dosen, daftar kelas kuliah yang ditampilkan berdasarkan semua tahun ajan aktif. Selain melihat jadwal kuliah, digunakan juga untuk membuka kelas yang menghasilkan kode berupa PIN sebanyak 6 digit yang nantinya digunakan oleh mahasiswa untuk mengisi kehadiran.
+    </div>
+</section>
+
 <hr>
-<p>
-    Route-route API pada halaman ini digunakan untuk mendapatkan jadwal kuliah untuk dosen, daftar kelas kuliah yang ditampilkan berdasarkan semua tahun ajan aktif. Selain melihat jadwal kuliah, digunakan juga untuk membuka kelas yang menghasilkan kode berupa PIN sebanyak 6 digit yang nantinya digunakan oleh mahasiswa untuk mengisi kehadiran.
-</p>
-<div class="m-2">
-    <h5 class="mt-4">(DSN) Get Daftar Kelas Kuliah</h5>
-    <hr>
+
+<section class="mt-4">
+    <h5 class="mb-3 fw-bold">(DSN) Get Daftar Kelas Kuliah</h5>
     <p>
         Lakukan permintaan ke <span class="badge bg-dark">/kelas-kuliah/dosen</span> menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil maka akan memberikan response dalam format JSON seperti berikut:
     </p>
@@ -127,8 +128,10 @@
     <p>
         Nilai <b>kelas_dibuka</b> akan berubah menjadi true jika kelas yang dipilih dibuka oleh Dosen, setelah dibuka jangan lupa untuk mengirim request untuk mendapatkan PIN. Setelah PIN didapat, maka Mahasiswa dapat mengisi presensi dengan mengirimkan PIN yang sama dengan yang didapat oleh Dosen nantinya.
     </p>
-    <h5 class="mt-4">(DSN) Buka Kelas Kuliah - Single PIN</h5>
-    <hr>
+</section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(DSN) Buka Kelas Kuliah - Single PIN</h5>
     <p>
         Kirimkan request ke <span class="badge bg-dark">/kelas-kuliah/dosen/open/{kelas_kuliah_id}</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>, ganti <b>kelas_kuliah_id</b> dengan nilai id dari kelas kuliah yang akan dibuka. Kelas hanya dapat dibuka pada tanggal yang sama dengan yang telah ditentukan. Misalnya <span class="badge bg-dark">/kelas-kuliah/dosen/open/3268</span>.
     </p>
@@ -148,8 +151,10 @@
     <p>
         Apabila kelas berhasil dibuka maka API akan memberikan response yang berisi PIN untuk kehadiran mahasiswa. Nilai pada <b>qrcode_value</b> digunakan sebagai nilai yang disimpan dalam gambar QR yang dibuat di Front-End dan digunakan pada sisi mahasiswa, jadi saat mahasiswa berhasil melakukan scan QR Code kirimlah request pada URL yang menjadi nilai pada <b>qrcode_value</b> dan API akan memberikan response yang memberikan pesan PIN berhasil dikirim atau tidak. Saat ini pengisian presensi hanya mendukung jenis single PIN saja, artinya semua mahasiswa pada kelas kuliah tersebut mengisi kehadiran menggunakan PIN yang sama.
     </p>
-    <h5 class="mt-4">(DSN) Get Daftar Kehadiran Mahasiswa Saat Kelas Dibuka</h5>
-    <hr>
+</section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(DSN) Get Daftar Kehadiran Mahasiswa Saat Kelas Dibuka</h5>
     <p>
         Kirimkan request ke <span class="badge bg-dark">/kelas-kuliah/dosen/open/{kelas_kuliah_id}/presensi</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>, ganti <b>kelas_kuliah_id</b> dengan id kelas kuliah yang sedang dibuka. Misalnya, <span class="badge bg-dark">/kelas-kuliah/dosen/open/3268/presensi</span>. Hasilnya:
     </p>
@@ -177,10 +182,18 @@
     <p>
         Untuk memantau kehadiran secara berkala, pada sisi Front-End gunakanlah metode polling client atau mengirim request secara berkala untuk memantau nilainya, dan saat terdapat nilai yang berbeda maka perbaharuilah bagian yang termasuk nilai itu saja, gunakanlah nilai yang unik dari setiap mahasiswa untuk mengubah bagian tersebut (<b>nim</b>).  Misalnya, terus lakukan request setiap 2 detik dan lakukan pengecekan terhadap nilai <b>masuk</b> pada response yang diberikan dengan response sebelumnya atau pada response yang telah ditampilkan ke pengguna, apabila nilai pada response berbeda maka perbaharuilah. Proses tersebut akan terus berlangsung hingga dosen menutup kelasnya.
     </p>
-    <h5 class="mt-4">(DSN) Tutup Kelas Kuliah</h5>
-    <hr>
+</section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(DSN) Tutup Kelas Kuliah <span class="text-danger">*Update</span></h5>
     <p>
-        Lakukan request ke <span class="badge bg-dark">/kelas-kuliah/dosen/close/{kelas_kuliah_id}</span> menggunakan HTTP method <span class="badge bg-info">info</span>, ganti <b>kelas_kuliah_id</b> dengan id kelas kuliah yang akan ditutup. Misalnya, <span class="badge bg-dark">/kelas-kuliah/dosen/close/3268</span> jika berhasil akan memberikan response:
+        Lakukan request ke <span class="badge bg-dark">/kelas-kuliah/dosen/close/{kelas_kuliah_id}</span> menggunakan HTTP method <span class="badge bg-info">post</span>, ganti <b>kelas_kuliah_id</b> dengan id kelas kuliah yang akan ditutup. Misalnya, <span class="badge bg-dark">/kelas-kuliah/dosen/close/3268</span>. Kirimkan payload dengan format JSON seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "berita_acara": "Test berita acara"
+}</code></pre>
+    <p>
+        Jika berhasil kelas berhasil ditutup API akan memberikan respons seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
     "status": "success",
@@ -211,10 +224,10 @@
     <p>
         Dalam response tersebut terdapat daftar presensi mahasiswa dan setelah kelas ditutup mahasiswa tidak bisa mengirim PIN presensi.
     </p>
+</section>
 
-    {{-- Menghapus presensi mahasiswa --}}
-    <h5 class="mt-4">(DSN) Hapus Kehadiran Mahasiswa Pada Pertemuan Kelas Kuliah</h5>
-    <hr>
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(DSN) Hapus Kehadiran Mahasiswa Pada Pertemuan Kelas Kuliah</h5>
     <p>
         Dosen dapat menghapus status kehadiran mahasiswa pada pertemuan tertentu apabila kehadiran dari mahasiswa tersebut tidaklah valid, contohnya mahasiswa hanya mengirim PIN presensi tetapi tidak hadir di kelas. Untuk menghapusnya, kirimkam permintaan ke <span class="badge bg-dark">/kelas-kuliah/dosen/presensi-mahasiswa</span> dengan menggunakan HTTP method <span class="badge bg-info">delete</span> dan juga sertakan payload dalam body dengan format JSON seperti berikut:
     </p>
@@ -229,8 +242,10 @@
     "status": "success",
     "message": "Berhasil menghapus presensi mahasiswa"
 }</code></pre>
-    <h5 class="mt-4">(DSN) Get Unique PIN per Mahasiswa untuk Presensi</h5>
-    <hr>
+</section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(DSN) Get Unique PIN per Mahasiswa untuk Presensi</h5>
     <p>
         Untuk mendapatkan PIN acak yang bersifat unik atau hanya berlaku untuk satu mahasiswa saja, hal pertama yang harus dilakukan adalah membuka kelas terlebih dahulu. Setelah kelas berhasil dibuka yang ditandai response berisi pertemuan dan presensi dengan tipe pin single, kemudian barulah tambahkan query parameter <b>unique_pin</b> dengan nilai <b>true</b> pada url yang sama untuk mendapatkan PIN unique. Sehingga url yang dikirim menjadi seperti <span class="badge bg-dark">/kelas-kuliah/dosen/open/3248?unique_pin=true</span>. Hasilnya:
     </p>
@@ -254,5 +269,4 @@
     <p>
         Dengan mengetahui perubahan PIN pada proses sebelumnya, maka pada sisi client atau Front-End Anda dapat melanjutkan untuk mengirim permintaan daftar presensi mahasiswa apabila PIN telah berubah.
     </p>
-</div>
-@endsection
+</section>

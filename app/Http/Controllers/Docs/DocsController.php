@@ -103,6 +103,30 @@ class DocsController extends Controller
         ]);
     }
 
+    public function androidKelasKuliah() {
+        return view('docs.contents.android.kelas-kuliah.index', [
+            'title' => 'KRS'
+        ]);
+    }
+
+    public function androidKelasKuliahTabs($tabName) {
+        switch (strtolower($tabName)) {
+            case 'dosen':
+                $content = view('docs.contents.android.kelas-kuliah.dosen')->render();
+                break;
+            case 'mahasiswa':
+                $content = view('docs.contents.android.kelas-kuliah.mahasiswa')->render();
+                break;
+            default:
+                $content = 'Tab not found.';
+                break;
+        }
+
+        return response()->json([
+            'content' => $content,
+        ]);
+    }
+
     public function sikps() {
         return view('docs.contents.deteksi-proposal.index', [
             'title' => 'SIKPS - Deteksi Proposal'
@@ -154,18 +178,6 @@ class DocsController extends Controller
     public function acl() {
         return view('docs.contents.acl', [
             'title' => 'ACL',
-        ]);
-    }
-
-    public function kelasKuliahMahasiswa() {
-        return view('docs.contents.kelas_mhs', [
-            'title' => 'Kelas Kuliah Mahasiswa'
-        ]);
-    }
-
-    public function kelasKuliahDosen() {
-        return view('docs.contents.kelas_dosen', [
-            'title' => 'Kelas Kuliah Dosen'
         ]);
     }
 

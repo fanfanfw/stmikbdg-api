@@ -4,17 +4,20 @@ namespace App\Http\Controllers\Kuliah;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
-use App\Models\KelasKuliah\JadwalView;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 // ? Models - view
 use App\Models\KelasKuliah\KelasKuliahJoinView;
+use App\Models\KelasKuliah\JadwalView;
+use App\Models\KRS\MatKulView;
 
 // ? Models - table
 use App\Models\KelasKuliah\Pertemuan;
 use App\Models\KelasKuliah\Presensi;
+use App\Models\KelasKuliah\BeritaAcara;
 
 class PertemuanController extends Controller {
     public function bukaKelasKuliah(Request $request, $kelasKuliahId) {
@@ -179,7 +182,13 @@ class PertemuanController extends Controller {
 
     public function tutupKelasKuliah(Request $request, $kelasKuliahId) {
         try {
+            $request->validate([
+                'berita_acara' => 'required|string'
+            ]);
+
             $dosen = $this->getUserAuth();
+
+            DB::beginTransaction();
             $kelasKuliah = KelasKuliahJoinView::getJoinJurusanData($kelasKuliahId);
 
             /**
@@ -233,11 +242,32 @@ class PertemuanController extends Controller {
 
                 $presensiMahasiswa = Pertemuan::getPertemuanKelasDibukaWithPresensi($kelasKuliahIdArr, $dosen['dosen_id'])
                     ->pluck('presensi')->flatten();
+                $orderedPresensiMahasiswa = collect($presensiMahasiswa)->sortByDesc('masuk')->values()->all();
                 $jumlahMahasiswa = $presensiMahasiswa->count();
                 $jumlahMahasiswaHadir = $presensiMahasiswa->whereNotNull('masuk')->count();
                 $jumlahMahasiswaBelumHadir = $presensiMahasiswa->whereNull('masuk')->count();
 
                 Pertemuan::updateKelasDibuka($kelasKuliahIdArr, $kelasKuliah['pengajar_id'], false); // ditutup
+
+                /**
+                 * Berita acara
+                 */
+                $kelas = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)->first();
+                $matkul = MatKulView::where('mk_id', $kelas['mk_id'])->first();
+                $beritaAcara = [
+                    'kelas_kuliah_id' => $kelasKuliahId,
+                    'dosen_id' => $dosen['dosen_id'],
+                    'kd_mk' => trim($matkul['kd_mk']),
+                    'nm_mk' => trim($matkul['nm_mk']),
+                    'jml_mhs' => $jumlahMahasiswa,
+                    'mhs_hdr' => $jumlahMahasiswaHadir,
+                    'mhs_tdk_hdr' => $jumlahMahasiswaBelumHadir,
+                    'created_at' => Carbon::now(),
+                    'berita_acara' => $request->berita_acara
+                ];
+
+                BeritaAcara::insert($beritaAcara);
+                DB::commit();
 
                 return response()->json([
                     'status' => 'success',
@@ -246,16 +276,18 @@ class PertemuanController extends Controller {
                         'jumlah_mahasiswa' => $jumlahMahasiswa,
                         'jumlah_mahasiswa_hadir' => $jumlahMahasiswaHadir,
                         'jumlah_mahasiswa_belum_hadir' => $jumlahMahasiswaBelumHadir,
-                        'presensi_mahasiswa' => $presensiMahasiswa
+                        'presensi_mahasiswa' => $orderedPresensiMahasiswa
                     ]
                 ], 200);
             } else {
+                DB::rollBack();
                 return response()->json([
                     'status' => 'fail',
                     'message' => 'Belum ada kelas kuliah yang dibuka'
                 ], 400);
             }
         } catch  (\Exception $e) {
+            DB::rollBack();
             return ErrorHandler::handle($e);
         }
     }

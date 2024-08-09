@@ -33,8 +33,7 @@
                 <ul class="dropdown-menu">
                     <li><a class="dropdown-item" href="/docs/api/android/krs">KRS</a></li>
                     <li><a class="dropdown-item" href="/docs/api/android/pengumuman">Pengumuman</a></li>
-                    <li><a class="dropdown-item" href="/docs/api/kelas-mahasiswa">KELAS - MHS</a></li>
-                    <li><a class="dropdown-item" href="/docs/api/kelas-dosen">KELAS - DSN</a></li>
+                    <li><a class="dropdown-item" href="/docs/api/android/kelas-kuliah">Kelas Kuliah</a></li>
                 </ul>
             </li>
 

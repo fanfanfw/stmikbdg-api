@@ -24,8 +24,6 @@ Route::controller(DocsController::class)
         // ? Routes sesudah login
         Route::get('/authentications', 'authentications');
         Route::get('/users', 'users');
-        Route::get('/kelas-mahasiswa', 'kelasKuliahMahasiswa');
-        Route::get('/kelas-dosen', 'kelasKuliahDosen');
         Route::get('/kamus', 'kamus');
         Route::get('/additional', 'additionalRoutes');
         Route::get('/marketing', 'marketing');
@@ -51,9 +49,13 @@ Route::controller(DocsController::class)
         Route::get('/android/krs', 'androidKrs');
         Route::get('/android/krs/tabs/{name}', 'androidKrsTabs');
 
-        // * Android - KRS
+        // * Android - Pengumuman
         Route::get('/android/pengumuman', 'androidPengumuman');
         Route::get('/android/pengumuman/tabs/{name}', 'androidPengumumanTabs');
+
+        // * Android - Kelas Kuliah
+        Route::get('/android/kelas-kuliah', 'androidKelasKuliah');
+        Route::get('/android/kelas-kuliah/tabs/{name}', 'androidKelasKuliahTabs');
 
         // * Surat
         Route::controller(DocSuratController::class)

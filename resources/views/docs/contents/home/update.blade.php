@@ -1,6 +1,7 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>09-08-2024 | <a href="/docs/api/android/kelas-kuliah" class="text-decoration-none fw-bold">Kelas Kuliah (Dosen - Tutup Kelas)</a></li>
         <li>07-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Bimbingan)</a></li>
         <li>01-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Jenis Sidang)</a></li>
         <li>01-08-2024 | <a href="/docs/api/android/pengumuman" class="text-decoration-none fw-bold">Android - Pengumuman (Pagination)</a></li>
