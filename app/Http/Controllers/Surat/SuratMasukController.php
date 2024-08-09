@@ -131,7 +131,7 @@ class SuratMasukController extends Controller
                 $deleteArsip = Arsip::where('surat_masuk_id', $request->surat_masuk_id)->delete();
                 $deleteDisposisi = Disposisi::where('surat_masuk_id', $request->surat_masuk_id)->delete();
 
-                if ($deleteSurat and $deleteArsip and $deleteDisposisi) {
+                if ($deleteSurat) {
                     DB::commit();
 
                     return $this->successfulResponseJSONV2('Surat masuk beserta arsip dan disposisinya berhasil dihapus');
