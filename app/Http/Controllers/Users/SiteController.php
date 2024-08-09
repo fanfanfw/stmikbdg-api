@@ -234,6 +234,81 @@ class SiteController extends Controller
         }
     }
 
+    public function getDetailSite($siteId) {
+        try {
+            $site = Site::where('id', (int) $siteId)->first();
+
+            if ($site) {
+                $tempSite = [
+                    'id' => $site['id'],
+                    'name' => $site['name'],
+                    'url' => $site['url']
+                ];
+
+                $availableRoles = collect($site)->filter(function ($item) {
+                    return $item === true;
+                });
+
+                $tempSite['roles'] = $availableRoles;
+
+                return $this->successfulResponseJSON([
+                    'site' => $tempSite
+                ]);
+            }
+
+            return $this->failedResponseJSON('Site tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function addAccessAndRoles(Request $request) {
+        try {
+            $request->validate([
+                'user_id' => 'required|exists:users,id',
+                'site_id' => 'required|exists:sites,id',
+                'roles' => 'required'
+            ]);
+
+            if (count($request->roles) < 1) {
+                return $this->failedResponseJSON('Nilai roles diperlukan', 400);
+            }
+
+            /**
+             * Jika user telah memiliki akses ke sistem tersebut
+             * maka hapus yang lama dan ganti dengan yang baru
+             */
+            DB::beginTransaction();
+            UserSite::where('user_id', $request->user_id)
+                ->where('site_id', $request->site_id)
+                ->delete();
+
+            /**
+             * Update role user terlebih dahulu
+             * jika berhasil maka baru tambahkan akses ke site
+             */
+            $updateUserRoles = User::where('id', $request->user_id)->update($request->roles);
+
+            if ($updateUserRoles) {
+                $addAccess = UserSite::insert([
+                    'user_id' => $request->user_id,
+                    'site_id' => $request->site_id
+                ]);
+
+                if ($addAccess) {
+                    DB::commit();
+                    return $this->successfulResponseJSONV2('Akses user berhasil ditambahkan');
+                }
+            }
+
+            DB::rollBack();
+            return $this->failedResponseJSON('Akses user gagal ditambahkan');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
     private function getSitesByRole($role) {
         switch ($role) {
             case 'dev':
