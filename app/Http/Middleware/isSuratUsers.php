@@ -16,7 +16,7 @@ class isSuratUsers
     public function handle(Request $request, Closure $next): Response
     {
         $check = auth()->check();
-        $staffOrWakil = auth()->user()->is_staff or auth()->user()->is_wk;
+        $staffOrWakil = (auth()->user()->is_staff or auth()->user()->is_wk);
         $isAdmin = auth()->user()->is_admin;
 
         if ($check and ($isAdmin or $staffOrWakil)) {
