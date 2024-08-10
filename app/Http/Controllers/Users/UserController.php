@@ -100,6 +100,7 @@ class UserController extends Controller {
         }
     }
 
+    // belum diperbaiki
     private function importUserFromExcel($excel) {
         try {
             $fileName = $excel->hashName();
@@ -129,6 +130,14 @@ class UserController extends Controller {
             $account= collect(auth()->user())->filter(function ($item) {
                 return $item;
             });
+
+            /**
+             * Untuk keperluan sistem surat - sementara
+             * Jika is_wk dan is_staff aktif, maka hapus role is_staff
+             */
+            if ((isset($account['is_wk']) and isset($account['is_staff']))) {
+                unset($account['is_staff']);
+            }
 
             return $this->successfulResponseJSON([
                 'profile' => $user,
