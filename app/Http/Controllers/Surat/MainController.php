@@ -89,7 +89,7 @@ class MainController extends Controller
 
         foreach ($users as $user) {
             $staff = AllStaffView::where('user_id', $user['id'])
-                ->select('staff_id', 'user_id', 'nama', 'is_marketing', 'is_akademik', 'is_baak', 'image')
+                ->select('staff_id', 'user_id', 'nama', 'is_marketing', 'is_akademik', 'is_baak', 'is_secretary', 'image')
                 ->first();
 
             $positions = collect($staff)->filter(function ($item) {
@@ -108,6 +108,8 @@ class MainController extends Controller
                         array_push($tempPositions, 'Akademik');
                     } else if ($key == 'is_baak') {
                         array_push($tempPositions, 'BAAK');
+                    } else if ($key == 'is_secretary') {
+                        array_push($tempPositions, 'Sekretaris');
                     }
                 }
 

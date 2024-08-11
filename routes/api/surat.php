@@ -23,11 +23,11 @@ Route::prefix('/surat')
                     ->group(function () {
                         Route::get('/statistik', 'getStatistik');
                         Route::get('/arsip/lokasi', 'getArsipLokasi');
+                        Route::get('/staff/list', 'getListStaff');
                     });
 
                 // ? admin
                 Route::get('/arsip', 'getArsip')->middleware('auth.admin');
-                Route::get('/staff/list', [MainController::class, 'getListStaff'])->middleware('auth.admin');
             });
 
         // ? admin - kategori
