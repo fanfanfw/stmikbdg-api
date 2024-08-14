@@ -226,6 +226,11 @@ class SuratKeluarController extends Controller
             $data['tgl_sk'] = Carbon::createFromFormat('d-m-Y', $request->tgl_sk);
 
             if ($request->disposisi_user_id) {
+                $request->validate([
+                    'disposisi_user_id' => 'exists:users,id'
+                ]);
+                $staff = AllStaffView::where('user_id', $request->disposisi_user_id)->first();
+                $data['disposisi_nm_user'] = $staff['nama'];
                 $data['disposisi_user_id'] = $request->disposisi_user_id;
             }
 
