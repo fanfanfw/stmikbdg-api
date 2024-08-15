@@ -95,8 +95,8 @@ class PertemuanController extends Controller {
                  * Jika terdapat query param unique_pin = true, maka
                  * Generate unique random pin per mahasiswa
                  */
-                if ($request->unique_pin) {
-                    $validatedValueUniquePIN = filter_var($request->unique_pin, FILTER_VALIDATE_BOOLEAN);
+                if ($request->query('unique_pin')) {
+                    $validatedValueUniquePIN = filter_var($request->query('unique_pin'), FILTER_VALIDATE_BOOLEAN);
 
                     /**
                      * Jika kelas sudah ditutup dan terdapat query param unique_pin,
@@ -128,7 +128,7 @@ class PertemuanController extends Controller {
                  * Request terdapat query param unique_pin,
                  * maka tolak permintaan kelas dibuka
                  */
-                if ($request->unique_pin) {
+                if ($request->query('unique_pin')) {
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Buka kelas terlebih dahulu tanpa menggunakan query parameter unique_pin'
@@ -163,7 +163,7 @@ class PertemuanController extends Controller {
              * Saat kelas dibuka dan single PIN
              * maka generate pin single atau tetap
              */
-            if (!$request->unique_pin) {
+            if (!$request->query('unique_pin')) {
                 $randomPIN = self::generateSingleRandomPIN($kelasKuliahIdArr);
             }
 

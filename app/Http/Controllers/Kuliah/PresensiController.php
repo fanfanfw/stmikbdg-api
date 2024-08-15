@@ -220,7 +220,7 @@ class PresensiController extends Controller {
                 $kelasKuliahIdArr = explode('-', $request->query('kelas'));
                 $pin = $request->query('pin');
                 $mahasiswa = $this->getUserAuth();
-                $lastKRSMahasiswa = Mahasiswa::where('mhs_id', $mahasiswa['mhs_id'])->select('krs_id_last')->first();
+                $lastKRSMahasiswa = Mahasiswa::where('mhs_id', $mahasiswa['mhs_id'])->select('krs_id_last')->first();;
 
                 foreach ($kelasKuliahIdArr as $kelasKuliahId) {
                     /**
@@ -265,26 +265,30 @@ class PresensiController extends Controller {
                              */
                             $isSamePIN = false;
 
-                            if ($request->unique_pin) {
-                                $isUniquePIN = filter_var($request->unique_pin, FILTER_VALIDATE_BOOLEAN);
+                            if ($request->query('unique_pin')) {
+                                $requestUniquePIN = $request->query('unique_pin');
+                                $isUniquePIN = filter_var($requestUniquePIN, FILTER_VALIDATE_BOOLEAN);
 
                                 if ($isUniquePIN) {
-                                    if (is_array(Cache::get((string) $kelasKuliahId))) {
-                                        $dataPIN = Cache::get((string) $kelasKuliahId);
-                                        $isSamePIN = (string) $request->pin === (string) $dataPIN['pin'];
+                                    $dataPIN = Cache::get((string) $kelasKuliahId);
 
-                                        /**
-                                         * Jika pin sama, maka hapus semua pin di cache
-                                         */
-                                        if ($isSamePIN) {
-                                            foreach ($kelasKuliahIdArr as $item) {
-                                                Cache::forget((string) $item);
-                                            }
+                                    if (is_array($dataPIN)) {
+                                        $isSamePIN = ($request->query('pin') == $dataPIN['pin']);
+                                    } else {
+                                        $isSamePIN = ($request->query('pin') == $dataPIN);
+                                    }
+
+                                    /**
+                                     * Jika pin sama, maka hapus semua pin di cache
+                                     */
+                                    if ($isSamePIN) {
+                                        foreach ($kelasKuliahIdArr as $item) {
+                                            Cache::forget((string) $item);
                                         }
                                     }
                                 }
                             } else {
-                                $isSamePIN = (string) $pin === Cache::get((string) $kelasKuliahId);
+                                $isSamePIN = ((string) $pin == Cache::get((string) $kelasKuliahId));
                             }
 
                             if ($isSamePIN) {
