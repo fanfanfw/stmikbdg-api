@@ -77,41 +77,41 @@ class PresensiController extends Controller {
                  */
                 $isSamePIN = false;
 
+                // cek kelas join
+                $kelasKuliahId = (integer) $request->kelas_kuliah_id;
+                $kelasKuliahIdArr = [];
+                $kelasKuliah = KelasKuliahJoinView::getJoinJurusanData($kelasKuliahId);
+
+                /**
+                 * Jika kelas yang dibuka dan dijoin ke kelas lain
+                 */
+                if ($kelasKuliah['kjoin_kelas']) {
+                    $kelasKuliahId = $kelasKuliah['join_kelas_kuliah_id'];
+                }
+
+                /**
+                 * Kelas-kelas yang dijoin
+                 */
+                $kelasKuliahIdArr = KelasKuliahJoinView::where('join_kelas_kuliah_id', $kelasKuliahId)
+                    ->pluck('kelas_kuliah_id')->filter()->toArray();
+
+                array_push($kelasKuliahIdArr, $kelasKuliahId);
+
                 if (is_array(Cache::get((string) $request->kelas_kuliah_id))) {
                     $dataPIN = Cache::get((string) $request->kelas_kuliah_id);
 
                     if ($dataPIN['type_pin'] === 'unique') {
-                        $isSamePIN = (string) $request->pin === (string) $dataPIN['pin'];
-
-                        if ($isSamePIN) {
-                            // cek kelas join
-                            $kelasKuliahId = (integer) $request->kelas_kuliah_id;
-                            $kelasKuliahIdArr = [];
-                            $kelasKuliah = KelasKuliahJoinView::getJoinJurusanData($kelasKuliahId);
-
-                            /**
-                             * Jika kelas yang dibuka dan dijoin ke kelas lain
-                             */
-                            if ($kelasKuliah['kjoin_kelas']) {
-                                $kelasKuliahId = $kelasKuliah['join_kelas_kuliah_id'];
-                            }
-
-                            /**
-                             * Kelas-kelas yang dijoin
-                             */
-                            $kelasKuliahIdArr = KelasKuliahJoinView::where('join_kelas_kuliah_id', $kelasKuliahId)
-                                ->pluck('kelas_kuliah_id')->filter()->toArray();
-
-                            array_push($kelasKuliahIdArr, $kelasKuliahId);
-
-                            // hapus setiap pin yang ada di cache
-                            foreach ($kelasKuliahIdArr as $item) {
-                                Cache::forget(((string) $item));
-                            }
-                        }
+                        $isSamePIN = ($request->pin == $dataPIN['pin']);
                     }
                 } else {
-                    $isSamePIN = (string) $request->pin === Cache::get((string) $request->kelas_kuliah_id);
+                    $isSamePIN = ($request->pin == Cache::get((string) $request->kelas_kuliah_id));
+                }
+
+                if ($isSamePIN) {
+                    // hapus setiap pin yang ada di cache
+                    foreach ($kelasKuliahIdArr as $item) {
+                        Cache::forget(((string) $item));
+                    }
                 }
 
                 if ($isSamePIN) {
