@@ -178,6 +178,10 @@ class UserController extends Controller {
         }
     }
 
+    /**
+     * ! Jangan Dihapus
+     * Mau dirapihin, tapi udah terlanjur dipake di beberapa sistem
+     */
     public function getUserList(Request $request) {
         try {
             $isDosen = $request->query('is_dosen')
@@ -316,6 +320,40 @@ class UserController extends Controller {
                 ->select('id', 'email')
                 ->orderBy('id', 'DESC')
                 ->get();
+
+            return $this->successfulResponseJSON([
+                'users' => $users
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    /**
+     * new get all users by roles
+     */
+    public function getUsersByRoles(Request $request) {
+        try {
+            $query = UserView::query();
+
+            // berdasarkan query
+            if (count($request->query()) > 0) {
+                $explodedQueryRoles = explode(',', $request->query('roles'));
+
+                foreach ($explodedQueryRoles as $role) {
+                    $column = strtolower($role);
+                    $query->orWhere($column, true);
+                }
+
+                $users = $query->select('id', 'kd_user', 'email')->get();
+
+                return $this->successfulResponseJSON([
+                    'users' => $users
+                ]);
+            }
+
+            // semua users
+            $users = $query->select('id', 'kd_user', 'email')->get();
 
             return $this->successfulResponseJSON([
                 'users' => $users

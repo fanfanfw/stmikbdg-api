@@ -82,6 +82,7 @@ class DosenController extends Controller
                 $data['is_prodi'] = $request->is_prodi ?? false;
                 $data['is_staff'] = $request->is_staff ?? false;
                 $data['is_wk'] = $request->is_wk ?? false;
+                $data['is_pimpinan'] = $request->is_pimpinan ?? false;
 
                 /**
                  * Tambahkan langsung akses dosen
@@ -89,9 +90,11 @@ class DosenController extends Controller
                  */
                 if ($data['is_staff']) {
                     $request->validate([
-                        'is_akademik' => 'required|boolean',
-                        'is_marketing' => 'required|boolean',
-                        'is_baak' => 'required|boolean'
+                        'is_akademik' => 'nullable|boolean',
+                        'is_marketing' => 'nullable|boolean',
+                        'is_baak' => 'nullable|boolean',
+                        'is_bendahara' => 'nullable|boolean',
+                        'is_kemahasiswaan' => 'nullable|boolean'
                     ]);
 
                     $staff = [
@@ -100,7 +103,9 @@ class DosenController extends Controller
                         'email' => $request->email,
                         'is_akademik' => $request->is_akademik,
                         'is_marketing' => $request->is_marketing,
-                        'is_baak' => $request->is_baak
+                        'is_baak' => $request->is_baak,
+                        'is_bendahara' => $request->is_bendahara,
+                        'is_kemahasiswaan' => $request->is_kemahasiswaan,
                     ];
 
                     $dosenSites = Site::where('is_dosen', true)
@@ -165,7 +170,7 @@ class DosenController extends Controller
                 'kd_user' => 'required|string', // kd_dosen
                 'is_doswal' => 'required|boolean',
                 'is_prodi' => 'required|boolean',
-                'is_staff' => 'required|boolean',
+                'is_staff' => 'nullable|boolean',
                 'is_wk' => 'required|boolean',
                 'email' => [
                     'required',
@@ -208,9 +213,12 @@ class DosenController extends Controller
 
                 if ($data['is_staff']) {
                     $request->validate([
-                        'is_akademik' => 'required|boolean',
-                        'is_marketing' => 'required|boolean',
-                        'is_baak' => 'required|boolean'
+                        'is_akademik' => 'nullable|boolean',
+                        'is_marketing' => 'nullable|boolean',
+                        'is_baak' => 'nullable|boolean',
+                        'is_bendahara' => 'nullable|boolean',
+                        'is_kemahasiswaan' => 'nullable|boolean',
+                        'is_secretary' => 'nullable|boolean'
                     ]);
 
                     $staff = [
@@ -219,7 +227,10 @@ class DosenController extends Controller
                         'email' => $request->email,
                         'is_akademik' => $request->is_akademik,
                         'is_marketing' => $request->is_marketing,
-                        'is_baak' => $request->is_baak
+                        'is_baak' => $request->is_baak,
+                        'is_bendahara' => $request->is_bendahara,
+                        'is_secretary' => $request->is_secretary,
+                        'is_kemahasiswaan' => $request->is_kemahasiswaan
                     ];
 
                     if ($checkStaff) {
@@ -272,6 +283,9 @@ class DosenController extends Controller
                 unset($data['is_akademik']);
                 unset($data['is_marketing']);
                 unset($data['is_baak']);
+                unset($data['is_bendahara']);
+                unset($data['is_kemahasiswaan']);
+                unset($data['is_secretary']);
 
                 $update = User::where('id', $request->user_id)
                     ->update($data);
@@ -297,7 +311,7 @@ class DosenController extends Controller
     public function getAll() {
         try {
             $allAccountDosen = UserView::where('is_dosen', true)
-                ->orderBy('id', 'DESC')
+                ->orderBy('updated_at', 'DESC')
                 ->get();
 
             return $this->successfulResponseJSON([
@@ -319,6 +333,9 @@ class DosenController extends Controller
                 $user['is_akademik'] = $staff['is_akademik'];
                 $user['is_marketing'] = $staff['is_marketing'];
                 $user['is_baak'] = $staff['is_baak'];
+                $user['is_bendahara'] = $staff['is_bendahara'];
+                $user['is_kemahasiswaan'] = $staff['is_kemahasiswaan'];
+                $user['is_secretary'] = $staff['is_secretary'];
             }
 
             if ($user) {

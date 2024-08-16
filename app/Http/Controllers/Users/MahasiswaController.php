@@ -170,7 +170,7 @@ class MahasiswaController extends Controller
     public function getAll() {
         try {
             $allAccountMahasiswa = UserView::where('is_mhs', true)
-                ->orderBy('id', 'DESC')
+                ->orderBy('updated_at', 'DESC')
                 ->get();
 
             return $this->successfulResponseJSON([

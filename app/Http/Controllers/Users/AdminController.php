@@ -79,7 +79,7 @@ class AdminController extends Controller
         try {
             $allAdmins = UserView::where('is_admin', true)
                 ->whereNot('id', auth()->user()->id)
-                ->orderBy('id', 'DESC')
+                ->orderBy('updated_at', 'DESC')
                 ->get();
 
             return $this->successfulResponseJSON([

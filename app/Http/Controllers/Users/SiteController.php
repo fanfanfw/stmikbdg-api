@@ -120,6 +120,7 @@ class SiteController extends Controller
                 'is_wk' => 'required|boolean',
                 'is_staff' => 'required|boolean',
                 'is_secretary' => 'required|boolean',
+                'is_pimpinan' => 'required|boolean'
             ]);
 
             $validatedURL = filter_var($request->url, FILTER_VALIDATE_URL);
