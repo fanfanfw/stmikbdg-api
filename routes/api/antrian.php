@@ -10,13 +10,24 @@ use App\Http\Controllers\Antrian\Sidang\AdminController as SidangAdminController
 
 // Role Dosen
 use App\Http\Controllers\Antrian\Bimbingan\DosenController as BimbinganDosenController;
+use App\Http\Controllers\Antrian\Bimbingan\MahasiswaController as BimbinganMahasiswaController;
 use App\Http\Controllers\Antrian\Tamu\DosenController as TamuDosenController;
 
 Route::prefix('/antrian')
+    ->middleware('auth.jwt')
     ->group(function () {
+        // role mahasiswa
+        Route::controller(BimbinganMahasiswaController::class)
+            ->prefix('/mahasiswa/bimbingan')
+            ->middleware('auth.mahasiswa')
+            ->group(function () {
+                Route::get('/', 'getAntrian');
+                Route::post('/add', 'add');
+                Route::get('/list/dosen', 'getAllDosen');
+            });
 
         // role admin
-        Route::middleware(['auth.jwt', 'auth.admin'])
+        Route::middleware('auth.admin')
             ->group(function () {
                 // mengelola data dosen
                 Route::controller(DosenAdminController::class)
@@ -39,7 +50,8 @@ Route::prefix('/antrian')
                         Route::put('/update', 'updateAntrianBimbingan');
                         Route::get('/detail/{bimbingan_id}', 'getAntrianBimbingan');
                         Route::put('/status/update', 'updateStatusAntrianBimbingan');
-                        Route::get('/list/jenis-bimbingan', 'getAllJenisBimbingan');
+                        Route::get('/list/jenis-bimbingan', 'getAllJenisBimbingan')
+                            ->withoutMiddleware('auth.admin');
                     });
 
                 // mengelola antrian tamu
@@ -67,7 +79,7 @@ Route::prefix('/antrian')
             });
 
         // role dosen
-        Route::middleware(['auth.jwt', 'auth.dosen'])
+        Route::middleware('auth.dosen')
             ->group(function () {
                 Route::prefix('/list')
                 ->group(function () {

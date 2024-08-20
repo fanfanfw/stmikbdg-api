@@ -25,6 +25,9 @@ Route::prefix('/sikps')
                 Route::get('/fingerprints/detail', 'getDetail');
                 Route::get('/riwayat', 'getAllRiwayatDeteksi');
                 Route::delete('/fingerprints/generated/delete', 'deleteAllGeneratedFingerprints');
+                Route::put('/similarities/limit/update', 'updateSimilarityLimit');
+                Route::get('/similarities/limit', 'getSimilarityLimit')
+                    ->withoutMiddleware('auth.admin');
             });
 
         // mahasiswa

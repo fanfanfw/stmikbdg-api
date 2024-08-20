@@ -82,30 +82,41 @@ class AdminController extends Controller
             $antrianBimbingan = null;
             $isSudah = $request->query('is_sudah');
             $kdDosen = $request->query('kd_dosen');
+            $isToday = $request->query('is_today');
 
             if ($isSudah and !$kdDosen) {
                 // filter is_sudah saja
                 $filteredIsSudah = filter_var($isSudah, FILTER_VALIDATE_BOOLEAN);
                 $antrianBimbingan = Bimbingan::where('is_sudah', $filteredIsSudah)
-                    ->with('jenisBimbingan')
-                    ->get();
+                    ->with('jenisBimbingan');
             } else if ($kdDosen and !$isSudah) {
                 // filter kd_dosen saja
                 $antrianBimbingan = Bimbingan::where('kd_dosen', $kdDosen)
-                    ->with('jenisBimbingan')
-                    ->get();
+                    ->with('jenisBimbingan');
             } else if ($isSudah and $kdDosen) {
                 // filter is_sudah dan kd_dosen
                 $filteredIsSudah = filter_var($isSudah, FILTER_VALIDATE_BOOLEAN);
                 $antrianBimbingan = Bimbingan::where('is_sudah', $filteredIsSudah)
                     ->where('kd_dosen', $kdDosen)
-                    ->with('jenisBimbingan')
-                    ->get();
+                    ->with('jenisBimbingan');
             } else {
                 // tanpa filter dan jika filter tidak sesuai
                 $antrianBimbingan = Bimbingan::orderBy('created_at', 'DESC')
-                    ->with('jenisBimbingan')
-                    ->get();
+                    ->with('jenisBimbingan');
+            }
+
+            /**
+             * Cek query is today
+             */
+            if ($isToday) {
+                $validatedIsToday = filter_var($isToday, FILTER_VALIDATE_BOOLEAN);
+
+                if ($validatedIsToday) {
+                    $antrianBimbingan = $antrianBimbingan->whereDate('tgl_bimbingan', Carbon::today())
+                        ->get();
+                }
+            } else {
+                $antrianBimbingan = $antrianBimbingan->get();
             }
 
             return $this->successfulResponseJSON([

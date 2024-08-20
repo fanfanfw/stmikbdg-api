@@ -138,3 +138,13 @@
         Digunakan untuk menghapus semua fingerprint generate dari web SIKPS. Perlu diperhatikan, penggunaan route ini hanya dilakukan jika ingin generate ulang fingerprint proposal dari web SIKPS. Kirimkan permintaan ke <span class="badge bg-dark">/sikps/deteksi/fingerprints/generated/delete</span> dengan menggunakan HTTP method <span class="badge bg-info">delete</span>.
     </p>
 </section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(ADM) Update Batas Kemiripan <span class="small text-success">*new</span></h5>
+    <p>
+        Untuk memperbarui batas kemiripan proposal yang digunakan, kirimkan permintaan ke <span class="badge bg-dark">/sikps/deteksi/similarities/limit/update</span> dengan menggunakan HTTP method <span class="badge bg-info">put</span> dan sertakan payload body dalam bentuk JSON seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "max_limit": 20
+}</code></pre>
+</section>

@@ -6,6 +6,7 @@ use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 // ? Models
 use App\Models\Antrian\Bimbingan;
@@ -18,6 +19,7 @@ class DosenController extends Controller
             $antrianBimbingan = null;
             $user = $this->getUserAuth();
             $isSudah = $request->query('is_sudah');
+            $isToday = $request->query('is_today');
             $dosen = Dosen::where('kd_dosen', strtoupper(trim($user['kd_dosen'])))->first();
 
             if ($dosen) {
@@ -27,14 +29,26 @@ class DosenController extends Controller
                     $antrianBimbingan = Bimbingan::where('dosen_id', $dosen['dosen_id'])
                         ->where('is_sudah', $filteredIsSudah)
                         ->with('jenisBimbingan')
-                        ->orderBy('bimbingan_id', 'DESC')
-                        ->get();
+                        ->orderBy('bimbingan_id', 'DESC');
                 } else {
                     // tanpa filter
                     $antrianBimbingan = Bimbingan::where('dosen_id', $dosen['dosen_id'])
                         ->with('jenisBimbingan')
-                        ->orderBy('bimbingan_id', 'DESC')
-                        ->get();
+                        ->orderBy('bimbingan_id', 'DESC');
+                }
+
+                /**
+                 * Cek query is today
+                 */
+                if ($isToday) {
+                    $validatedIsToday = filter_var($isToday, FILTER_VALIDATE_BOOLEAN);
+
+                    if ($validatedIsToday) {
+                        $antrianBimbingan = $antrianBimbingan->whereDate('tgl_bimbingan', Carbon::today())
+                            ->get();
+                    }
+                } else {
+                    $antrianBimbingan = $antrianBimbingan->get();
                 }
 
                 return $this->successfulResponseJSON([

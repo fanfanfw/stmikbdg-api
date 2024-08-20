@@ -121,3 +121,19 @@
     }
 }</code></pre>
 </section>
+
+<section class="mt-5">
+    <h5 class="mb-3 fw-bold">(ALL) Get Batas Kemiripan <span class="small text-success">*new</span></h5>
+    <p>
+        Untuk mendapatkan batas kemiripan proposal skripsi yang digunakan untuk menghitung kemiripan proposal yang diajukan dengan proposal lainnya, kirimkan permintaan ke <span class="badge bg-dark">/sikps/deteksi/similarities/limit</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "similarity_limit": {
+            "similarity_limit_id": 1,
+            "max_limit": 25
+        }
+    }
+}</code></pre>
+</section>

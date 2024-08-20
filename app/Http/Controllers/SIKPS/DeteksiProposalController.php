@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 // ? Models - Table
 use App\Models\SIKPS\Fingerprints;
 use App\Models\SIKPS\Similarities;
+use App\Models\SIKPS\SimilarityLimit;
 
 /**
  * Semua method dalam class ini digunakan untuk admin
@@ -232,6 +233,40 @@ class DeteksiProposalController extends Controller
                 'status' => 'fail',
                 'message' => 'Proposal tidak ditemukan',
             ], 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function updateSimilarityLimit(Request $request) {
+        try {
+            $request->validate([
+                'max_limit' => 'required|integer'
+            ]);
+
+            DB::beginTransaction();
+            SimilarityLimit::truncate();
+            $insert = SimilarityLimit::insert($request->all());
+
+            if ($insert) {
+                DB::commit();
+                return $this->successfulResponseJSONV2('Batas kemiripan berhasil diperbarui');
+            }
+
+            DB::rollBack();
+            return $this->failedResponseJSON('Batas kemiripan gagal diperbarui');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getSimilarityLimit() {
+        try {
+            $similarityLimit = SimilarityLimit::first();
+            return $this->successfulResponseJSON([
+                'similarity_limit' => $similarityLimit
+            ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
