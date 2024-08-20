@@ -56,7 +56,7 @@
             <li><span class="badge bg-dark">/antrian/bimbingan/list?is_sudah=true&kd_dosen=IF054</span></li>
             <li><span class="badge bg-dark">/antrian/bimbingan/list?is_sudah=false</span></li>
             <li><span class="badge bg-dark">/antrian/bimbingan/list?kd_dosen=IF054</span></li>
-            <li><span class="badge bg-dark">/antrian/bimbingan/list?kd_today=true</span></li>
+            <li><span class="badge bg-dark">/antrian/bimbingan/list?is_today=true</span></li>
         </ul>
     </div>
 </section>
