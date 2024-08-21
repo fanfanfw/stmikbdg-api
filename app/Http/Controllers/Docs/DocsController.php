@@ -255,6 +255,9 @@ class DocsController extends Controller
             case 'tamu':
                 $content = view('docs.contents.antrian.tamu')->render();
                 break;
+            case 'public':
+                $content = view('docs.contents.antrian.public')->render();
+                break;
             default:
                 $content = 'Tab not found.';
                 break;

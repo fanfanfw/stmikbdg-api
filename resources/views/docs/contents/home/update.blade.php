@@ -1,6 +1,7 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>21-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Public)</a></li>
         <li>20-08-2024 | <a href="/docs/api/sikps" class="text-decoration-none fw-bold">Deteksi Kemiripan Proposal Skripsi (Similarity Limit)</a></li>
         <li>20-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Bimbingan)</a></li>
         <li>09-08-2024 | <a href="/docs/api/android/kelas-kuliah" class="text-decoration-none fw-bold">Android - Kelas Kuliah (Dosen - Tutup Kelas)</a></li>

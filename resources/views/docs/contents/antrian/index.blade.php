@@ -16,6 +16,9 @@
         <li class="nav-item">
             <div class="nav-link tab-link" style="cursor: pointer" data-tab="tamu">Tamu</div>
         </li>
+        <li class="nav-item">
+            <div class="nav-link tab-link" style="cursor: pointer" data-tab="public">Public</div>
+        </li>
     </ul>
     <hr>
     <div id="tabContent"></div>

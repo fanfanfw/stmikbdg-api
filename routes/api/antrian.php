@@ -11,11 +11,20 @@ use App\Http\Controllers\Antrian\Sidang\AdminController as SidangAdminController
 // Role Dosen
 use App\Http\Controllers\Antrian\Bimbingan\DosenController as BimbinganDosenController;
 use App\Http\Controllers\Antrian\Bimbingan\MahasiswaController as BimbinganMahasiswaController;
+use App\Http\Controllers\Antrian\Bimbingan\PublicController;
 use App\Http\Controllers\Antrian\Tamu\DosenController as TamuDosenController;
 
 Route::prefix('/antrian')
     ->middleware('auth.jwt')
     ->group(function () {
+        // public
+        Route::controller(PublicController::class)
+            ->withoutMiddleware('auth.jwt')
+            ->prefix('/public')
+            ->group(function () {
+                Route::get('/bimbingan', 'getAntrianToday');
+            });
+
         // role mahasiswa
         Route::controller(BimbinganMahasiswaController::class)
             ->prefix('/mahasiswa/bimbingan')
