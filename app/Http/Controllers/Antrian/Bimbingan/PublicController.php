@@ -21,11 +21,13 @@ class PublicController extends Controller
 
                 if ($validatedIsToday) {
                     $antrian = Bimbingan::whereDate('tgl_bimbingan', Carbon::today())
+                        ->where('is_sudah', false)
                         ->orderBy('created_at', 'DESC')
                         ->get()
                         ->groupBy('nm_dosen');
                 } else {
                     $antrian = Bimbingan::orderBy('created_at', 'DESC')
+                        ->where('is_sudah', false)
                         ->get()
                         ->groupBy('nm_dosen');
                 }
