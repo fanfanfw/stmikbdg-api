@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 // ? Models - view
 use App\Models\Users\UserView;
@@ -36,18 +37,25 @@ class ResetPasswordController extends Controller {
             $otp = str_pad(rand(1, 999999), 6, '0', STR_PAD_LEFT);
             $otpExpTime = Carbon::now()->addMinutes(5); // 5 menit
 
-            ResetPassword::insert([
+            DB::beginTransaction();
+            $insert = ResetPassword::insert([
                 'email' => $user['email'],
                 'otp' => $otp,
                 'otp_expiration_time' => $otpExpTime,
             ]);
 
-            self::sendOtpEmail($user, $otp);
+            if ($insert) {
+                self::sendOtpEmail($user, $otp);
+                DB::commit();
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Kode OTP untuk reset password berhasil dikirim ke email'
-            ], 200);
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Kode OTP untuk reset password berhasil dikirim ke email'
+                ], 200);
+            }
+
+            DB::rollBack();
+            return $this->failedResponseJSON('Kode OTP gagal digenerate');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
@@ -56,29 +64,41 @@ class ResetPasswordController extends Controller {
     public function resetPassword(Request $request) {
         try {
             $request->validate([
+                'email' => 'required|email',
                 'otp' => 'required|min:6|max:6',
                 'password' => 'required|string|min:8|max:64|regex:/^\S*$/u',
                 'confirm_password' => 'same:password',
             ]);
 
             $otp = ResetPassword::where('otp', ((string) $request->otp))
+                ->where('email', $request->email)
                 ->where('otp_expiration_time', '>', Carbon::now())
                 ->first();
 
             if ($otp) {
                 $password = Hash::make($request->password);
 
-                User::where('email', $otp['email'])
+                DB::beginTransaction();
+
+                $update = User::where('email', $otp['email'])
                     ->update([
                         'password' => $password,
                     ]);
 
-                ResetPassword::where('otp', $otp['otp'])->delete();
+                if ($update) {
+                    DB::commit();
+                    ResetPassword::where('otp', $otp['otp'])
+                        ->where('email', $request->email)
+                        ->delete();
 
-                return response()->json([
-                    'status' => 'success',
-                    'message' => 'Password berhasil direset. Silahkan login kembali'
-                ], 200);
+                    return response()->json([
+                        'status' => 'success',
+                        'message' => 'Password berhasil direset. Silahkan login kembali'
+                    ], 200);
+                }
+
+                DB::rollBack();
+                return $this->failedResponseJSON('Password gagal diubah');
             }
 
             return response()->json([
