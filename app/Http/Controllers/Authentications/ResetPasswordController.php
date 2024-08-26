@@ -45,8 +45,8 @@ class ResetPasswordController extends Controller {
             ]);
 
             if ($insert) {
-                self::sendOtpEmail($user, $otp);
                 DB::commit();
+                self::sendOtpEmail($user, $otp);
 
                 return response()->json([
                     'status' => 'success',

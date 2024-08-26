@@ -171,6 +171,30 @@ class AuthController extends Controller {
         }
     }
 
+    public function checkUrl(Request $request) {
+        try {
+            $url = $request->query('link');
+
+            if ($url) {
+                $validatedUrl = filter_var(strtolower($url), FILTER_VALIDATE_URL);
+
+                if ($validatedUrl) {
+                    $site = Site::where('url', strtolower($url))->first();
+
+                    if ($site) {
+                        return $this->successfulResponseJSON([
+                            'site' => $site
+                        ]);
+                    }
+                }
+            }
+
+            return $this->failedResponseJSON('URL tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     /**
      * setExpirationToken
      * Fungsi untuk mengatur waktu kadaluarsa access token
