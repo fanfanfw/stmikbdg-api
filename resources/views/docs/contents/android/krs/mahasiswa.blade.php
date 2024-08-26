@@ -37,7 +37,7 @@
 
 <section>
     {{-- Check Pengajuan KRS Terakhir --}}
-    <h5 class="mt-5 mb-3 fw-bold">(MHS) Cek Pengajuan KRS Terkahir (Alternatif Cek Tahun Ajaran)</h5>
+    <h5 class="mt-5 mb-3 fw-bold">(MHS) Cek Pengajuan KRS Terkahir (Alternatif Cek Tahun Ajaran) <span class="text-danger small">*update</span></h5>
     <p>
         Kami menambahkan alternatif lain untuk memeriksa apakah pengajuan KRS mahasiswa dapat dilakukan atau tidak. cara ini merupakan alternatif dari cek tahun ajaran aktif. Lakukan request ke <span class="badge bg-dark">/krs/check</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil maka responsenya adalah:
     </p>
@@ -51,7 +51,8 @@
             "sts_krs": "S",
             "keterangan_status": "Disetujui",
             "nmr_krs": "020/12/KR1/23",
-            "semester": 7
+            "semester": 7,
+            "sts_tiket": true
         },
         "tahun_ajaran": {
             "tahun_id": 335,
@@ -66,6 +67,9 @@
     </p>
     <p>
         Apabila nilai dari <b>sts_krs</b> adalah <b>S</b> berarti KRS disetujui dan KRS tidak bisa diubah kecuali oleh dosen wali. Jika <b>D</b> berarti KRS berstatus sebagai draft atau saat pengajuan ditolak <b>sts_krs</b> juga akan menjadi <b>D</b>, pada status <b>D</b> mahasiswa dapat mengirim ulang pengajuan KRS baru selama dalam batas waktu pengajuan. Terakhir, jika <b>sts_krs</b> bernilai <b>P</b> berarti KRS telah diajukan dan sedang tahap review, pada tahap ini KRS ditutup sehingga mahasiswa tidak dapat mengajukan lagi sampai statusnya berubah.
+    </p>
+    <p>
+        Perhatikan nilai <b>sts_tiket</b>, jika nilainya adalah <b>true</b> maka mahasiswa tersebut bisa melakukan pengajuan kartu rencana studi. Jika memiliki nilai <b>false</b> atau <b>null</b> menandakan bahwa mahasiswa tersebut belum menyelesaikan administrasi keuangan, sehingga perlu menghubungi bagian keuangan terlebih dahulu.
     </p>
 </section>
 

@@ -14,11 +14,12 @@ use App\Exceptions\ErrorHandler;
 // ? Models - table
 use App\Models\KRS\KRS;
 use App\Models\KRS\KRSMatkul;
-use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\Users\Mahasiswa;
+use App\Models\Keuangan\StatusKeuangan;
 
 // ? Models - view
 use App\Models\TahunAjaranView;
+use App\Models\KRS\MatkulDiselenggarakanView;
 
 class KRSController extends Controller
 {
@@ -65,6 +66,14 @@ class KRSController extends Controller
         $orderedData = array_replace(array_flip($desiredOrder), $dataKRS['krs']);
         $dataKRS['krs'] = $orderedData;
 
+        // cek status keuangan untuk tiket krs
+        $statusKeuangan = StatusKeuangan::getStatus($tahunAjaran['tahun_id'], $this->user['mhs_id']);
+        $dataKRS['krs']['sts_tiket'] = $statusKeuangan->exists() ? $statusKeuangan['tiket_krs'] : null;
+
+        if (is_null($dataKRS['krs']['sts_tiket']) or (!$dataKRS['krs']['sts_tiket'])) {
+            $dataKRS['krs']['message'] = 'Tidak bisa melakukan Pengajuan. Mohon hubungi bagian Administrasi Keuangan';
+        }
+
         return $this->successfulResponseJSON([
             'krs' => $dataKRS['krs'],
             'tahun_ajaran' => [
@@ -102,6 +111,18 @@ class KRSController extends Controller
             ]);
             $tahunAjaran = TahunAjaranView::where('tahun_id', $request->tahun_id)->first();
 
+            /**
+             * cek status keuangan
+             */
+            $statusKeuangan = StatusKeuangan::getStatus($tahunAjaran['tahun_id'], $this->user['mhs_id']);
+            $getValStatusKeuangan = $statusKeuangan->exists() ? $statusKeuangan['tiket_krs'] : null;
+
+            if (is_null($getValStatusKeuangan) or (!$getValStatusKeuangan)) {
+                return $this->failedResponseJSON(
+                    'Tidak bisa melakukan Pengajuan. Mohon hubungi bagian Administrasi Keuangan', 402
+                );
+            }
+
             // jika sts_krs 'D' dan terdapat krs_id
             if ($statusKRS === 'D') {
                 // dari draft (D) ubah ke pengajuan (P)
@@ -138,7 +159,7 @@ class KRSController extends Controller
                     return response()->json([
                         'status' => 'fail',
                         'message' => 'Matakuliah yang dipilih tidak tersedia'
-                    ], 400);
+                    ], 402);
                 }
 
                 $insertedKRSId = KRS::create($krsData)->krs_id;
@@ -146,9 +167,9 @@ class KRSController extends Controller
 
                 KRSMatkul::insert($completedMatkulData);
                 Mahasiswa::where('mhs_id', $this->user['mhs_id'])
-                            ->update([
-                                'krs_id_last' => $insertedKRSId
-                            ]);
+                    ->update([
+                        'krs_id_last' => $insertedKRSId
+                    ]);
             }
 
             return $this->successfulResponseJSON([
@@ -177,7 +198,6 @@ class KRSController extends Controller
             $statusKRS = $checkKRS->getData('data')['data']['krs']['sts_krs'];
             $krsOpen = $checkKRS->getData('data')['data']['krs']['open'];
 
-
             // validasi request
             $request->validate([
                 'tahun_id' => 'required',
@@ -185,6 +205,18 @@ class KRSController extends Controller
                 'mata_kuliah' => 'required|array'
             ]);
             $tahunAjaran = TahunAjaranView::where('tahun_id', $request->tahun_id)->first();
+
+            /**
+             * cek status keuangan
+             */
+            $statusKeuangan = StatusKeuangan::getStatus($tahunAjaran['tahun_id'], $this->user['mhs_id']);
+            $getValStatusKeuangan = $statusKeuangan->exists() ? $statusKeuangan['tiket_krs'] : null;
+
+            if (is_null($getValStatusKeuangan) or (!$getValStatusKeuangan)) {
+                return $this->failedResponseJSON(
+                    'Tidak bisa melakukan Pengajuan. Mohon hubungi bagian Administrasi Keuangan', 402
+                );
+            }
 
             if (is_null($krsId)) {
                 if ($krsOpen) {
@@ -239,6 +271,18 @@ class KRSController extends Controller
     public function getDraftKRSMatkul() {
         try {
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($this->user);
+
+            /**
+             * cek status keuangan
+             */
+            $statusKeuangan = StatusKeuangan::getStatus($tahunAjaranAktif['tahun_id'], $this->user['mhs_id']);
+            $getValStatusKeuangan = $statusKeuangan->exists() ? $statusKeuangan['tiket_krs'] : null;
+
+            if (is_null($getValStatusKeuangan) or (!$getValStatusKeuangan)) {
+                return $this->failedResponseJSON(
+                    'Tidak bisa melakukan Pengajuan. Mohon hubungi bagian Administrasi Keuangan', 402
+                );
+            }
 
             if ($tahunAjaranAktif['du_open']) {
                 $lastKRS = KRS::where('tahun_id', $tahunAjaranAktif['tahun_id'])
