@@ -56,6 +56,7 @@ class KelasKuliahController extends Controller {
                     'dosen' => $item['dosen'],
                     'matakuliah' => $item['matakuliah'],
                     'riwayat_pertemuan' => $riwayatPertemuan,
+                    'riwayat_pertemuan_maks' => 20 // sementara, untuk menentukan maksimal pertemuan
                 ];
 
                 // atur response properti kelas dan jadwal
@@ -140,7 +141,8 @@ class KelasKuliahController extends Controller {
                             ],
                             'dosen' => $item['dosen'],
                             'matakuliah' => $item['matakuliah'],
-                            'riwayat_presensi' => $riwayatPresensi
+                            'riwayat_presensi' => $riwayatPresensi,
+                            'riwayat_presensi_maks' => 20 // sementara, untuk menentukan maksimal presensi atau pertemuan kelas
                         ];
 
                         $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
