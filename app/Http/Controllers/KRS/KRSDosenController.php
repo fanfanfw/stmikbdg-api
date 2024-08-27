@@ -130,7 +130,7 @@ class KRSDosenController extends Controller
                 ->get()
                 ->pluck('mhs_id')
                 ->toArray();
-            $listMahasiswa = collect($listMahasiswa)->whereIn('mhs_id', $listMhsIdTersediaKRS);
+            $listMahasiswa = array_values(collect($listMahasiswa)->whereIn('mhs_id', $listMhsIdTersediaKRS)->toArray());
 
             // jika ada filter semester pada query params
             if ($semester) {
