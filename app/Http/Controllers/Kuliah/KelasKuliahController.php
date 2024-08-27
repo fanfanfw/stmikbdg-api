@@ -110,11 +110,15 @@ class KelasKuliahController extends Controller {
                         $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
 
                         // get riwayat presensi mahasiswa
-                        $pertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])->first();
+                        $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
+                            ->select('pertemuan_id')
+                            ->get()
+                            ->pluck('pertemuan_id')
+                            ->toArray();
                         $riwayatPresensi = [];
 
-                        if ($pertemuan) {
-                            $riwayatPresensi = Presensi::where('pertemuan_id', $pertemuan['pertemuan_id'])
+                        if ($arrPertemuan) {
+                            $riwayatPresensi = Presensi::whereIn('pertemuan_id', $arrPertemuan)
                                 ->where('mhs_id', $mahasiswa['mhs_id'])
                                 ->select('masuk')
                                 ->get();
