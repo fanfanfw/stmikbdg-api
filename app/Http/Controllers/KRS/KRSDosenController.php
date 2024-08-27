@@ -16,6 +16,8 @@ use App\Models\Users\Dosen;
 // ? Models - view
 use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\KRS\NilaiAkhirView;
+use App\Models\TahunAjaranView;
+use App\Models\Users\MahasiswaView;
 
 class KRSDosenController extends Controller
 {
@@ -116,6 +118,20 @@ class KRSDosenController extends Controller
             $semester = $request->query('semester') ?? null;
             $listMahasiswa = Dosen::getListKRSMahasiswa($this->user['dosen_id'], $search, $tahunMasuk);
 
+            // 27-08-2024
+            // ambil mahasiswa berdasarkan tahun ajaran aktif
+            $listMahasiswaId = collect($listMahasiswa)->pluck('mhs_id')->toArray();
+            $listTahunAjaranAktif = TahunAjaranView::select('tahun_id')
+                ->get()
+                ->pluck('tahun_id')
+                ->toArray();
+            $listMhsIdTersediaKRS = KRS::whereIn('mhs_id', $listMahasiswaId)
+                ->whereIn('tahun_id', $listTahunAjaranAktif)
+                ->get()
+                ->pluck('mhs_id')
+                ->toArray();
+            $listMahasiswa = collect($listMahasiswa)->whereIn('mhs_id', $listMhsIdTersediaKRS);
+
             // jika ada filter semester pada query params
             if ($semester) {
                 $listMahasiswa = array_values(collect($listMahasiswa)->filter(function ($item) use ($semester) {
@@ -155,6 +171,46 @@ class KRSDosenController extends Controller
 
             return $this->successfulResponseJSON([
                 'list_krs_mahasiswa' => $listMahasiswa,
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getListFilterAngkatan() {
+        try {
+            $listMahasiswa = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->where('sts_mhs', 'A')
+                ->select('angkatan')
+                ->distinct('angkatan')
+                ->orderBy('angkatan', 'DESC')
+                ->get();
+
+            return $this->successfulResponseJSON([
+                'filter_angkatan' => $listMahasiswa
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getListFilterSemester() {
+        try {
+            $listMahasiswaId = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->where('sts_mhs', 'A')
+                ->select('mhs_id')
+                ->get()
+                ->pluck('mhs_id')
+                ->toArray();
+            $listTahunAjaran = TahunAjaranView::select('tahun_id')->get()->pluck('tahun_id')->toArray();
+            $listFilterSemesterTersedia = KRS::whereIn('mhs_id', $listMahasiswaId)
+                ->whereIn('tahun_id', $listTahunAjaran)
+                ->select('semester')
+                ->distinct('semester')
+                ->get();
+
+            return $this->successfulResponseJSON([
+                'filter_semester' => $listFilterSemesterTersedia
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);

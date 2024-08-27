@@ -31,10 +31,10 @@ class Dosen extends Model
         $baseQuery = $query->where('dosen_id', $dosenId)
             ->with(['mahasiswa' => function ($query) use ($search, $tahunMasuk) {
                 $mhsQuery = $query->select(
-                    'mhs_id', 'nim', 'nm_mhs', 'jns_mhs', 'sts_mhs', 'kd_kampus', 'kelas', 'masuk_tahun', 'dosen_id', 'krs_id_last'
-                )
-                ->where('krs_id_last', '!=', null)
-                ->where('sts_mhs', '!=', 'L');
+                        'mhs_id', 'nim', 'nm_mhs', 'jns_mhs', 'sts_mhs', 'kd_kampus', 'kelas', 'masuk_tahun', 'dosen_id', 'krs_id_last'
+                    )
+                    ->where('krs_id_last', '!=', null)
+                    ->whereNotIn('sts_mhs', ['L', 'N']);
 
                 // search saja
                 if ($search and !$tahunMasuk) {

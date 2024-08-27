@@ -60,4 +60,6 @@ Route::controller(KRSDosenController::class)
         Route::get('/', 'getKRSMahasiswa');
         Route::put('/', 'updateStatusKRSMahasiswa');
         Route::get('/list', 'getListKRSMahasiswa');
+        Route::get('/filter/angkatan', 'getListFilterAngkatan');
+        Route::get('/filter/semester', 'getListFilterSemester');
     });

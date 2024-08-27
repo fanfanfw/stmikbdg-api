@@ -57,7 +57,7 @@ class MatKulController extends Controller
     }
 
     public function getMataKuliahByMahasiswa($filter) {
-        // bet mahasiswa ke tabel, untuk dapet krs_id_last
+        // get mahasiswa ke tabel, untuk dapet krs_id_last
         $mahasiswa = Mahasiswa::where('mhs_id', $this->user['mhs_id'])->first();
 
         // buat filter untuk kurikulum aktif
@@ -77,10 +77,9 @@ class MatKulController extends Controller
 
 
         /**
-         * get matakuliah diselenggarakan dan gabunggkan
-         * dengan matakuliah di view mata kuliah
-         *
          * 27-08-2024
+         * get matakuliah diselenggarakan dan gabungkan
+         * dengan matakuliah di view mata kuliah
          */
         $filter['kur_id'] = $kurikulum['kur_id'];
         $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
@@ -92,6 +91,8 @@ class MatKulController extends Controller
             return $matkulDiselenggarakan->contains('mk_id', $mk['mk_id']);
         });
 
+        // get list mk_id di matkul diselenggarakan ke collection
+        $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
         $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
 
         // terdapat filter semester
@@ -119,58 +120,60 @@ class MatKulController extends Controller
             // get nilai akhir
             $allNilaiAkhir = NilaiAkhirView::where('mhs_id', $this->user['mhs_id'])->get();
             $allMkIdNilaiAkhir = $allNilaiAkhir->pluck('mk_id')->toArray();
-            $mappedListMatkulWithNilaiAkhir = $listMatkul->map(function ($mk) use ($allMkIdNilaiAkhir, $allNilaiAkhir) {
-                if (in_array($mk['mk_id'], $allMkIdNilaiAkhir)) {
-                    $tempNilaiAkhir = $allNilaiAkhir->where('mk_id', $mk['mk_id'])->first();
-                    $mk['nilai_akhir'] = [
-                        'nilai' => $tempNilaiAkhir['nilai'],
-                        'mutu' => $tempNilaiAkhir['mutu'],
-                    ];
-                } else {
-                    $mk['nilai_akhir'] = null;
-                }
+            $mappedListMatkulWithNilaiAkhir = $listMatkul
+                ->map(function ($mk) use ($allMkIdNilaiAkhir, $allNilaiAkhir) {
+                    if (in_array($mk['mk_id'], $allMkIdNilaiAkhir)) {
+                        $tempNilaiAkhir = $allNilaiAkhir->where('mk_id', $mk['mk_id'])->first();
+                        $mk['nilai_akhir'] = [
+                            'nilai' => $tempNilaiAkhir['nilai'],
+                            'mutu' => $tempNilaiAkhir['mutu'],
+                        ];
+                    } else {
+                        $mk['nilai_akhir'] = null;
+                    }
 
-                return $mk;
+                    return $mk;
             });
 
             // get latest krs matkul
-            $allKrsMatkul = $latestKRS->krsMatkul()->get();
+            $allKrsMatkul = $latestKRS ? $latestKRS->krsMatkul()->get() : $mappedListMatkulWithNilaiAkhir;
             $allMkIdKrsMatkul = $allKrsMatkul->pluck('mk_id')->toArray();
-            $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir->map(function ($mk) use ($allMkIdKrsMatkul) {
-                $isSameSmt = $mk['smt'] === $this->currentSemester['smt'] ?? false;
+            $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir
+                ->map(function ($mk) use ($allMkIdKrsMatkul, $collectMkIdDiselenggarakan) {
+                    $isSameSmt = $mk['smt'] === $this->currentSemester['smt'] ?? false;
 
-                if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
-                    $mk['krs'] = [
-                        'is_aktif' => $isSameSmt,
-                        'is_checked' => true,
-                    ];
-                } else {
-                    $mk['krs'] = [
-                        'is_aktif' => $isSameSmt,
-                        'is_checked' => false,
-                    ];
-                }
+                    if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
+                        $mk['krs'] = [
+                            'is_aktif' => $isSameSmt,
+                            'is_checked' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false,
+                        ];
+                    } else {
+                        $mk['krs'] = [
+                            'is_aktif' => $isSameSmt,
+                            'is_checked' => false,
+                        ];
+                    }
 
-                // mk pilihan
-                if (strpos($mk['kd_mk'], 'P-') === 0) {
-                    $mk['krs'] = [
-                        'is_aktif' => false,
-                        'is_checked' => false,
-                    ];
-                }
+                    // mk pilihan
+                    if (strpos($mk['kd_mk'], 'P-') === 0) {
+                        $mk['krs'] = [
+                            'is_aktif' => false,
+                            'is_checked' => false,
+                        ];
+                    }
 
-                /**
-                 * banyak isi kolom yang kotor sama white space
-                 * jadi harus dibersihin dulu biar gk ganggu di front end
-                 */
-                $mk['kd_mk'] = trim($mk['kd_mk']);
-                $mk['nm_mk'] = trim($mk['nm_mk']);
+                    /**
+                     * banyak isi kolom yang kotor sama white space
+                     * jadi harus dibersihin dulu biar gk ganggu di front end
+                     */
+                    $mk['kd_mk'] = trim($mk['kd_mk']);
+                    $mk['nm_mk'] = trim($mk['nm_mk']);
 
-                if (array_key_exists('nm_jurusan', $mk->toArray())) {
-                    $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
-                }
+                    if (array_key_exists('nm_jurusan', $mk->toArray())) {
+                        $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
+                    }
 
-                return $mk;
+                    return $mk;
             });
 
             // grouping per semester
@@ -180,17 +183,29 @@ class MatKulController extends Controller
                 $tempMatkul[$semester]['mata_kuliah'][] = $mk;
             }
 
+            // initial value
+            $countNilaiAkhir = 0;
+            $totalNilaiAkhirSemester = 0;
+            $totalSksDipilihDisemester = 0;
+            $totalNilaiAPerSemester = 0;
+            $totalNilaiBPerSemester = 0;
+            $totalNilaiCPerSemester = 0;
+            $totalNilaiDPerSemester = 0;
+            $totalNilaiEPerSemester = 0;
+
             // hitung ipk dan total sks yang dipilih tiap semester
             foreach ($tempMatkul as $index => $item) {
-                // initial value
-                $countNilaiAkhir = 0;
-                $totalNilaiAkhirSemester = 0;
-                $totalSksDipilihDisemester = 0;
-                $totalNilaiAPerSemester = 0;
-                $totalNilaiBPerSemester = 0;
-                $totalNilaiCPerSemester = 0;
-                $totalNilaiDPerSemester = 0;
-                $totalNilaiEPerSemester = 0;
+                if ($latestKRS) {
+                    // reset value jika terdapat krs terakhir
+                    $countNilaiAkhir = 0;
+                    $totalNilaiAkhirSemester = 0;
+                    $totalSksDipilihDisemester = 0;
+                    $totalNilaiAPerSemester = 0;
+                    $totalNilaiBPerSemester = 0;
+                    $totalNilaiCPerSemester = 0;
+                    $totalNilaiDPerSemester = 0;
+                    $totalNilaiEPerSemester = 0;
+                }
 
                 foreach ($item['mata_kuliah'] as $mk) {
                     if (!is_null($mk['nilai_akhir'])) {
@@ -271,7 +286,8 @@ class MatKulController extends Controller
 
         // set response paling atas
         if (!$filter['semester']) {
-            $response['total_semua_ipk'] = (float) ($totalSemuaIPK / $countIPKPerSemester);
+            $response['total_semua_ipk'] = $totalSemuaIPK === 0 ?
+                0 : (float) ($totalSemuaIPK / $countIPKPerSemester);
             $response['total_semua_sks_dipilih'] = $totalSemuaSKS;
             $response['total_semua_nilai_A'] = $totalSemuaNilaiA;
             $response['total_semua_nilai_B'] = $totalSemuaNilaiB;
