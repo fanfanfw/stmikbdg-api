@@ -14,7 +14,7 @@ use App\Models\KRS\MatKulView;
 use App\Models\KurikulumView;
 use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\KRS\NilaiAkhirView;
-
+use App\Models\TahunAjaranView;
 // ? Models - table
 use App\Models\Users\Mahasiswa;
 
@@ -63,11 +63,24 @@ class MatKulController extends Controller
         // buat filter untuk kurikulum aktif
         $filter['jur_id'] = $this->user['jur_id'];
         $filter['angkatan'] = $this->user['angkatan'];
-        $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
+
+        /**
+         * 27-08-2024
+         * ganti kurikulum jadi tahun ajaran
+         * dan cari kurikulum aktif dengan nilai true
+         */
+        // $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
+        $tahunAjaran = TahunAjaranView::where('tahun_id', $filter['tahun_id'])->first();
+        $kurikulum = KurikulumView::where('jur_id', $tahunAjaran['jur_id'])
+            ->where('k_aktif', true)
+            ->first();
+
 
         /**
          * get matakuliah diselenggarakan dan gabunggkan
          * dengan matakuliah di view mata kuliah
+         *
+         * 27-08-2024
          */
         $filter['kur_id'] = $kurikulum['kur_id'];
         $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
