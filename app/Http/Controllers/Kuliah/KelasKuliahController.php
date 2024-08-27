@@ -114,7 +114,7 @@ class KelasKuliahController extends Controller {
                         $riwayatPresensi = [];
 
                         if ($pertemuan) {
-                            $riwayatPresensi = Presensi::where('pertemuan_id', 80)
+                            $riwayatPresensi = Presensi::where('pertemuan_id', $pertemuan['pertemuan_id'])
                                 ->where('mhs_id', $mahasiswa['mhs_id'])
                                 ->select('masuk')
                                 ->get();

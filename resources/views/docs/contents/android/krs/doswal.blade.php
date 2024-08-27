@@ -279,3 +279,67 @@
     }
 }</code></pre>
 </section>
+
+<section class="mt-4">
+    <h5 class="mb-3 fw-bold">(DOSWAL) Get List Tahun Angkatan untuk Filter KRS <span class="small text-success">*new</span></h5>
+    <p>
+        Untuk mendapatkan list tahun angakatan yang digunakan untuk filter KRS, kirimkan permintaan ke <span class="badge bg-dark">/krs/mahasiswa/filter/angkatan</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "filter_angkatan": [
+            {
+                "angkatan": 2023
+            },
+            {
+                "angkatan": 2022
+            },
+            {
+                "angkatan": 2021
+            },
+            {
+                "angkatan": 2020
+            },
+            {
+                "angkatan": 2019
+            },
+            {
+                "angkatan": 2011
+            }
+        ]
+    }
+}</code></pre>
+</section>
+
+<section class="mt-4">
+    <h5 class="mb-3 fw-bold">(DOSWAL) Get List Semester untuk Filter KRS <span class="small text-success">*new</span></h5>
+    <p>
+        Digunakan untuk mendapatkan list semester yang digunakan untuk filter krs mahasiswa, kirimkan permintaan ke <span class="badge bg-dark">/krs/mahasiswa/filter/semester</span> dengan menggunakan HTTP method <span class="badge bg-info">get</span>. Jika berhasil API akan memberikan respons seperti berikut:
+    </p>
+    <pre><code class="language-json bg-primary-subtle">{
+    "status": "success",
+    "data": {
+        "filter_semester": [
+            {
+                "semester": 2
+            },
+            {
+                "semester": 4
+            },
+            {
+                "semester": 6
+            },
+            {
+                "semester": 7
+            },
+            {
+                "semester": 8
+            },
+            {
+                "semester": 12
+            }
+        ]
+    }
+}</code></pre>
+</section>

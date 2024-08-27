@@ -90,6 +90,7 @@
         Setelah user berhasil menerima kode OTP, maka gunakanlah kode OTP tersebut untuk membuat password baru dengan cara mengirimkan permintaan ke <span class="badge bg-dark">/authentications/password/reset</span> dengan menggunakan HTTP method <span class="badge bg-info">post</span> dan kirimkan data dalam body dengan format JSON seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
+    "email": "suhaefi@simak.dev",
     "otp": "040954",
     "password": "password_baru",
     "confirm_password": "password_baru"
