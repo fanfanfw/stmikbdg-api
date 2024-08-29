@@ -49,6 +49,7 @@
                             "kd_kur": "IFS120"
                         },
                         "riwayat_presensi": [],
+                        "riwayat_presensi_maks": 20,
                         "jadwal": {
                             "kelas_kuliah_id": 3294,
                             "mk_id": 137,

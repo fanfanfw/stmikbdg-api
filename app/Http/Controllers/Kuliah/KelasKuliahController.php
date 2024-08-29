@@ -175,9 +175,7 @@ class KelasKuliahController extends Controller {
                 ], 404);
             }
 
-            return $this->successfulResponseJSON([
-                'kelas_kuliah' => null
-            ], null, 204);
+            return $this->failedResponseJSON('Kelas kuliah tidak ditemukan', 404);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

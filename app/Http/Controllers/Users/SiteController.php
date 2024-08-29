@@ -310,6 +310,19 @@ class SiteController extends Controller
         }
     }
 
+    public function getUserSites() {
+        try {
+            $userId = auth()->user()->id;
+            $userSites = UserSitesView::where('user_id', $userId)->get(['url', 'name']);
+
+            return $this->successfulResponseJSON([
+                'user_sites' => $userSites
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     private function getSitesByRole($role) {
         switch ($role) {
             case 'dev':

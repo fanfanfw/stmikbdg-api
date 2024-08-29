@@ -66,6 +66,7 @@ Route::prefix('/sso')
             ->group(function () {
                 Route::get('/list', 'getAll');
                 Route::post('/add', 'addSite');
+                Route::get('/user-access', 'getUserSites');
                 Route::post('/user-access', 'addAccess');
                 Route::delete('/user-access', 'deleteAccess');
                 Route::post('/user-access/all', 'addAllAccesses');

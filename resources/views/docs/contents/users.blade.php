@@ -25,7 +25,7 @@
             "sts_mhs": "A",
             "angkatan": 2020,
             "nama_jurusan": "S1 - TEKNIK INFORMATIKA",
-            "dosen_wali": "Mina Ismu Rahayu, M.T                   ",
+            "dosen_wali": "Mina Ismu Rahayu, M.T",
             "tmp_lahir": "BANDUNG",
             "tgl_lahir": "2002-01-21",
             "masuk_semester": 0,
@@ -129,15 +129,19 @@
     <h5 class="mt-4">Get Daftar Web yang Bisa Diakses</h5>
     <hr>
     <p>
-        Digunakan untuk get list web yang bisa diakses oleh user. Kirim permintaan ke <span class="badge bg-dark">/sites</span> menggunakan HTTP method <span class="badge bg-info">get</span>, jika berhasil akan mengembalikan response seperti berikut:
+        Digunakan untuk get list web yang bisa diakses oleh user. Kirim permintaan ke <span class="badge bg-dark">/sso/sites/user-access</span> menggunakan HTTP method <span class="badge bg-info">get</span>, jika berhasil akan mengembalikan response seperti berikut:
     </p>
     <pre><code class="language-json bg-primary-subtle">{
     "status": "success",
     "data": {
         "sites": [
             {
-                "id": 1,
-                "url": "http://stmikbdg-acl.test/"
+                "url": "http://stmikbdg-acl.test/",
+                "name": "Sistem Access Control Level"
+            },
+            {
+                "url": "http://stmikbdg-deteksi.test/",
+                "name": "Sistem Deteksi Kemiripan Proposal Skripsi"
             }
         ]
     }

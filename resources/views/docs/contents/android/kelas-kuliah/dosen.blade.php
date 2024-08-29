@@ -50,6 +50,7 @@
                             "kd_kur": "MIS120"
                         },
                         "riwayat_pertemuan": [],
+                        "riwayat_pertemuan_maks": 20,
                         "jadwal": {
                             "kelas_kuliah_id": 3262,
                             "mk_id": 47,
