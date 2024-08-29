@@ -144,7 +144,7 @@ class MatKulController extends Controller
 
                     if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
                         $mk['krs'] = [
-                            'is_aktif' => $isSameSmt,
+                            'is_aktif' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false, // sebelumnya $isSameSmt
                             'is_checked' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false,
                         ];
                     } else {
