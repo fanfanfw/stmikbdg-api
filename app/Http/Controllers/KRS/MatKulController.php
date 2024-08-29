@@ -137,7 +137,7 @@ class MatKulController extends Controller
 
             // get latest krs matkul
             $allKrsMatkulLast = $latestKRS->krsMatkul()->get();
-            $pluckedAllKrsMatkulLast = count($allKrsMatkulLast) > 0 ? $allKrsMatkulLast->pluck('mk_id') : collect(['mk_id' => null]);
+            $pluckedAllKrsMatkulLast = count($allKrsMatkulLast) > 0 ? $allKrsMatkulLast->pluck('mk_id')->toArray : ['mk_id' => null];
             $allKrsMatkul = $latestKRS ? $latestKRS->krsMatkul()->get() : $mappedListMatkulWithNilaiAkhir;
             $allMkIdKrsMatkul = $allKrsMatkul->pluck('mk_id')->toArray();
             $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir
@@ -147,7 +147,7 @@ class MatKulController extends Controller
                     if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
                         $mk['krs'] = [
                             'is_aktif' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false, // sebelumnya $isSameSmt
-                            'is_checked' => $pluckedAllKrsMatkulLast->contains($mk['mk_id']) ? true : false, // sementara
+                            'is_checked' => in_array($mk['mk_id'], $pluckedAllKrsMatkulLast) ? true : false, // sementara
                         ];
                     } else {
                         $mk['krs'] = [
