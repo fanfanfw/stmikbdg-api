@@ -88,7 +88,7 @@ class IPController extends Controller
 
             return response()->json([
                 'status' => 'success',
-                'data' => []
+                'data' => null
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
