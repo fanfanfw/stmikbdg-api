@@ -86,7 +86,10 @@ class IPController extends Controller
                 ]);
             }
 
-            return $this->failedResponseJSON('Data nilai mahasiswa belum tersedia', 400);
+            return response()->json([
+                'status' => 'success',
+                'data' => []
+            ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

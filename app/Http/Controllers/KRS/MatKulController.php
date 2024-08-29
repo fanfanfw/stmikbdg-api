@@ -136,16 +136,17 @@ class MatKulController extends Controller
             });
 
             // get latest krs matkul
+            $allKrsMatkulLast = $latestKRS->krsMatkul()->get();
             $allKrsMatkul = $latestKRS ? $latestKRS->krsMatkul()->get() : $mappedListMatkulWithNilaiAkhir;
             $allMkIdKrsMatkul = $allKrsMatkul->pluck('mk_id')->toArray();
             $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir
-                ->map(function ($mk) use ($allMkIdKrsMatkul, $collectMkIdDiselenggarakan) {
+                ->map(function ($mk) use ($allMkIdKrsMatkul, $collectMkIdDiselenggarakan, $allKrsMatkulLast) {
                     $isSameSmt = $mk['smt'] === $this->currentSemester['smt'] ?? false;
 
                     if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
                         $mk['krs'] = [
                             'is_aktif' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false, // sebelumnya $isSameSmt
-                            'is_checked' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false,
+                            'is_checked' => $allKrsMatkulLast->contains($mk['mk_id']) ? true : false, // sementara
                         ];
                     } else {
                         $mk['krs'] = [
