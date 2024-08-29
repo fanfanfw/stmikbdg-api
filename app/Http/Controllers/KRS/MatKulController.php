@@ -5,6 +5,7 @@ namespace App\Http\Controllers\KRS;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Controllers\TahunAjaranController;
+use Illuminate\Support\Facades\Cache;
 
 // ? Exception
 use App\Exceptions\ErrorHandler;
@@ -15,6 +16,7 @@ use App\Models\KurikulumView;
 use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\KRS\NilaiAkhirView;
 use App\Models\TahunAjaranView;
+
 // ? Models - table
 use App\Models\Users\Mahasiswa;
 
@@ -65,43 +67,65 @@ class MatKulController extends Controller
         $filter['angkatan'] = $this->user['angkatan'];
 
         /**
-         * 27-08-2024
-         * ganti kurikulum jadi tahun ajaran
-         * dan cari kurikulum aktif dengan nilai true
+         * 29-08-2024
+         * coba pake cache untuk mengurangi query ke db
          */
-        // $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
-        $tahunAjaran = TahunAjaranView::where('tahun_id', $filter['tahun_id'])->first();
-        $kurikulum = KurikulumView::where('jur_id', $tahunAjaran['jur_id'])
-            ->where('k_aktif', true)
-            ->first();
+        if (!Cache::has('krs:mhs:all_matkul:' . $filter['tahun_id'])) {
+            /**
+             * 27-08-2024
+             * ganti kurikulum jadi tahun ajaran
+             * dan cari kurikulum aktif dengan nilai true
+             */
+            // $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
+            $tahunAjaran = TahunAjaranView::where('tahun_id', $filter['tahun_id'])->first();
+            $kurikulum = KurikulumView::where('jur_id', $tahunAjaran['jur_id'])
+                ->where('k_aktif', true)
+                ->first();
 
 
-        /**
-         * 27-08-2024
-         * get matakuliah diselenggarakan dan gabungkan
-         * dengan matakuliah di view mata kuliah
-         */
-        $filter['kur_id'] = $kurikulum['kur_id'];
-        $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
-        $filter['smt'] = $matkulDiselenggarakan[0]['smt'];
-        $matakuliah = MatKulView::getMatkul($filter);
+            /**
+             * 27-08-2024
+             * get matakuliah diselenggarakan dan gabungkan
+             * dengan matakuliah di view mata kuliah
+             */
+            $filter['kur_id'] = $kurikulum['kur_id'];
+            $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
+            $filter['smt'] = $matkulDiselenggarakan[0]['smt'];
+            $matakuliah = MatKulView::getMatkul($filter);
 
-        // buang mk_id yang sama
-        $listUniqueMatkul = $matakuliah->reject(function ($mk) use ($matkulDiselenggarakan) {
-            return $matkulDiselenggarakan->contains('mk_id', $mk['mk_id']);
-        });
-
-        // get list mk_id di matkul diselenggarakan ke collection
-        $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
-        $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
-
-        // terdapat filter semester
-        if ($filter['semester']) {
-            $listMatkul = $mergedMatkul->filter(function ($item) use ($filter) {
-                return $item['semester'] == $filter['semester'];
+            // buang mk_id yang sama
+            $listUniqueMatkul = $matakuliah->reject(function ($mk) use ($matkulDiselenggarakan) {
+                return $matkulDiselenggarakan->contains('mk_id', $mk['mk_id']);
             });
+
+            // get list mk_id di matkul diselenggarakan ke collection
+            $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
+            $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
+
+            // terdapat filter semester
+            if ($filter['semester']) {
+                $listMatkul = $mergedMatkul->filter(function ($item) use ($filter) {
+                    return $item['semester'] == $filter['semester'];
+                });
+            } else {
+                $listMatkul = $mergedMatkul;
+            }
+
+            Cache::put('krs:mhs:all_matkul:' . $filter['tahun_id'], $mergedMatkul);
+            Cache::put('krs:mhs:matkul_id_tersedia:', $collectMkIdDiselenggarakan);
         } else {
-            $listMatkul = $mergedMatkul;
+            // get data dari cache
+            $mergedMatkul = Cache::get('krs:mhs:all_matkul:' . $filter['tahun_id']);
+            $collectMkIdDiselenggarakan = Cache::get('krs:mhs:matkul_id_tersedia:');
+
+            // terdapat filter semester
+            if ($filter['semester']) {
+                $listMatkul = $mergedMatkul->filter(function ($item) use ($filter) {
+                    return $item['semester'] == $filter['semester'];
+                });
+            } else {
+                $listMatkul = $mergedMatkul;
+            }
         }
 
         // initial value
@@ -288,8 +312,8 @@ class MatKulController extends Controller
 
         // set response paling atas
         if (!$filter['semester']) {
-            $response['total_semua_ipk'] = $totalSemuaIPK === 0 ?
-                0 : (float) ($totalSemuaIPK / $countIPKPerSemester);
+            $response['total_semua_ipk'] = $totalSemuaIPK === 0
+                ? 0 : (float) ($totalSemuaIPK / $countIPKPerSemester);
             $response['total_semua_sks_dipilih'] = $totalSemuaSKS;
             $response['total_semua_nilai_A'] = $totalSemuaNilaiA;
             $response['total_semua_nilai_B'] = $totalSemuaNilaiB;

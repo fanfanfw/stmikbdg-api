@@ -107,66 +107,68 @@ class KelasKuliahController extends Controller {
                         return $item['kelas_kuliah_join'];
                     }, $krsMatkul);
 
-                    foreach ($kelasKuliah as $index => $item) {
-                        $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
+                    if (isset($kelasKuliah[0]['kelas_kuliah_id'])) {
+                        foreach ($kelasKuliah as $index => $item) {
+                            $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
 
-                        // get riwayat presensi mahasiswa
-                        $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
-                            ->select('pertemuan_id')
-                            ->get()
-                            ->pluck('pertemuan_id')
-                            ->toArray();
-                        $riwayatPresensi = [];
+                            // get riwayat presensi mahasiswa
+                            $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
+                                ->select('pertemuan_id')
+                                ->get()
+                                ->pluck('pertemuan_id')
+                                ->toArray();
+                            $riwayatPresensi = [];
 
-                        if ($arrPertemuan) {
-                            $riwayatPresensi = Presensi::whereIn('pertemuan_id', $arrPertemuan)
-                                ->where('mhs_id', $mahasiswa['mhs_id'])
-                                ->select('masuk')
-                                ->get();
+                            if ($arrPertemuan) {
+                                $riwayatPresensi = Presensi::whereIn('pertemuan_id', $arrPertemuan)
+                                    ->where('mhs_id', $mahasiswa['mhs_id'])
+                                    ->select('masuk')
+                                    ->get();
+                            }
+
+                            $formattedItem = [
+                                'data_kelas' => [
+                                    'kelas_kuliah_id' => $item['kelas_kuliah_id'],
+                                    'tahun_id' => $item['tahun_id'],
+                                    'jur_id' => $item['jur_id'],
+                                    'mk_id' => $item['mk_id'],
+                                    'join_kelas_kuliah_id' => $item['join_kelas_kuliah_id'],
+                                    'kjoin_kelas' => $item['kjoin_kelas'],
+                                    'kelas_kuliah' => $item['kelas_kuliah'],
+                                    'jns_mhs' => $item['jns_mhs'],
+                                    'sts_kelas' => $item['sts_kelas'],
+                                    'pengajar_id' => $item['pengajar_id'],
+                                    'join_jur' => $item['join_jur'],
+                                ],
+                                'dosen' => $item['dosen'],
+                                'matakuliah' => $item['matakuliah'],
+                                'riwayat_presensi' => $riwayatPresensi,
+                                'riwayat_presensi_maks' => 20 // sementara, untuk menentukan maksimal presensi atau pertemuan kelas
+                            ];
+
+                            $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
                         }
 
-                        $formattedItem = [
-                            'data_kelas' => [
-                                'kelas_kuliah_id' => $item['kelas_kuliah_id'],
-                                'tahun_id' => $item['tahun_id'],
-                                'jur_id' => $item['jur_id'],
-                                'mk_id' => $item['mk_id'],
-                                'join_kelas_kuliah_id' => $item['join_kelas_kuliah_id'],
-                                'kjoin_kelas' => $item['kjoin_kelas'],
-                                'kelas_kuliah' => $item['kelas_kuliah'],
-                                'jns_mhs' => $item['jns_mhs'],
-                                'sts_kelas' => $item['sts_kelas'],
-                                'pengajar_id' => $item['pengajar_id'],
-                                'join_jur' => $item['join_jur'],
-                            ],
-                            'dosen' => $item['dosen'],
-                            'matakuliah' => $item['matakuliah'],
-                            'riwayat_presensi' => $riwayatPresensi,
-                            'riwayat_presensi_maks' => 20 // sementara, untuk menentukan maksimal presensi atau pertemuan kelas
-                        ];
+                        // urutkan berdasarkan nama hari, Senin, Selasa, ... Minggu, Unknown
+                        $orderedKelasKuliahByNamaHari = self::orderingKelasKuliahByNamaHari($kelasKuliah);
 
-                        $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
+                        // terdapat query 'hari'
+                        if ($filterHari) {
+                            return self::filterKelasKuliahByHari($orderedKelasKuliahByNamaHari, $filterHari);
+                        }
+
+                        // ubah ke array
+                        $transformedResponse = [];
+
+                        foreach ($orderedKelasKuliahByNamaHari as $key => $item) {
+                            $transformedResponse[] = [$key => $item];
+                        }
+
+                        // semua jadwal
+                        return $this->successfulResponseJSON([
+                            'kelas_kuliah' => $transformedResponse
+                        ]);
                     }
-
-                    // urutkan berdasarkan nama hari, Senin, Selasa, ... Minggu, Unknown
-                    $orderedKelasKuliahByNamaHari = self::orderingKelasKuliahByNamaHari($kelasKuliah);
-
-                    // terdapat query 'hari'
-                    if ($filterHari) {
-                        return self::filterKelasKuliahByHari($orderedKelasKuliahByNamaHari, $filterHari);
-                    }
-
-                    // ubah ke array
-                    $transformedResponse = [];
-
-                    foreach ($orderedKelasKuliahByNamaHari as $key => $item) {
-                        $transformedResponse[] = [$key => $item];
-                    }
-
-                    // semua jadwal
-                    return $this->successfulResponseJSON([
-                        'kelas_kuliah' => $transformedResponse
-                    ]);
                 }
 
                 return response()->json([

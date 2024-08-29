@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 // ? Models - table
 use App\Models\KRS\KRS;
@@ -17,6 +19,7 @@ use App\Models\Users\Dosen;
 use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\KRS\NilaiAkhirView;
 use App\Models\TahunAjaranView;
+use App\Models\Users\Mahasiswa;
 use App\Models\Users\MahasiswaView;
 
 class KRSDosenController extends Controller
@@ -70,42 +73,92 @@ class KRSDosenController extends Controller
                 'krs_matkul.*.krs_mk_id' => 'required',
             ]);
 
-            $currentStatusKRS = KRS::where('krs_id', $request->krs_id)->first()['sts_krs'];
+            // cek mahasiswa dan krs
+            $currentKRS = KRS::where('krs_id', $request->krs_id)->first();
+            $mahasiswa = Mahasiswa::where('mhs_id', $request->mhs_id)->first();
+
+            if (!$currentKRS or !$mahasiswa) {
+                return $this->failedResponseJSON('Nilai mhs_id atau krs_id tidak ditemukan', 404);
+            }
 
             $krsData = [
                 'sts_krs' => $request->sts_krs,
             ];
             $krsMatkul = $request->krs_matkul;
 
+            // cek setiap krs_mk_id
+            $tempKrsMatkulArr = [];
+            foreach ($request->krs_matkul as $item) {
+                $krsMkMatch = KRSMatkul::where('krs_id', $request->krs_id)
+                    ->where('krs_mk_id', $item['krs_mk_id'])
+                    ->first();
+
+                if (!$krsMkMatch) {
+                    return $this->failedResponseJSON('Nilai krs_mk_id ' . $item['krs_mk_id'] . ' tidak sesuai', 400);
+                }
+
+                array_push($tempKrsMatkulArr, $item['krs_mk_id']);
+            }
+
             // krs ditolak
             if ($request->sts_krs === 'D') {
                 $request->validate([
                     'ditolak_alasan' => 'required',
                 ]);
-                $ditolakStlhSah = $currentStatusKRS === 'S' ?? false;
-
+                $ditolakStlhSah = $currentKRS['sts_krs'] === 'S' ?? false;
                 $krsData['ditolak_alasan'] = $request->ditolak_alasan;
                 $krsData['ditolak_tanggal'] = now();
                 $krsData['ditolak_stlh_sah'] = $ditolakStlhSah;
             }
 
             // update ke table krs
-            KRS::where('krs_id', $request->krs_id)
+            DB::beginTransaction();
+            $updateKRS = KRS::where('krs_id', $request->krs_id)
                 ->update($krsData);
 
             // update setiap mk di table krs_mk
-            foreach ($krsMatkul as $matkul) {
-                KRSMatkul::where('krs_id', $request->krs_id)
-                    ->where('krs_mk_id', $matkul['krs_mk_id'])
+            if ($updateKRS) {
+                foreach ($krsMatkul as $matkul) {
+                    $updateKRSMatkul = KRSMatkul::where('krs_id', $request->krs_id)
+                        ->where('krs_mk_id', $matkul['krs_mk_id'])
+                        ->update([
+                            'k_disetujui' => $matkul['k_disetujui']
+                        ]);
+
+                    if (!$updateKRSMatkul) {
+                        DB::rollBack();
+                        return $this->failedResponseJSON('Matakuliah di KRS Mahasiswa gagal diperbarui', 500);
+                    }
+                }
+
+                /**
+                 * ! Terdapat fungsi dari db yang belum diketahui
+                 * jadi saat status berubah menjadi 'D' atau ditolak,
+                 * maka otomatis krs_id_last di table mahasiswa
+                 * langsung kembali ke KRS sebelumnya (dalam artian fungsi yang belum diketahui ini
+                 * menganggap bahwa KRS ditolak menandakan bahwa data KRSnya dihapus
+                 * ).
+                 *
+                 * Sehingga untuk mempertahankan KRS mahasiswa saat ini (agar nmr_krs tidak berubah)
+                 * kolom krs_id_last harus diupdate lagi.
+                 */
+                $updateKRSIdLast = Mahasiswa::where('mhs_id', $request->mhs_id)
                     ->update([
-                        'k_disetujui' => $matkul['k_disetujui']
+                        'krs_id_last' => $request->krs_id
                     ]);
+
+                if ($updateKRSIdLast) {
+                    DB::commit();
+                    return $this->successfulResponseJSON([
+                        'krs_id' => $request->krs_id,
+                    ], 'KRS mahasiswa berhasil diperbaharui');
+                }
             }
 
-            return $this->successfulResponseJSON([
-                'krs_id' => $request->krs_id,
-            ], 'KRS mahasiswa berhasil diperbaharui');
+            DB::rollBack();
+            return $this->failedResponseJSON('KRS Mahasiswa gagal diperbarui', 500);
         } catch (\Exception $e) {
+            DB::rollBack();
             return ErrorHandler::handle($e);
         }
     }
@@ -131,6 +184,13 @@ class KRSDosenController extends Controller
                 ->pluck('mhs_id')
                 ->toArray();
             $listMahasiswa = array_values(collect($listMahasiswa)->whereIn('mhs_id', $listMhsIdTersediaKRS)->toArray());
+
+            // ambil krs yang statusnya P dan S saja
+            $listMahasiswa = array_values(collect($listMahasiswa)->filter(function ($item) {
+                if (count($item['krs']) > 0) {
+                    return $item;
+                }
+            })->toArray());
 
             // jika ada filter semester pada query params
             if ($semester) {

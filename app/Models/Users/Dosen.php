@@ -57,7 +57,8 @@ class Dosen extends Model
                 $mhsQuery->with(['krs' => function ($query) {
                     $query->select(
                         'krs_id', 'tahun_id', 'mhs_id', 'nmr_krs', 'tanggal', 'semester', 'sts_krs', 'kd_kampus'
-                    );
+                    )->where('sts_krs', 'S')
+                    ->orWhere('sts_krs', 'P');
                 }])->orderBy('krs_id_last', 'DESC');
             }]);
 
