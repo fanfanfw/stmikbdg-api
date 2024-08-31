@@ -4,7 +4,6 @@ namespace App\Http\Controllers\KRS;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
-use App\Http\Controllers\TahunAjaranController;
 use Illuminate\Support\Facades\Cache;
 
 // ? Exception
@@ -18,26 +17,23 @@ use App\Models\KRS\NilaiAkhirView;
 use App\Models\TahunAjaranView;
 
 // ? Models - table
-use App\Models\Users\Mahasiswa;
+use App\Models\KRS\KRS;
 
 class MatKulController extends Controller
 {
     public $user;
-    private $currentSemester;
 
     public function __construct() {
-        if (auth()->user()) {
-            if (!auth()->user()->is_dosen) {
-                $tahunAjaranController = new TahunAjaranController();
-                $this->currentSemester = $tahunAjaranController
-                    ->getSemesterMahasiswaSekarang()
-                    ->getData('data')['data'];
-            }
-
+        if (auth()->check()) {
             $this->user = $this->getUserAuth();
         }
     }
 
+    /**
+     * Tadinya akan digunakan oleh dosen dan mahasiswa
+     * jadi namanya dibuat general. Tapi akhirnya hanya untuk mahasiswa.
+     * Tidak diubah karena sudah digunakan di bagian lain.
+     */
     public function getMataKuliah(Request $request) {
         try {
             if (!$request->query('tahun_id')) {
@@ -59,13 +55,122 @@ class MatKulController extends Controller
     }
 
     public function getMataKuliahByMahasiswa($filter) {
-        // get mahasiswa ke tabel, untuk dapet krs_id_last
-        $mahasiswa = Mahasiswa::where('mhs_id', $this->user['mhs_id'])->first();
-
-        // buat filter untuk kurikulum aktif
         $filter['jur_id'] = $this->user['jur_id'];
         $filter['angkatan'] = $this->user['angkatan'];
 
+        /**
+         * 31-08-2024
+         * buat fungsi getAllMatkul($filter)
+         * untuk get list matkul berdasarkan filter
+         */
+        $getAllMatkul = self::getAllMatkul($filter);
+        $listMatkul = $getAllMatkul['listMatkul'];
+        $collectMkIdDiselenggarakan = $getAllMatkul['collectMkIdDiselenggarakan'];
+
+        // initial value
+        $totalSemuaSKS = 0;
+        $totalSemuaIPK = 0;
+        $countIPKPerSemester = 0;
+        $totalSemuaNilaiA = 0;
+        $totalSemuaNilaiB = 0;
+        $totalSemuaNilaiC = 0;
+        $totalSemuaNilaiD = 0;
+        $totalSemuaNilaiE = 0;
+
+        if (count($listMatkul) > 0) {
+            $allMatkulWithNilaiAkhir = self::setAllMatkulWithNilaiAkhir($listMatkul, $collectMkIdDiselenggarakan);
+
+            foreach ($allMatkulWithNilaiAkhir as $index => $item) {
+                // inisialisasi variabel untuk setiap semester
+                $countNilaiAkhir = $totalNilaiAkhirSemester = $totalSksDipilihDisemester = 0;
+                $totalNilaiAPerSemester = $totalNilaiBPerSemester = $totalNilaiCPerSemester = 0;
+                $totalNilaiDPerSemester = $totalNilaiEPerSemester = 0;
+
+                foreach ($item['mata_kuliah'] as $mk) {
+                    if ($mk['nilai_akhir']) {
+                        $totalNilaiAkhirSemester += (int) $mk['nilai_akhir']['mutu'];
+                        $totalSksDipilihDisemester += (int) $mk['sks'];
+                        $countNilaiAkhir++;
+
+                        // menghitung total nilai berdasarkan huruf
+                        switch ($mk['nilai_akhir']['nilai']) {
+                            case 'A': $totalNilaiAPerSemester++; break;
+                            case 'B': $totalNilaiBPerSemester++; break;
+                            case 'C': $totalNilaiCPerSemester++; break;
+                            case 'D': $totalNilaiDPerSemester++; break;
+                            case 'E': $totalNilaiEPerSemester++; break;
+                        }
+                    }
+                }
+
+                // menyimpan hasil ke dalam array
+                $tempMatkul[$index] = array_replace(array_flip([
+                    'ipk', 'semester', 'ipk_dari_total_sks', 'total_nilai_A',
+                    'total_nilai_B', 'total_nilai_C', 'total_nilai_D',
+                    'total_nilai_E', 'mata_kuliah'
+                ]), [
+                    'total_nilai_A' => $totalNilaiAPerSemester,
+                    'total_nilai_B' => $totalNilaiBPerSemester,
+                    'total_nilai_C' => $totalNilaiCPerSemester,
+                    'total_nilai_D' => $totalNilaiDPerSemester,
+                    'total_nilai_E' => $totalNilaiEPerSemester,
+                    'ipk' => $countNilaiAkhir > 0 ? $totalNilaiAkhirSemester / $countNilaiAkhir : 0,
+                    'ipk_dari_total_sks' => $totalSksDipilihDisemester,
+                    'mata_kuliah' => $item['mata_kuliah'],
+                ]);
+
+                // hitung keseluruhan jika tidak ada filter semester
+                if (!$filter['semester']) {
+                    $totalSemuaNilaiA += $totalNilaiAPerSemester;
+                    $totalSemuaNilaiB += $totalNilaiBPerSemester;
+                    $totalSemuaNilaiC += $totalNilaiCPerSemester;
+                    $totalSemuaNilaiD += $totalNilaiDPerSemester;
+                    $totalSemuaNilaiE += $totalNilaiEPerSemester;
+                }
+
+                // hitung total SKS dan IPK menyeluruh
+                $totalSemuaSKS += $tempMatkul[$index]['ipk_dari_total_sks'];
+                if ($tempMatkul[$index]['ipk']) {
+                    $totalSemuaIPK += (float)$tempMatkul[$index]['ipk'];
+                    $countIPKPerSemester++;
+                }
+            }
+        } else {
+            return response()->json([
+                'status' => 'fail',
+                'message' => 'Tidak ada matakuliah ditemukan pada semester ' . $filter['semester']
+            ], 404);
+        }
+
+        // set response paling atas
+        if (!$filter['semester']) {
+            $response['total_semua_ipk'] = $totalSemuaIPK === 0
+                ? 0 : (float) ($totalSemuaIPK / $countIPKPerSemester);
+            $response['total_semua_sks_dipilih'] = $totalSemuaSKS;
+            $response['total_semua_nilai_A'] = $totalSemuaNilaiA;
+            $response['total_semua_nilai_B'] = $totalSemuaNilaiB;
+            $response['total_semua_nilai_C'] = $totalSemuaNilaiC;
+            $response['total_semua_nilai_D'] = $totalSemuaNilaiD;
+            $response['total_semua_nilai_E'] = $totalSemuaNilaiE;
+            $response['matkul_per_semester'] = array_values($tempMatkul);
+        } else {
+            $response['matkul_per_semester'] = array_values($tempMatkul)[0];
+        }
+
+        return $this->successfulResponseJSON($response);
+    }
+
+    /**
+     * Fungsi untuk get list matkul berdasarkan filter
+     * yang telah memiliki tahun_id
+     *
+     * Jika list yang ditentukan berdasarkan filter tahun_id
+     * tidak ada pada cache, maka akan get ke database.
+     *
+     * @param array $filter Berisi filter seperti tahun_id, semester, angkatan, dan jur_id
+     * @return array Berisi array dengan key 'listMatkul' dan 'collectMkIdDiselenggarakan'
+     */
+    private function getAllMatkul(array $filter) {
         /**
          * 29-08-2024
          * coba pake cache untuk mengurangi query ke db
@@ -101,15 +206,9 @@ class MatKulController extends Controller
             // get list mk_id di matkul diselenggarakan ke collection
             $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
             $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
-
-            // terdapat filter semester
-            if ($filter['semester']) {
-                $listMatkul = $mergedMatkul->filter(function ($item) use ($filter) {
-                    return $item['semester'] == $filter['semester'];
-                });
-            } else {
-                $listMatkul = $mergedMatkul;
-            }
+            $listMatkul = isset($filter['semester'])
+                ? self::getListMatkulByFilterSemester($mergedMatkul, $filter)
+                : $mergedMatkul;
 
             Cache::put('krs:mhs:all_matkul:' . $filter['tahun_id'], $mergedMatkul);
             Cache::put('krs:mhs:matkul_id_tersedia:', $collectMkIdDiselenggarakan);
@@ -117,214 +216,85 @@ class MatKulController extends Controller
             // get data dari cache
             $mergedMatkul = Cache::get('krs:mhs:all_matkul:' . $filter['tahun_id']);
             $collectMkIdDiselenggarakan = Cache::get('krs:mhs:matkul_id_tersedia:');
-
-            // terdapat filter semester
-            if ($filter['semester']) {
-                $listMatkul = $mergedMatkul->filter(function ($item) use ($filter) {
-                    return $item['semester'] == $filter['semester'];
-                });
-            } else {
-                $listMatkul = $mergedMatkul;
-            }
+            $listMatkul = isset($filter['semester'])
+                ? self::getListMatkulByFilterSemester($mergedMatkul, $filter)
+                : $mergedMatkul;
         }
 
-        // initial value
-        $totalSemuaSKS = 0;
-        $totalSemuaIPK = 0;
-        $countIPKPerSemester = 0;
-        $totalSemuaNilaiA = 0;
-        $totalSemuaNilaiB = 0;
-        $totalSemuaNilaiC = 0;
-        $totalSemuaNilaiD = 0;
-        $totalSemuaNilaiE = 0;
+        return [
+            'listMatkul' => $listMatkul,
+            'collectMkIdDiselenggarakan' => $collectMkIdDiselenggarakan
+        ];
+    }
 
-        if (count($listMatkul) > 0) {
-            $latestKRS = $mahasiswa->krs()->first();
+    /**
+     * Digunakan untuk memfilter list mata kuliah
+     * berdasarkan pada nilai semester
+     *
+     * @param mixed $listMatkul Berisi semua mata kuliah
+     * @param array $filter Berisi filter yang terdapat key 'semester'
+     * @return mixed list mata kuliah berdasarkan semester jika tersedia
+     */
+    private function getListMatkulByFilterSemester(mixed $listMatkul, array $filter) {
+        $listMatkul = $listMatkul->filter(function ($item) use ($filter) {
+            return $item['semester'] == $filter['semester'];
+        });
 
-            // get nilai akhir
-            $allNilaiAkhir = NilaiAkhirView::where('mhs_id', $this->user['mhs_id'])->get();
-            $allMkIdNilaiAkhir = $allNilaiAkhir->pluck('mk_id')->toArray();
-            $mappedListMatkulWithNilaiAkhir = $listMatkul
-                ->map(function ($mk) use ($allMkIdNilaiAkhir, $allNilaiAkhir) {
-                    if (in_array($mk['mk_id'], $allMkIdNilaiAkhir)) {
-                        $tempNilaiAkhir = $allNilaiAkhir->where('mk_id', $mk['mk_id'])->first();
-                        $mk['nilai_akhir'] = [
-                            'nilai' => $tempNilaiAkhir['nilai'],
-                            'mutu' => $tempNilaiAkhir['mutu'],
-                        ];
-                    } else {
-                        $mk['nilai_akhir'] = null;
-                    }
+        return $listMatkul;
+    }
 
-                    return $mk;
-            });
+    /**
+     * Fungsi digunakan untuk mengatur setiap matkul dengan nilai akhir
+     * dan juga menentukan krs aktif atau tidak berdasarkan $matkulDiselenggarakan
+     *
+     * @param mixed $allMatkul Semua daftar mata kuliah yang ada
+     * @param mixed $matkulDiselenggarakan Berupa array yang berisi mk_id dari list matkul diselenggarakan
+     * @return array
+     */
+    private function setAllMatkulWithNilaiAkhir(mixed $allMatkul, mixed $matkulDiselenggarakan) {
+        $allKRSMahasiswa = KRS::where('mhs_id', $this->user['mhs_id'])
+        ->with('krsMatkul:krs_mk_id,krs_id,mk_id')
+        ->get();
 
-            // get latest krs matkul
-            // $allKrsMatkulLast = $latestKRS->krsMatkul()->get();
-            // $pluckedAllKrsMatkulLast = count($allKrsMatkulLast) > 0 ? $allKrsMatkulLast->pluck('mk_id')->toArray : ['mk_id' => null];
-            $allKrsMatkul = $latestKRS ? $latestKRS->krsMatkul()->get() : $mappedListMatkulWithNilaiAkhir;
-            $allMkIdKrsMatkul = $allKrsMatkul->pluck('mk_id')->toArray();
-            $mappedWithKrsMatkul = $mappedListMatkulWithNilaiAkhir
-                ->map(function ($mk) use ($allMkIdKrsMatkul, $collectMkIdDiselenggarakan, $latestKRS) {
-                    $isSameSmt = $mk['smt'] === $this->currentSemester['smt'] ?? false;
+        $allMkIdLatestKrs = $allKRSMahasiswa->count() > 0
+            ? $allKRSMahasiswa->pluck('krsMatkul.*.mk_id')->flatten()->toArray()
+            : null;
+        $allNilaiAkhir = NilaiAkhirView::where('mhs_id', $this->user['mhs_id'])->get();
+        $allMkIdNilaiAkhir = $allNilaiAkhir->pluck('mk_id')->toArray();
+        $mappedListMatkulWithNilaiAkhir = $allMatkul->map(function ($mk) use (
+            $allMkIdNilaiAkhir, $allNilaiAkhir, $matkulDiselenggarakan, $allMkIdLatestKrs
+        ) {
+            // set nilai akhir jika mk_id ada di allMkIdNilaiAkhir
+            $mk['nilai_akhir'] = in_array($mk['mk_id'], $allMkIdNilaiAkhir)
+                ? $allNilaiAkhir->firstWhere('mk_id', $mk['mk_id'])->only(['nilai', 'mutu'])
+                : null;
 
-                    if (in_array($mk['mk_id'], $allMkIdKrsMatkul)) {
-                        $mk['krs'] = [
-                            'is_aktif' => $collectMkIdDiselenggarakan->contains($mk['mk_id']) ? true : false, // sebelumnya $isSameSmt
-                            'is_checked' => $latestKRS ? true : false, // sementara
-                        ];
-                    } else {
-                        $mk['krs'] = [
-                            'is_aktif' => $isSameSmt,
-                            'is_checked' => false,
-                        ];
-                    }
-
-                    // mk pilihan
-                    if (strpos($mk['kd_mk'], 'P-') === 0) {
-                        $mk['krs'] = [
-                            'is_aktif' => false,
-                            'is_checked' => false,
-                        ];
-                    }
-
-                    /**
-                     * banyak isi kolom yang kotor sama white space
-                     * jadi harus dibersihin dulu biar gk ganggu di front end
-                     */
-                    $mk['kd_mk'] = trim($mk['kd_mk']);
-                    $mk['nm_mk'] = trim($mk['nm_mk']);
-
-                    if (array_key_exists('nm_jurusan', $mk->toArray())) {
-                        $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
-                    }
-
-                    return $mk;
-            });
-
-            // grouping per semester
-            foreach ($mappedWithKrsMatkul->toArray() as $mk) {
-                $semester = $mk['semester'];
-                $tempMatkul[$semester]['semester'] = $semester;
-                $tempMatkul[$semester]['mata_kuliah'][] = $mk;
+            // trim attributes
+            $mk['kd_mk'] = trim($mk['kd_mk']);
+            $mk['nm_mk'] = trim($mk['nm_mk']);
+            if (isset($mk['nm_jurusan'])) {
+                $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
             }
 
-            // initial value
-            $countNilaiAkhir = 0;
-            $totalNilaiAkhirSemester = 0;
-            $totalSksDipilihDisemester = 0;
-            $totalNilaiAPerSemester = 0;
-            $totalNilaiBPerSemester = 0;
-            $totalNilaiCPerSemester = 0;
-            $totalNilaiDPerSemester = 0;
-            $totalNilaiEPerSemester = 0;
+            // set krs status
+            $isPilihan = strpos($mk['kd_mk'], 'P-') === 0;
+            $mk['krs'] = [
+                'is_aktif' => !$isPilihan && $matkulDiselenggarakan->contains($mk['mk_id']),
+                'is_checked' => !$isPilihan && !is_null($allMkIdLatestKrs) && collect($allMkIdLatestKrs)->contains($mk['mk_id']),
+            ];
 
-            // hitung ipk dan total sks yang dipilih tiap semester
-            foreach ($tempMatkul as $index => $item) {
-                if ($latestKRS) {
-                    // reset value jika terdapat krs terakhir
-                    $countNilaiAkhir = 0;
-                    $totalNilaiAkhirSemester = 0;
-                    $totalSksDipilihDisemester = 0;
-                    $totalNilaiAPerSemester = 0;
-                    $totalNilaiBPerSemester = 0;
-                    $totalNilaiCPerSemester = 0;
-                    $totalNilaiDPerSemester = 0;
-                    $totalNilaiEPerSemester = 0;
-                }
+            return $mk;
+        });
 
-                foreach ($item['mata_kuliah'] as $mk) {
-                    if (!is_null($mk['nilai_akhir'])) {
-                        $totalNilaiAkhirSemester += (int) $mk['nilai_akhir']['mutu'];
-                        $totalSksDipilihDisemester += (int) $mk['sks'];
-                        $countNilaiAkhir++;
-
-                        switch ($mk['nilai_akhir']['nilai']) {
-                            case 'A':
-                                $totalNilaiAPerSemester++;
-                                break;
-                            case 'B':
-                                $totalNilaiBPerSemester++;
-                                break;
-                            case 'C':
-                                $totalNilaiCPerSemester++;
-                                break;
-                            case 'D':
-                                $totalNilaiDPerSemester++;
-                                break;
-                            case 'E':
-                                $totalNilaiEPerSemester++;
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-                }
-
-                // untuk tiap semester
-                $tempMatkul[$index]['total_nilai_A'] = $totalNilaiAPerSemester;
-                $tempMatkul[$index]['total_nilai_B'] = $totalNilaiBPerSemester;
-                $tempMatkul[$index]['total_nilai_C'] = $totalNilaiCPerSemester;
-                $tempMatkul[$index]['total_nilai_D'] = $totalNilaiDPerSemester;
-                $tempMatkul[$index]['total_nilai_E'] = $totalNilaiEPerSemester;
-
-                // untuk keseluruhan atau tidak ada filter semester
-                if (!$filter['semester']) {
-                    $totalSemuaNilaiA += $totalNilaiAPerSemester;
-                    $totalSemuaNilaiB += $totalNilaiBPerSemester;
-                    $totalSemuaNilaiC += $totalNilaiCPerSemester;
-                    $totalSemuaNilaiD += $totalNilaiDPerSemester;
-                    $totalSemuaNilaiE += $totalNilaiEPerSemester;
-                }
-
-                // hitung ipk - rata-rata nilai
-                $averageNilaiAkhir = $countNilaiAkhir > 0
-                    ? (float) $totalNilaiAkhirSemester/$countNilaiAkhir
-                    : null;
-                $ipk = $averageNilaiAkhir
-                    ? $averageNilaiAkhir
-                    : null;
-
-                $tempMatkul[$index]['ipk'] = (float) $ipk;
-                $tempMatkul[$index]['ipk_dari_total_sks'] = $totalSksDipilihDisemester;
-
-                // hitung sks dan ipk menyeluruh
-                $totalSemuaSKS += $tempMatkul[$index]['ipk_dari_total_sks'];
-
-                if ($tempMatkul[$index]['ipk'] > 0) {
-                    $totalSemuaIPK += (float) $tempMatkul[$index]['ipk'];
-                    $countIPKPerSemester++;
-                }
-
-                // menentukan urutan response
-                $desiredOrder = [
-                    'ipk', 'semester', 'ipk_dari_total_sks', 'total_nilai_A', 'total_nilai_B', 'total_nilai_C', 'total_nilai_D', 'total_nilai_E','mata_kuliah'
+        // grouping per semester
+        $allMatkulWithNilaAkhir = $mappedListMatkulWithNilaiAkhir->groupBy('semester')
+            ->map(function ($items, $semester) {
+                return [
+                    'semester' => $semester,
+                    'mata_kuliah' => $items->toArray(),
                 ];
-                $orderedData = array_replace(array_flip($desiredOrder), $tempMatkul[$index]);
-                $tempMatkul[$index] = $orderedData;
-            }
-        } else {
-            return response()->json([
-                'status' => 'fail',
-                'message' => 'Tidak ada matakuliah ditemukan pada semester ' . $filter['semester']
-            ], 404);
-        }
+        })->toArray();
 
-        // set response paling atas
-        if (!$filter['semester']) {
-            $response['total_semua_ipk'] = $totalSemuaIPK === 0
-                ? 0 : (float) ($totalSemuaIPK / $countIPKPerSemester);
-            $response['total_semua_sks_dipilih'] = $totalSemuaSKS;
-            $response['total_semua_nilai_A'] = $totalSemuaNilaiA;
-            $response['total_semua_nilai_B'] = $totalSemuaNilaiB;
-            $response['total_semua_nilai_C'] = $totalSemuaNilaiC;
-            $response['total_semua_nilai_D'] = $totalSemuaNilaiD;
-            $response['total_semua_nilai_E'] = $totalSemuaNilaiE;
-            $response['matkul_per_semester'] = array_values($tempMatkul);
-        } else {
-            $response['matkul_per_semester'] = array_values($tempMatkul)[0];
-        }
-
-        return $this->successfulResponseJSON($response);
+        return $allMatkulWithNilaAkhir;
     }
 }

@@ -55,10 +55,12 @@ class AuthController extends Controller {
                     /**
                      * keperluan untuk sistem surat
                      * jika user is_wk dan is_staff, hapus is_staff
+                     *
+                     * 31-08-2024 - Disable dulu aja
                      */
-                    if (isset($roles['is_staff']) and isset($roles['is_wk'])) {
-                        unset($roles['is_staff']);
-                    }
+                    // if (isset($roles['is_staff']) and isset($roles['is_wk'])) {
+                    //     unset($roles['is_staff']);
+                    // }
 
                     if (count($staffPositions) > 0) {
                         // untuk sementara ambil sekretaris saja
