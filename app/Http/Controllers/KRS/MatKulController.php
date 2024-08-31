@@ -165,62 +165,43 @@ class MatKulController extends Controller
      * Fungsi untuk get list matkul berdasarkan filter
      * yang telah memiliki tahun_id
      *
-     * Jika list yang ditentukan berdasarkan filter tahun_id
-     * tidak ada pada cache, maka akan get ke database.
-     *
      * @param array $filter Berisi filter seperti tahun_id, semester, angkatan, dan jur_id
      * @return array Berisi array dengan key 'listMatkul' dan 'collectMkIdDiselenggarakan'
      */
     private function getAllMatkul(array $filter) {
         /**
-         * 29-08-2024
-         * coba pake cache untuk mengurangi query ke db
+         * 27-08-2024
+         * ganti kurikulum jadi tahun ajaran
+         * dan cari kurikulum aktif dengan nilai true
          */
-        if (!Cache::has('krs:mhs:all_matkul:' . $filter['tahun_id'])) {
-            /**
-             * 27-08-2024
-             * ganti kurikulum jadi tahun ajaran
-             * dan cari kurikulum aktif dengan nilai true
-             */
-            // $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
-            $tahunAjaran = TahunAjaranView::where('tahun_id', $filter['tahun_id'])->first();
-            $kurikulum = KurikulumView::where('jur_id', $tahunAjaran['jur_id'])
-                ->where('k_aktif', true)
-                ->first();
+        // $kurikulum = KurikulumView::getKurikulumMahasiswa($filter);
+        $tahunAjaran = TahunAjaranView::where('tahun_id', $filter['tahun_id'])->first();
+        $kurikulum = KurikulumView::where('jur_id', $tahunAjaran['jur_id'])
+            ->where('k_aktif', true)
+            ->first();
 
 
-            /**
-             * 27-08-2024
-             * get matakuliah diselenggarakan dan gabungkan
-             * dengan matakuliah di view mata kuliah
-             */
-            $filter['kur_id'] = $kurikulum['kur_id'];
-            $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
-            $filter['smt'] = $matkulDiselenggarakan[0]['smt'];
-            $matakuliah = MatKulView::getMatkul($filter);
+        /**
+         * 27-08-2024
+         * get matakuliah diselenggarakan dan gabungkan
+         * dengan matakuliah di view mata kuliah
+         */
+        $filter['kur_id'] = $kurikulum['kur_id'];
+        $matkulDiselenggarakan = MatkulDiselenggarakanView::getMatkulDiselenggarakan($filter);
+        $filter['smt'] = $matkulDiselenggarakan[0]['smt'];
+        $matakuliah = MatKulView::getMatkul($filter);
 
-            // buang mk_id yang sama
-            $listUniqueMatkul = $matakuliah->reject(function ($mk) use ($matkulDiselenggarakan) {
-                return $matkulDiselenggarakan->contains('mk_id', $mk['mk_id']);
-            });
+        // buang mk_id yang sama
+        $listUniqueMatkul = $matakuliah->reject(function ($mk) use ($matkulDiselenggarakan) {
+            return $matkulDiselenggarakan->contains('mk_id', $mk['mk_id']);
+        });
 
-            // get list mk_id di matkul diselenggarakan ke collection
-            $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
-            $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
-            $listMatkul = isset($filter['semester'])
-                ? self::getListMatkulByFilterSemester($mergedMatkul, $filter)
-                : $mergedMatkul;
-
-            Cache::put('krs:mhs:all_matkul:' . $filter['tahun_id'], $mergedMatkul);
-            Cache::put('krs:mhs:matkul_id_tersedia:', $collectMkIdDiselenggarakan);
-        } else {
-            // get data dari cache
-            $mergedMatkul = Cache::get('krs:mhs:all_matkul:' . $filter['tahun_id']);
-            $collectMkIdDiselenggarakan = Cache::get('krs:mhs:matkul_id_tersedia:');
-            $listMatkul = isset($filter['semester'])
-                ? self::getListMatkulByFilterSemester($mergedMatkul, $filter)
-                : $mergedMatkul;
-        }
+        // get list mk_id di matkul diselenggarakan ke collection
+        $collectMkIdDiselenggarakan = $matkulDiselenggarakan->pluck('mk_id');
+        $mergedMatkul = $matkulDiselenggarakan->concat($listUniqueMatkul)->sortBy('semester');
+        $listMatkul = isset($filter['semester'])
+            ? self::getListMatkulByFilterSemester($mergedMatkul, $filter)
+            : $mergedMatkul;
 
         return [
             'listMatkul' => $listMatkul,
@@ -273,6 +254,7 @@ class MatKulController extends Controller
             // trim attributes
             $mk['kd_mk'] = trim($mk['kd_mk']);
             $mk['nm_mk'] = trim($mk['nm_mk']);
+
             if (isset($mk['nm_jurusan'])) {
                 $mk['nm_jurusan'] = trim($mk['nm_jurusan']);
             }
