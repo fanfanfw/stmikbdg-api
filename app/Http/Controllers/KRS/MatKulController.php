@@ -117,6 +117,7 @@ class MatKulController extends Controller
                     'ipk' => $countNilaiAkhir > 0 ? $totalNilaiAkhirSemester / $countNilaiAkhir : 0,
                     'ipk_dari_total_sks' => $totalSksDipilihDisemester,
                     'mata_kuliah' => $item['mata_kuliah'],
+                    'semester' => $item['semester']
                 ]);
 
                 // hitung keseluruhan jika tidak ada filter semester
@@ -287,7 +288,7 @@ class MatKulController extends Controller
         });
 
         // grouping per semester
-        $allMatkulWithNilaAkhir = $mappedListMatkulWithNilaiAkhir->groupBy('semester')
+        $allMatkulWithNilaiAkhir = $mappedListMatkulWithNilaiAkhir->groupBy('semester')
             ->map(function ($items, $semester) {
                 return [
                     'semester' => $semester,
@@ -295,6 +296,6 @@ class MatKulController extends Controller
                 ];
         })->toArray();
 
-        return $allMatkulWithNilaAkhir;
+        return array_values($allMatkulWithNilaiAkhir);
     }
 }
