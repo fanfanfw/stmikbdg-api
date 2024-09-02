@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Authentications;
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 // ? JWT
 use Tymon\JWTAuth\Exceptions\JWTException;
@@ -15,6 +17,8 @@ use App\Models\Users\UserSitesView;
 
 // ? Models - Tables
 use App\Models\Users\Site;
+use App\Models\Authentications\LoginHistory;
+
 
 class AuthController extends Controller {
     public function userLogin(Request $request) {
@@ -86,6 +90,15 @@ class AuthController extends Controller {
                     'platform' => $platform,
                     'roles' => isset($mergedRoles) ? $mergedRoles : $roles,
                 ];
+
+                if ($platform === 'android') {
+                    $loginHistory = self::getOrSetLoginHistory($token);
+
+                    if ($loginHistory !== 'success') {
+                        auth()->logout(true);
+                        return $loginHistory;
+                    }
+                }
             } else {
                 return response()->json([
                     'status' => 'fail',
@@ -210,5 +223,62 @@ class AuthController extends Controller {
     {
         if ($platform == 'android') return 60 * 24 * 30 * 12 * 1000; // kurang lebih 1000 tahun
         else if ($platform == 'web') return 60 * 6; // 6 hours
+    }
+
+    private function getOrSetLoginHistory($token) {
+        /**
+         * Periksa beberapa kondisi berikut:
+         * - Jika belum ada pada tabel login_histories, maka bisa insert
+         * - Jika telah ada pada tabel login_histories, berarti telah login,
+         * maka user tidak bisa login untuk kedua kalinya (harus dihapus dulu lewat admin)
+         * - Jika status is_active adalah false
+         * maka user tidak bisa login menggunakan perangkat android mana pun
+         */
+        $tokenExists = LoginHistory::where('user_id', auth()->user()->id)
+            ->where('platform', 'android')
+            ->first();
+
+        /**
+         * akun baru pertama kali login di android
+         * maka insert data autentikasi akun tersebut
+         */
+        if  (!$tokenExists) {
+            $data = [
+                'user_id' => auth()->user()->id,
+                'platform' => 'android',
+                'last_token' => $token,
+                'is_active' => true,
+                'login_at' => Carbon::now()
+            ];
+
+            DB::beginTransaction();
+            $create = LoginHistory::create($data);
+
+            if ($create) {
+                DB::commit();
+                return 'success';
+            }
+
+            DB::rollBack();
+            return $this->failedResponseJSON('Login gagal dilakukan');
+        }
+
+        /**
+         * akun masih aktif dan telah login diperangkat lain
+         */
+        if ($tokenExists['is_active']) {
+            return $this->failedResponseJSON(
+                'Akun Anda telah login pada perangkat lain. Silahkan logout terlebih dahulu, kemudian hubungi Admin untuk menghapus sesi aktif milik Anda', 400
+            );
+        }
+
+        /**
+         * akun sudah tidak aktif
+         */
+        if (!$tokenExists['is_active']) {
+            return $this->failedResponseJSON(
+                'Akses akun Anda ke perangkat Android telah ditutup oleh Admin', 400
+            );
+        }
     }
 }

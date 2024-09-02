@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Authentications\LoginHistoryController;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Users\AdminController;
@@ -80,6 +81,15 @@ Route::prefix('/sso')
             ->group(function () {
                 Route::get('/list', 'getAllDevelopers');
                 Route::put('/access', 'changeAccess');
+            });
+
+        Route::controller(LoginHistoryController::class)
+            ->prefix('/login-histories')
+            ->group(function () {
+                Route::get('/list', 'getHistoryLogin');
+                Route::put('/update', 'updateStatusActiveAndroid');
+                Route::delete('/reset', 'resetAccessAndroid');
+                Route::delete('/logout', 'forceLogout');
             });
     });
 
