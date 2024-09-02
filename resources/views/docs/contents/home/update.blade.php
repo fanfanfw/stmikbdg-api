@@ -1,6 +1,7 @@
 <div class="alert alert-info">
     <b>Diperbarui:</b><br>
     <ul>
+        <li>02-09-2024 | <a href="/docs/api/acl" class="text-decoration-none fw-bold">Access Control Level</a></li>
         <li>27-08-2024 | <a href="/docs/api/android/krs" class="text-decoration-none fw-bold">Android - KRS (Dosen Wali)</a></li>
         <li>26-08-2024 | <a href="/docs/api/android/krs" class="text-decoration-none fw-bold">Android - KRS Mahasiswa (Status Keuangan)</a></li>
         <li>21-08-2024 | <a href="/docs/api/antrian" class="text-decoration-none fw-bold">Antrian (Public)</a></li>

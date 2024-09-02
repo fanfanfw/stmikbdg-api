@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 // ? Excel utils
-use App\Exports\MahasiswaExport;
+use App\Exceptions\ExcelImportException;
+use App\Imports\UserMahasiswa;
 use Maatwebsite\Excel\Facades\Excel;
 
 // ? Models - View
@@ -21,6 +22,7 @@ use App\Models\Users\UserView;
 // ? Models - Tables
 use App\Models\Users\User;
 use App\Models\Users\UserSite;
+use Illuminate\Support\Facades\Storage;
 
 class MahasiswaController extends Controller
 {
@@ -224,6 +226,42 @@ class MahasiswaController extends Controller
             }
 
             return $this->failedResponseJSON('Akun mahasiswa tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function importFromExcel(Request $request) {
+        try {
+            $request->validate([
+                'file' => 'required|mimes:xlsx,xls|max:2048'
+            ]);
+
+            $excel = $request->file('file');
+            $hashName = $excel->hashName();
+            $path = $excel->storeAs('public/excel/', $hashName);
+
+            $import = new UserMahasiswa;
+            Excel::import($import, storage_path('app/public/excel/' . $hashName));
+            Storage::delete($path);
+            $failedRows = $import->getFailedRows();
+
+            if (count($failedRows) > 0) {
+                return response()->json([
+                    'status' => 'fail',
+                    'message' => 'Beberapa akun mahasiswa gagal ditambahkan',
+                    'data' => [
+                        'failed_rows' => $failedRows
+                    ]
+                ], 500);
+            }
+
+            return $this->successfulResponseJSONV2('Akun mahasiswa dari file excel berhasil dibuat');
+        } catch (ExcelImportException $e) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => $e->getMessage()
+            ], $e->getCode());
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

@@ -36,6 +36,7 @@ Route::prefix('/sso')
                 Route::post('/add', 'add');
                 Route::put('/update', 'update');
                 Route::delete('/delete', 'delete');
+                Route::post('/add/import-excel', 'importFromExcel');
             });
 
         // dosen

@@ -684,3 +684,11 @@
     }
 }</code></pre>
 </section>
+
+<section class="mt-4">
+    <h5 class="mb-3 fw-bold">(ADM) Import Akun Mahasiswa dari Excel <span class="small text-success">*new</span></h5>
+    <p>
+        Untuk menambahkan daftar akun mahasiswa melalui file excel, kirimkan permintaan ke <span class="badge bg-dark">/sso/mahasiswa/add/import-excel</span> dengan menggunakan HTTP method <span class="badge bg-info">post</span>. Pastikan file excel memiliki format .xlsx dan .xls, serta tidak lebih dari 2MB. Berikut adalah contoh format data dalam excel yang perlu dibuat untuk import:
+    </p>
+    <img src="/images/format_import_user_mahasiswa.png" class="img img-fluid" alt="Format Import Akun Mahasiswa Melalui Excel" />
+</section>
