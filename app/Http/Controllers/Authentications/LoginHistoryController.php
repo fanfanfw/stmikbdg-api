@@ -78,32 +78,6 @@ class LoginHistoryController extends Controller
         }
     }
 
-    public function resetAccessAndroid(Request $request) {
-        try {
-            $request->validate([
-                'login_history_id' => 'required|exists:login_histories,login_history_id'
-            ]);
-
-            DB::beginTransaction();
-            $token = LoginHistory::where('login_history_id', $request->login_history_id)
-                ->first(['last_token']);
-            $delete = LoginHistory::where('login_history_id', $request->login_history_id)
-                ->delete();
-
-            if ($delete) {
-                DB::commit();
-                JWTAuth::setToken($token['last_token'])->invalidate(true);
-                return $this->successfulResponseJSONV2('Akses user ke aplikasi Android berhasil direset');
-            }
-
-            DB::rollBack();
-            return $this->failedResponseJSON('Akses user ke aplikasi android gagal untuk direset');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return ErrorHandler::handle($e);
-        }
-    }
-
     public function forceLogout(Request $request) {
         try {
             $request->validate([

@@ -88,7 +88,6 @@ Route::prefix('/sso')
             ->group(function () {
                 Route::get('/list', 'getHistoryLogin');
                 Route::put('/update', 'updateStatusActiveAndroid');
-                Route::delete('/reset', 'resetAccessAndroid');
                 Route::delete('/logout', 'forceLogout');
             });
     });

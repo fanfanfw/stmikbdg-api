@@ -277,7 +277,7 @@ class AuthController extends Controller {
          */
         if (!$tokenExists['is_active']) {
             return $this->failedResponseJSON(
-                'Akses akun Anda ke perangkat Android telah ditutup oleh Admin', 400
+                'Akses akun Anda ke aplikasi Android telah ditutup oleh Admin', 400
             );
         }
     }
