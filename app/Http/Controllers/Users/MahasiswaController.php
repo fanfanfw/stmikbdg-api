@@ -11,6 +11,7 @@ use Illuminate\Validation\Rule;
 // ? Excel utils
 use App\Exceptions\ExcelImportException;
 use App\Imports\UserMahasiswa;
+use App\Models\Authentications\LoginHistory;
 use Maatwebsite\Excel\Facades\Excel;
 
 // ? Models - View
@@ -213,6 +214,11 @@ class MahasiswaController extends Controller
                 DB::beginTransaction();
 
                 $delete = User::where('id', (int) $userId)->delete();
+
+                /**
+                 * hapus riwayat log in di table login_histories
+                 */
+                LoginHistory::where('user_id', (int) $userId)->delete();
 
                 if ($delete) {
                     DB::commit();
