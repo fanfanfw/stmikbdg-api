@@ -95,14 +95,35 @@ class TahunAjaranController extends Controller
         }
     }
 
+    public function getTahunAjaranAktifV2() {
+        try {
+            $tahunAjaranArr = TahunAjaranView::getTahunAjaranWithKRS()->filter(function ($item) {
+                return $item['krs']->count() > 0;
+            })->map(function ($item) {
+                return [
+                    'tahun_id' => $item['tahun_id'],
+                    'uraian' => $item['uraian']
+                ];
+            })
+            ->sortByDesc('tahun_id')
+            ->values();
+
+            return $this->successfulResponseJSON([
+                'tahun_ajaran' => $tahunAjaranArr
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function getSemesterMahasiswaSekarang() {
         try {
             $mahasiswa = $this->getUserAuth();
             $tahunAjaran = TahunAjaranView::getTahunAjaran($mahasiswa);
             $gap = $tahunAjaran['tahun'] - $mahasiswa['angkatan'];
             $semester = $tahunAjaran['smt'] === 1
-                        ? $gap * 2 + 1
-                        : $gap * 2 + 2;
+                ? $gap * 2 + 1
+                : $gap * 2 + 2;
 
             return $this->successfulResponseJSON([
                 'tahun' => $tahunAjaran['tahun'],
