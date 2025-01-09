@@ -39,6 +39,9 @@ require __DIR__.'/api/verdig.php';
 // ? Rekap
 require __DIR__.'/api/rekap.php';
 
+// ? Berita Acara
+require __DIR__.'/api/berita.php';
+
 // ? Additional Routes (Tambahan)
 require __DIR__.'/api/additional.php';
 require __DIR__.'/api/file.php';

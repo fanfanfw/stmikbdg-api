@@ -94,6 +94,57 @@ class TahunAjaranController extends Controller
             return ErrorHandler::handle($e);
         }
     }
+    
+    public function getTahunAjaranAktifForBerita() {
+        try {
+            $tahunAjaranArr = TahunAjaranView::getTahunAjaranWithKRS()->filter(function ($item) {
+                if ($item['krs']->count() > 0) {
+                    return $item;
+                }
+            })->flatten();
+
+            $filteredTahunAjaran = [];
+
+            foreach ($tahunAjaranArr as $index => $item) {
+                $jurusan = JurusanView::where('jur_id', $item['jur_id'])->first();
+                $kampus = KampusView::where('kd_kampus', $item['kd_kampus'])
+                    ->select('kd_kampus', 'lokasi', 'alamat')
+                    ->first();
+
+                /**
+                 * cek kuesioner tersedia untuk tahun ajarannya
+                 */
+                $kuesioner = KuesionerPerkuliahan::where('tahun_id', $item['tahun_id'])->first();
+                $isKuesionerAvailable = $kuesioner ? true : false;
+
+                $tahunAjaran = [
+                    'tahun_id' => $item['tahun_id'],
+                    'jur_id' => $item['jur_id'],
+                    'tahun' => $item['tahun'],
+                    'smt' => $item['smt'],
+                    'jns_mhs' => $item['jns_mhs'],
+                    'kd_kampus' => $item['kd_kampus'],
+                    'sts_ta' => 'B',
+                    'uraian' => trim($item['uraian']),
+                    'ket_smt' => $item['smt'] == 1 ? 'Ganjil'
+                        : ($item['smt'] == 2 ? 'Genap' : 'Tambahan'),
+                    'ket_jns_mhs' => $item['jns_mhs'] == 'R' ? 'Reguler'
+                        : ($item['jns_mhs'] == 'K' ? 'Karyawan' : 'Eksekutif'),
+                    'detail_jurusan' => $jurusan,
+                    'detail_kampus' => $kampus,
+                    'kuesioner_open' => $isKuesionerAvailable,
+                ];
+
+                $filteredTahunAjaran[$index] = $tahunAjaran;
+            }
+
+            return $this->successfulResponseJSON([
+                'tahun_ajaran' => $filteredTahunAjaran
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
 
     public function getTahunAjaranAktifV2() {
         try {
