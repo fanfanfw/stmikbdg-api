@@ -24,7 +24,8 @@ class AdminController extends Controller
                 'kd_dosen' => 'required|string',
                 'tgl_bimbingan' => 'required|string',
                 'jenis_bimbingan_id' => 'required|integer',
-                'judul' => 'required|string'
+                'judul' => 'required|string',
+		'jam_bimbingan' => 'required|string'
             ]);
 
             /**
@@ -58,6 +59,7 @@ class AdminController extends Controller
                 'tgl_bimbingan' => Carbon::createFromFormat('d-m-Y', $request->tgl_bimbingan),
                 'jenis_bimbingan_id' => $request->jenis_bimbingan_id,
                 'judul' => $request->judul,
+		'jam_bimbingan' =>$request->jam_bimbingan,
                 'created_at' => Carbon::now()
             ];
 
@@ -192,6 +194,7 @@ class AdminController extends Controller
                     'tgl_bimbingan' => 'required|string',
                     'jenis_bimbingan_id' => 'required|integer',
                     'judul' => 'required|string',
+		    'jam_bimbingan' => 'requred|string'
                 ]);
 
                 /**
@@ -209,7 +212,8 @@ class AdminController extends Controller
                     'tgl_bimbingan' => Carbon::createFromFormat('d-m-Y', $request->tgl_bimbingan),
                     'created_at' => Carbon::now(),
                     'jenis_bimbingan_id' => $request->jenis_bimbingan_id,
-                    'judul' => $request->judul
+                    'judul' => $request->judul,
+		    'jam_bimbingan' => $request->jam_bimbingan
                 ];
 
                 /**

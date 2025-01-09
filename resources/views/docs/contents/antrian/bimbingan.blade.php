@@ -36,6 +36,7 @@
                 "nim": "1220001",
                 "nm_mhs": "SUHAEFI FAUZIAN",
                 "tgl_bimbingan": "2024-06-07",
+		"jam_bimbingan": "10.00",
                 "is_sudah": false,
                 "jenis_bimbingan_id": 2,
                 "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO",
@@ -76,6 +77,7 @@
             "nim": "1220001",
             "nm_mhs": "SUHAEFI FAUZIAN",
             "tgl_bimbingan": "2024-06-07",
+	    "jam_bimbingan": "10.00",
             "is_sudah": false,
             "jenis_bimbingan_id": 2,
             "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO",
@@ -99,6 +101,7 @@
     "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
     "kd_dosen": "IF054",
     "tgl_bimbingan": "07-06-2024",
+    "jam_bimbingan": "10.00",
     "jenis_bimbingan_id": 2,
     "judul": "Integrasi Sistem Informasi STMIK Bandung Berbasis REST API dan SSO"
 }</code></pre>
@@ -125,6 +128,7 @@
     "dosen_pembimbing": "Mina Ismu Rahayu, M.T",
     "kd_dosen": "IF054",
     "tgl_bimbingan": "16-06-2024",
+    "jam_bimbingan": "10.00",
     "jenis_bimbingan_id": 2,
     "judul": "CONTOH UPDATE - INTEGRASI SISTEM INFORMASI STMIK BANDUNG BERBASIS REST API DAN SSO"
 }</code></pre>
@@ -155,6 +159,7 @@
                 "nim": "1220001",
                 "nm_mhs": "SUHAEFI FAUZIAN",
                 "tgl_bimbingan": "2024-06-16",
+		"jam_bimbingan": "10.00",
                 "is_sudah": false,
                 "jenis_bimbingan_id": 2,
                 "judul": "INTEGRASI SISTEM INFORMASI STMIK BANDUNG BERBASIS REST API DAN SSO",
@@ -231,6 +236,7 @@
                 "nim": "1220001",
                 "nm_mhs": "SUHAEFI FAUZIAN",
                 "tgl_bimbingan": "2024-08-20",
+		"jam_bimbingan": "10.00",
                 "is_sudah": false,
                 "jenis_bimbingan_id": 2,
                 "judul": "Integrasi REST API dan SSO",
@@ -249,6 +255,7 @@
     "dosen_id": 2,
     "jenis_bimbingan_id": 2,
     "judul": "Integrasi REST API dan SSO",
-    "tgl_bimbingan": "22-08-2024"
+    "tgl_bimbingan": "22-08-2024",
+    "jam_bimbingan": "10.00"
 }</code></pre>
 </section>

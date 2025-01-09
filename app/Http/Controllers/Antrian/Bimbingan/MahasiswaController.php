@@ -21,7 +21,8 @@ class MahasiswaController extends Controller
                 'dosen_id' => 'required|integer',
                 'jenis_bimbingan_id' => 'required|integer',
                 'judul' => 'required|string',
-                'tgl_bimbingan' => 'required|string'
+                'tgl_bimbingan' => 'required|string',
+		'jam_bimbingan' => 'required|string'
             ]);
 
             /**
@@ -46,6 +47,7 @@ class MahasiswaController extends Controller
                 'kd_dosen' => $dosen['kd_dosen'],
                 'nm_dosen' => $dosen['nm_dosen'],
                 'jenis_bimbingan_id' => $jenisBimbingan['jenis_bimbingan_id'],
+		'jam_bimbingan' => $request->jam_bimbingan,
                 'created_at' => Carbon::now()
             ];
 
