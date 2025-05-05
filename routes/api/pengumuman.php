@@ -12,10 +12,10 @@ Route::middleware('auth.jwt')
     ->prefix('/pengumuman')
     ->group(function () {
         // ? dosen and admin
-        Route::controller(MainController::class)
-            ->group(function () {
-                Route::post('/add', 'addPengumuman');
-            });
+        // Route::controller(MainController::class)
+        //     ->group(function () {
+        //         Route::post('/add', 'addPengumuman');
+        //     });
 
         // ? dosen
         Route::controller(DosenPengumumanController::class)
@@ -24,6 +24,7 @@ Route::middleware('auth.jwt')
             ->group(function () {
                 Route::get('/kelas-kuliah', 'getAllKelas');
                 Route::get('/list', 'getListPengumuman');
+                Route::post('/add', [MainController::class, 'addPengumumanByDosen']);
             });
 
         // ? admin
@@ -32,6 +33,7 @@ Route::middleware('auth.jwt')
             ->middleware('auth.admin')
             ->group(function () {
                 Route::get('/list', 'getListPengumuman');
+                Route::post('/add', [MainController::class, 'addPengumumanByAdmin']);
             });
 
         // ? mahasiswa

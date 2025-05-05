@@ -43,10 +43,12 @@ class MainController extends Controller
                 if ($request->target !== 0) {
                     return $this->successfulResponseJSONV2('Admin hanya bisa mengirim pengumuman untuk semua', 403);
                 }
-
+                
                 $pengumuman = $request->all();
                 $pengumuman['tgl_dikirim'] = Carbon::now();
-                $pengumuman['pengirim'] = auth()->user()->is_admin ? $user['admin_id']
+                $pengumuman['pengirim'] = auth()->user()->is_admin 
+                    ? $user['admin_id']
+                        ?? $user['dosen_id']
                     : $user['dosen_id'];
                 $pengumuman['nm_pengirim'] = isset($user['gelar']) ?
                     $user['nama'] . ', ' . $user['gelar'] : $user['nama'];
@@ -55,7 +57,7 @@ class MainController extends Controller
 
                 if ($request->image and !is_null($request->image)) {
                     $pengumuman['image'] = config('app.url')
-                        . 'storage/pengumuman/images/' . $pengumuman['image'];
+                        . '/storage/pengumuman/images/' . $pengumuman['image'];
                 }
 
                 DB::beginTransaction();
@@ -155,6 +157,162 @@ class MainController extends Controller
             }
 
             return $this->failedResponseJSON('Target pengumuman tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function addPengumumanByDosen(Request $request) {
+        try {
+            $user = $this->getUserAuth();
+
+            if (!auth()->user()->is_dosen) {
+                return $this->failedResponseJSON('Enpoint ini hanya tersedia untuk Admin Perkuliahan dan Dosen', 403);
+            }
+
+            $request->validate([
+                'target' => 'required|integer',
+                'image' => 'nullable|string',
+                'message' => 'required|string',
+            ]);
+            
+            $punyaDosen = KelasKuliahJoinView::where('kelas_kuliah_id', $request->target)
+                ->where('pengajar_id', $user['dosen_id'])
+                ->select('kelas_kuliah_id')
+                ->first();
+
+            if (!$punyaDosen) {
+                return $this->failedResponseJSON('Target pengumuman tidak ditemukan', 404);
+            }
+
+            $kelasKuliahIdArr = [];
+
+            // cek kelas dijoin
+            $joinKelasKuliahIdArr = KelasKuliahJoinView::where('join_kelas_kuliah_id', $request->target)
+                ->select('kelas_kuliah_id', 'join_kelas_kuliah_id')
+                ->pluck('kelas_kuliah_id')
+                ->toArray();
+
+            $kelasKuliahIdArr = array_merge([$request->target], $joinKelasKuliahIdArr);
+            
+            // cek mahasiswa yang mengambil kelas kuliah
+            $krsIdArr = KRSMatkul::whereIn('kelas_kuliah_id', $kelasKuliahIdArr)
+                ->select('krs_mk_id', 'krs_id')
+                ->pluck('krs_id');
+
+            // return response()->json([
+            //     'joinKelasKuliahIdArr' => $joinKelasKuliahIdArr,
+            //     'target' => $request->target,
+            //     'user' => $user,
+            //     'punyaDosen' => $punyaDosen,
+            //     'kelasKuliahIdArr' => $kelasKuliahIdArr,
+            //     'krsIdArr' => $krsIdArr
+            // ]);
+
+            // simpan pengumuman ke db untuk setiap kelas
+            $pengumumanArr = [];
+            $tglKirim = Carbon::now();
+
+            DB::beginTransaction();
+
+            foreach ($kelasKuliahIdArr as $item) {
+                if ($request->image and !is_null($request->image)) {
+                    $image = config('app.url') . 'storage/pengumuman/images/' . $request->image;
+                }
+
+                $pengumuman = [
+                    'target' => $item,
+                    'pengirim' => $user['dosen_id'],
+                    'nm_pengirim' => $user['nama'] . ', ' . $user['gelar'],
+                    'image' => is_null($request->image) ? null : $image,
+                    'tgl_dikirim' => $tglKirim,
+                    'message' => $request->message,
+                    'avatar_pengirim' => auth()->user()->image
+                ];
+
+                array_push($pengumumanArr, $pengumuman);
+            }
+
+            $insert = Pengumuman::insert($pengumumanArr);
+
+            if ($insert) {
+                DB::commit();
+
+                $mhsIdArr = KRS::whereIn('krs_id', $krsIdArr)
+                    ->select('krs_id', 'mhs_id')
+                    ->pluck('mhs_id');
+
+                /**
+                 * kirim notif lewat fcm
+                 */
+                self::sendNotif($mhsIdArr, $pengumuman);
+
+                return $this->successfulResponseJSONV2('Pengumuman berhasil dikirim', 200);
+            }
+
+            DB::rollBack();
+
+            return $this->failedResponseJSON('Pengumuman gagal dikirim', 500);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function addPengumumanByAdmin(Request $request) {
+        try {
+            $user = $this->getUserAuth();
+
+            if(!auth()->user()->is_admin) {
+                return $this->failedResponseJSON('Enpoint ini hanya tersedia untuk Admin Perkuliahan dan Dosen', 403);
+            }
+
+            $request->validate([
+                'target' => 'required|integer',
+                'image' => 'nullable|string',
+                'message' => 'required|string',
+            ]);
+
+            if ($request->target !== 0) {
+                return $this->successfulResponseJSONV2('Admin hanya bisa mengirim pengumuman untuk semua', 403);
+            }
+            
+            $pengumuman = $request->all();
+            $pengumuman['tgl_dikirim'] = Carbon::now();
+            $pengumuman['pengirim'] = auth()->user()->is_admin 
+                ? $user['admin_id']
+                    ?? $user['dosen_id']
+                : $user['dosen_id'];
+            $pengumuman['nm_pengirim'] = isset($user['gelar']) ?
+                $user['nama'] . ', ' . $user['gelar'] : $user['nama'];
+            $pengumuman['target'] = 0;
+            $pengumuman['avatar_pengirim'] = auth()->user()->image;
+
+            if ($request->image and !is_null($request->image)) {
+                $pengumuman['image'] = config('app.url')
+                    . '/storage/pengumuman/images/' . $pengumuman['image'];
+            }
+
+            DB::beginTransaction();
+
+            $insert = Pengumuman::insert($pengumuman);
+
+            if ($insert) {
+                DB::commit();
+
+                /**
+                 * kirim notif lewat fcm
+                 */
+                self::sendNotif(null, $pengumuman);
+
+                return $this->successfulResponseJSONV2('Pengumuman berhasil dikirim untuk semua', 200);
+            }
+
+            DB::rollBack();
+
+            return $this->failedResponseJSON('Pengiriman gagal dikirim', 500);
         } catch (\Exception $e) {
             DB::rollBack();
             return ErrorHandler::handle($e);
