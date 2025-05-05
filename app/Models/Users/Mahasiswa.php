@@ -34,6 +34,14 @@ class Mahasiswa extends Model
         $this->connection = config('myconfig.database.second_connection');
     }
 
+    public function scopeGetAllMahasiswa(Builder $query) {
+        return $query
+            ->where('sts_mhs', 'A')
+            ->where('kd_kampus', 'A')
+            ->where('krs_id_last', '!=', null)
+            ->get();
+    }
+
     public function scopeSearchMahasiswa(Builder $query, $filter, $search = null, $page = null) {
         if ($search)  {
             return $query->where('dosen_id', $filter['dosen_id'])

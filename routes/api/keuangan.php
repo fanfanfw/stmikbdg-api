@@ -1,0 +1,27 @@
+<?php
+
+use App\Http\Controllers\Keuangan\KeuanganController;
+use Illuminate\Support\Facades\Route;
+
+Route::middleware('auth.jwt')
+    ->prefix('/keuangan')
+    ->group(function () {
+        Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
+    });
+
+// Route::get('/keuangan/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif']);
+
+// Route::controller(UserController::class)
+//     ->prefix('/users')
+//     ->middleware('auth.jwt')
+//     ->group(function () {
+//         Route::get('/me', 'getMyProfile');
+//         Route::put('/me/password', 'putMyPassword');
+//         Route::post('/me/image', 'addProfileImage');
+
+//         // * route untuk admin
+//         Route::get('/', 'getUserList')->middleware('auth.admin');
+//         Route::post('/', 'addNewUser'); // buat awalan tambahin withoutMiddleware('auth.jwt')
+//         Route::delete('/{id}', 'deleteUserById')->middleware('auth.admin');
+//         Route::get('/v2/all', 'getUsersByRoles')->middleware('auth.admin');
+//     });
