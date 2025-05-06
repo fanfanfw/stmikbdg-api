@@ -22,36 +22,47 @@ class FileController extends Controller
 
             $to = $request->query('to');
 
-            if ($to) {
-                if (Storage::disk('public')->exists($to)) {
-                    $request->validate([
-                        'image' => 'required|file|mimes:png,jpg|max:1024',
-                    ]);
-
-                    $image = $request->file('image');
-                    $imageName = $image->getClientOriginalName();
-
-                    // check nama image
-                    $validateImageName = self::checkWhiteSpace((string) $imageName);
-
-                    if (!$validateImageName) {
-                        return $this->failedResponseJSON('Nama file tidak boleh mengandung spasi', 400);
-                    }
-
-                    if (strtolower($to) == 'pengumuman') {
-                        $image->storeAs('public/pengumuman/images/', $imageName);
-                        $url = config('app.url')
-                            . 'storage/pengumuman/images/'
-                            . $imageName;
-                    }
-
-                    return $this->successfulResponseJSON([
-                        'image' => $url
-                    ], 'Image berhasil diupload');
-                }
+            if(!$to) {
+                return $this->failedResponseJSON('Folder untuk menyimpan gambar tidak ditemukan');
             }
 
-            return $this->failedResponseJSON('Folder untuk menyimpan gambar tidak ditemukan');
+            if(!Storage::disk('public')->exists($to)) {
+                // Storage::disk('public')->makeDirectory($to);
+                return $this->failedResponseJSON('Folder untuk menyimpan gambar tidak ditemukan');
+            }
+
+            if(!Storage::disk('public')->directoryExists($to )) {
+                // Storage::disk('public')->makeDirectory($to);
+                return $this->failedResponseJSON('Folder untuk menyimpan gambar tidak ditemukan');
+            }
+
+            $request->validate([
+                'image' => 'required|file|mimes:png,jpg|max:1024',
+            ]);
+            
+            $image = $request->file('image');
+            $imageName = $image->getClientOriginalName();
+            
+            // check nama image
+            // $validateImageName = self::checkWhiteSpace((string) $imageName);
+            
+            // if (!$validateImageName) {
+            //     return $this->failedResponseJSON('Nama file tidak boleh mengandung spasi', 400);
+            // }
+            
+            if (strtolower($to) == 'pengumuman') {
+                $extension = $image->getClientOriginalExtension();
+                $datePrefix = now()->format('Ymd');
+                $imageName = $datePrefix . '_pengumuman_' . uniqid() . '.' . $extension;
+            
+                Storage::disk('public')->put('pengumuman/images/' . $imageName, file_get_contents($image), 'public');
+                $url = config('app.url') . 'storage/pengumuman/images/' . $imageName;
+            }
+            
+            return $this->successfulResponseJSON([
+                'image' => $url,
+                'imageName' => $imageName
+            ], 'Image berhasil diupload');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
@@ -59,9 +70,9 @@ class FileController extends Controller
 
     private function checkWhiteSpace($string) {
         if (preg_match('/\s/', $string)) {
-            return $string;
+            return false;
         } else {
-            return $string;
+            return true;
         }
     }
 }

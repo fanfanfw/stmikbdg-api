@@ -34,7 +34,7 @@ class AdminController extends Controller
                 return response()->json([
                     'status' => 'success',
                     'data' => [
-                        'list_oengumuman' => $paginatedData,
+                        'list_pengumuman' => $paginatedData,
                     ],
                     'meta' => [
                         'current_page' => $currentPage,

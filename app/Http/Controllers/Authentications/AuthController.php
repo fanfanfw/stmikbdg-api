@@ -18,7 +18,7 @@ use App\Models\Users\UserSitesView;
 // ? Models - Tables
 use App\Models\Users\Site;
 use App\Models\Authentications\LoginHistory;
-
+use ErrorException;
 
 class AuthController extends Controller {
     public function userLogin(Request $request) {
@@ -109,6 +109,11 @@ class AuthController extends Controller {
             return response()->json([
                 'status' => 'fail',
                 'message' => 'Gagal generate token',
+            ], 500);
+        } catch (ErrorException $e) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => $e,
             ], 500);
         }
 

@@ -48,26 +48,52 @@ class MahasiswaController extends Controller
                     );
                 }
 
-                $kelasKuliahIdArr = KRSMatkul::where('krs_id', $lastKrs['krs_id_last'])
+                $kelasKuliahIds = KRSMatkul::where('krs_id', $lastKrs['krs_id_last'])
                     ->where('kelas_kuliah_id', (int) $kelasKuliahId)
                     ->select('krs_mk_id', 'krs_id', 'kelas_kuliah_id')
                     ->pluck('kelas_kuliah_id')
                     ->toArray();
 
-                if (count($kelasKuliahIdArr) < 1) {
+                if (count($kelasKuliahIds) < 1) {
                     return $this->failedResponseJSON('Kelas kuliah id tidak ditemukan');
                 }
             } else {
-                $kelasKuliahIdArr = KRSMatkul::where('krs_id', $lastKrs['krs_id_last'])
-                    ->select('krs_mk_id', 'krs_id', 'kelas_kuliah_id')
-                    ->pluck('kelas_kuliah_id')
-                    ->toArray();
-                array_push($kelasKuliahIdArr, 0); // ambil pengumuman yang ditujukan untuk semua
+                $kelasKuliahIdArr = KRSMatkul::with('matakuliah')
+                    ->where('krs_id', $lastKrs['krs_id_last'])
+                    // ->select('krs_mk_id', 'krs_id', 'kelas_kuliah_id')
+                    // ->pluck('kelas_kuliah_id')
+                    ->get();
+                // array_push($kelasKuliahIdArr, 0); // ambil pengumuman yang ditujukan untuk semua
+                $kelasKuliah = $kelasKuliahIdArr;
+                $kelasKuliahIds = [];
+                foreach ($kelasKuliah as $item) {
+                    array_push($kelasKuliahIds, $item['kelas_kuliah_id']);
+                }
+                array_push($kelasKuliahIds, 0);
             }
-
-            $listPengumuman = Pengumuman::whereIn('target', $kelasKuliahIdArr)
+           
+            $listPengumuman = Pengumuman::whereIn('target', $kelasKuliahIds)
                 ->orderBy('tgl_dikirim', 'DESC')
                 ->get();
+
+            if(!$kelasKuliahId) {
+                foreach ($listPengumuman as $item) {
+
+                    $matching_kelas_kuliah_id = null;
+                    foreach ($kelasKuliah as $kelas) {
+                        if ($kelas['kelas_kuliah_id'] == $item['target']) {
+                            $matching_kelas_kuliah_id = $kelas['kelas_kuliah_id'];
+                            break;
+                        }
+                    }
+    
+                    if ($matching_kelas_kuliah_id) {
+                        $item['keterangan_target'] = 'Pengumuman untuk kelas ' . $kelas['matakuliah']['nm_mk'];
+                    }else{
+                        $item['keterangan_target'] = 'Pengumuman Umum';
+                    }
+                }
+            }
 
             if ($page) {
                 $perPage = 5;

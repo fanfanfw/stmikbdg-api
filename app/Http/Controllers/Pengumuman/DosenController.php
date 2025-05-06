@@ -104,9 +104,14 @@ class DosenController extends Controller
                 ->pluck('tahun_id');
 
             // get kelas kuliah dan cek kelas dijoin
-            $kelasKuliah = KelasKuliahJoinView::where('pengajar_id', $dosen['dosen_id'])
+            $kelasKuliah = KelasKuliahJoinView::with([
+                'matakuliah' => function ($query) {
+                    $query->select('mk_id', 'nm_mk');
+                }
+            ])
+                ->where('pengajar_id', $dosen['dosen_id'])
                 ->whereIn('tahun_id', $tahunIdArr)
-                ->select('kelas_kuliah_id', 'tahun_id', 'kjoin_kelas', 'join_kelas_kuliah_id')
+                ->select('kelas_kuliah_id', 'tahun_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'mk_id')
                 ->get();
 
             $kelasKuliahIdArr = collect($kelasKuliah)->filter(function ($item) {
@@ -122,6 +127,23 @@ class DosenController extends Controller
             $listPengumuman = Pengumuman::whereIn('target', $filteredKelasKuliah)
                 ->orderBy('tgl_dikirim', 'DESC')
                 ->get();
+
+            foreach ($listPengumuman as $item) {
+
+                $matching_kelas_kuliah_id = null;
+                foreach ($kelasKuliah as $kelas) {
+                    if ($kelas['kelas_kuliah_id'] == $item['target']) {
+                        $matching_kelas_kuliah_id = $kelas['kelas_kuliah_id'];
+                        break;
+                    }
+                }
+
+                if ($matching_kelas_kuliah_id) {
+                    $item['keterangan_target'] = 'Pengumuman untuk kelas ' . $kelas['matakuliah']['nm_mk'];
+                }else{
+                    $item['keterangan_target'] = 'Pengumuman Umum';
+                }
+            }
 
             if ($page) {
                 $perPage = 5;

@@ -27,6 +27,9 @@ require __DIR__.'/api/antrian.php';
 // ? Pengumuman
 require __DIR__.'/api/pengumuman.php';
 
+// ? Keuangan
+require __DIR__.'/api/keuangan.php';
+
 // ? Surat
 require __DIR__.'/api/surat.php';
 

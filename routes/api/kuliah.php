@@ -1,7 +1,9 @@
 <?php
 
+
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Kuliah\KelasKuliahController;
+use App\Http\Controllers\Kuliah\KontrakKelasKuliahController;
 use App\Http\Controllers\Kuliah\PertemuanController;
 use App\Http\Controllers\Kuliah\PresensiController;
 
@@ -30,6 +32,7 @@ Route::controller(KelasKuliahController::class)
                 Route::post('/close/{kelas_kuliah_id}', [PertemuanController::class, 'tutupKelasKuliah']);
                 Route::get('/open/{kelas_kuliah_id}/presensi', [PresensiController::class, 'getKehadiranMahasiswaByDosen']);
                 Route::delete('/presensi-mahasiswa', [PresensiController::class, 'deletePresensiMahasiswaByDosen']);
+                Route::post('/kontrak', [KontrakKelasKuliahController::class, 'upload']);
             });
 
         // * Routes untuk Mahasiswa
