@@ -17,6 +17,8 @@ Route::middleware('auth.jwt')
             });
     });
 
+    // CEK NEW TEXT
+
 // Route::get('/keuangan/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif']);
 
 // Route::controller(UserController::class)
