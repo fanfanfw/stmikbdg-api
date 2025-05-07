@@ -115,7 +115,7 @@ class KelasKuliahController extends Controller {
                         foreach ($kelasKuliah as $index => $item) {
                             $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
 
-                            $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
+                            // $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
 
                             // get riwayat presensi mahasiswa
                             $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
@@ -150,7 +150,7 @@ class KelasKuliahController extends Controller {
                                 'matakuliah' => $item['matakuliah'],
                                 'riwayat_presensi' => $riwayatPresensi,
                                 'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                'kontrak_kuliah' => $kontrakKuliah->last()
+                                // 'kontrak_kuliah' => $kontrakKuliah->last()
                             ];
 
                             $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
