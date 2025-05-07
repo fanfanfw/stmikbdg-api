@@ -7,6 +7,14 @@ Route::middleware('auth.jwt')
     ->prefix('/keuangan')
     ->group(function () {
         Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
+
+        Route::prefix('/tahun-akademik')
+            ->group(function () {
+                Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
+                Route::post('/', [KeuanganController::class, 'tahunAkademik_create'])->middleware('auth.admin');
+                Route::put('/{id}', [KeuanganController::class, 'tahunAkademik_update'])->middleware('auth.admin');
+                Route::delete('/{id}', [KeuanganController::class, 'tahunAkademik_delete'])->middleware('auth.admin');
+            });
     });
 
 // Route::get('/keuangan/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif']);

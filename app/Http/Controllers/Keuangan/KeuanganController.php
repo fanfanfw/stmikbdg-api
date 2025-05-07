@@ -3,19 +3,12 @@
 namespace App\Http\Controllers\Keuangan;
 
 use App\Http\Controllers\Controller;
+use App\Models\Keuangan\TahunAkademik;
 use App\Models\Users\Mahasiswa;
 use Illuminate\Http\Request;
 
 class KeuanganController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
-    }
-
     public function getAllMahasiswaAktif(Request $request) {
         $mahasiswa = Mahasiswa::getAllMahasiswa()->toArray();
 
@@ -25,35 +18,116 @@ class KeuanganController extends Controller
         ], 200);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
+    public function getTahunAkademik(Request $request) {
+
+        $tahun_akademik = TahunAkademik::getTahunAkademik([
+            'status' => 1
+        ])->toArray();
+
+        return response()->json([
+            'success' => true,
+            'data' => $tahun_akademik
+        ], 200);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
+    public function tahunAkademik_create(Request $request) {
+
+        try {
+            $request->validate([
+                'thn_akademik' => 'required|string|max:4',
+                'ganjil_mulai' => 'required|date',
+                'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
+                'genap_mulai' => 'required|date',
+                'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
+                'antara_mulai' => 'required|date',
+                'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
+                'status' => 'required|integer|in:0,1'
+            ]);
+    
+            $body = $request->only((new TahunAkademik)->getFillable());
+    
+            $data = TahunAkademik::create($body);
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Data tahun akademik berhasil ditambahkan.',
+                'data' => $data
+            ], 200);
+        } catch (\Exception $error) {
+            return response()->json([
+                'success' => false,
+                'message' => $error->getMessage(),
+                'error' => $error
+            ]);
+        }
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
+    public function tahunAkademik_update(Request $request, int $id_thn_akademik) {
+        try {
+            $request->validate([
+                'thn_akademik' => 'required|string|max:4',
+                'ganjil_mulai' => 'required|date',
+                'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
+                'genap_mulai' => 'required|date',
+                'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
+                'antara_mulai' => 'required|date',
+                'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
+                'status' => 'required|integer|in:0,1'
+            ]);
+    
+            $payload = $request->only((new TahunAkademik)->getFillable());
+    
+            $data = TahunAkademik::findOrFail($id_thn_akademik);
+
+            $data->update($payload);
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Data tahun akademik berhasil diubah.',
+                'data' => $data
+            ], 200);
+
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan.',
+            ], 404);
+        } catch (\Exception $error) {
+            return response()->json([
+                'success' => false,
+                'message' => $error->getMessage(),
+                'error' => $error
+            ]);
+        }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+    public function tahunAkademik_delete(Request $request, int $id_thn_akademik) {
+        try {
+    
+            $data = TahunAkademik::findOrFail($id_thn_akademik);
+
+            $data->update([
+                'status' => 0
+            ]);
+    
+            return response()->json([
+                'success' => true,
+                'message' => 'Data tahun akademik berhasil dihapus.',
+                'data' => $data
+            ], 200);
+            
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan.',
+            ], 404);
+        } catch (\Exception $error) {
+            return response()->json([
+                'success' => false,
+                'message' => $error->getMessage(),
+                'error' => $error
+            ]);
+        }
     }
+    
 }
