@@ -2,6 +2,7 @@
 
 namespace App\Models\Users;
 
+use App\Models\Surat_V2\Pengajuan;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Notifiable;
@@ -30,5 +31,9 @@ class User extends Model
 
     public function __construct() {
         $this->connection = config('myconfig.database.first_connection');
+    }
+
+    public function surat_v2_pengajuan_mahasiswa() {
+        return $this->hasMany(Pengajuan::class, 'user_id', 'id');
     }
 }
