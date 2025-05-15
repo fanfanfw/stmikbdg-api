@@ -34,12 +34,27 @@ class Mahasiswa extends Model
         $this->connection = config('myconfig.database.second_connection');
     }
 
-    public function scopeGetAllMahasiswa(Builder $query) {
-        return $query
-            ->where('sts_mhs', 'A')
-            ->where('kd_kampus', 'A')
-            ->where('krs_id_last', '!=', null)
-            ->get();
+    public function scopeGetAllMahasiswa(Builder $query, array $filter = []) {
+
+        $query->where('sts_mhs', 'A')
+          ->where('kd_kampus', 'A')
+          ->whereNotNull('krs_id_last')
+          ->with('jurusan');
+
+        // Apply dynamic filters
+        foreach ($filter as $key => $value) {
+            if (is_array($value)) {
+                $query->whereIn($key, $value);
+            } elseif (!is_null($value) && $value !== '') {
+                $query->where($key, $value);
+            }
+        }
+
+        return $query->get();
+    }
+
+    public function scopeGetAllUniqueByColumns(Builder $query, array $columns = []) {
+        return $query->select($columns)->orderBy($columns[0], 'asc')->distinct()->get();
     }
 
     public function scopeSearchMahasiswa(Builder $query, $filter, $search = null, $page = null) {

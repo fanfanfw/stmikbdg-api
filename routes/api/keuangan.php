@@ -6,7 +6,12 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth.jwt')
     ->prefix('/keuangan')
     ->group(function () {
-        Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
+        // Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
+        Route::prefix('/mahasiswa')
+            ->group( function () {
+                Route::get('/', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
+                Route::get('/tahun-angkatan', [KeuanganController::class, 'getAllTahunAngkatan'])->middleware('auth.admin');
+            });
 
         Route::prefix('/tahun-akademik')
             ->group(function () {

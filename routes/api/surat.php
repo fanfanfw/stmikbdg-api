@@ -7,6 +7,9 @@ use App\Http\Controllers\Surat\KategoriController as KategoriSuratController;
 use App\Http\Controllers\Surat\SuratKeluarController;
 use App\Http\Controllers\Surat\SuratMasukController;
 use App\Http\Controllers\Surat\MainController;
+use App\Http\Controllers\Surat_V2\MasterPengajuanController;
+use App\Http\Controllers\Surat_V2\MasterSuratController;
+use App\Http\Controllers\Surat_V2\PengajuanController;
 use App\Http\Controllers\Users\StaffController;
 
 /**
@@ -17,6 +20,36 @@ Route::get('/users/staff/detail', [StaffController::class, 'getDetailByUserId'])
 Route::prefix('/surat')
     ->middleware('auth.jwt')
     ->group(function () {
+
+        Route::prefix('/v2')
+            ->group( function () {
+
+                Route::middleware('auth.admin')
+                    ->group(function () {
+                        Route::get('/master-surat', [MasterSuratController::class, 'masterSurat_getAll']);
+                        Route::post('/master-surat', [MasterSuratController::class, 'masterSurat_create']);
+                        Route::put('/master-surat/{id}', [MasterSuratController::class, 'masterSurat_update']);
+                        Route::delete('/master-surat/{id}', [MasterSuratController::class, 'masterSurat_delete']);
+
+                        Route::get('/master-pengajuan', [MasterPengajuanController::class, 'masterPengajuan_getAll']);
+                        Route::post('/master-pengajuan', [MasterPengajuanController::class, 'masterPengajuan_create']);
+                        Route::put('/master-pengajuan/{id}', [MasterPengajuanController::class, 'masterPengajuan_update']);
+                        Route::delete('/master-pengajuan/{id}', [MasterPengajuanController::class, 'masterPengajuan_delete']);
+                    });
+
+
+                Route::prefix('/pengajuan')
+                    ->group(function () {
+                        Route::get('/', [PengajuanController::class, 'pengajuanMahasiswa_getAll']);
+                        Route::get('/{id}', [PengajuanController::class, 'pengajuanMahasiswa_getById']);
+                        Route::post('/', [PengajuanController::class, 'pengajuanMahasiswa_create']);
+                        Route::put('/{id}', [PengajuanController::class, 'pengajuanMahasiswa_update']);
+                        Route::delete('/{id}', [PengajuanController::class, 'pengajuanMahasiswa_delete']);
+                    });
+
+                Route::put('/verifikasi-pengajuan/{pengajuan_id}', [PengajuanController::class, 'pengajuanMahasiswa_verify']);
+            });
+
         Route::controller(MainController::class)
             ->group(function () {
                 Route::middleware('auth.surat.users')
