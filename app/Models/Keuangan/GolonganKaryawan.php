@@ -9,7 +9,7 @@ class GolonganKaryawan extends Model
 {
     use HasFactory;
 
-   protected $table = 'keuangan.k_jabatan';
+   protected $table = 'keuangan.k_golongan';
    protected $connection;
 
 
