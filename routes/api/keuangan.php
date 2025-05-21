@@ -1,7 +1,11 @@
 <?php
 
-use App\Http\Controllers\Keuangan\KeuanganController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Users\UserController;
+
+use App\Http\Controllers\Keuangan\JabatanKaryawanController;
+use App\Http\Controllers\Keuangan\KeuanganController;
+use App\Http\Controllers\Keuangan\StatusKaryawanController;
 
 Route::middleware('auth.jwt')
     ->prefix('/keuangan')
@@ -20,7 +24,18 @@ Route::middleware('auth.jwt')
                 Route::put('/{id}', [KeuanganController::class, 'tahunAkademik_update'])->middleware('auth.admin');
                 Route::delete('/{id}', [KeuanganController::class, 'tahunAkademik_delete'])->middleware('auth.admin');
             });
+        
+        // Route::prefix('/karyawan/jabatan')
+        // ->group(function () {
+        //     // Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
+        // });
     });
+
+    Route::apiResource('/karyawan/status', StatusKaryawanController::class);
+    Route::apiResource('/karyawan/jabatan', JabatanKaryawanController::class);
+    
+     
+    
 
     // CEK NEW TEXT
 
