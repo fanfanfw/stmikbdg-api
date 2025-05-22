@@ -100,15 +100,6 @@ class JabatanKaryawanController extends Controller
                'errors' => $error->getMessage()
            ], 404);
 
-
-       } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $error){
-          
-           return response()->json([
-               'success' => false,
-               'message' => 'Data tidak ditemukan',
-           ], 422);
-
-
        } catch (\Exception $error) {
            return response()->json([
                'success' => false,
@@ -197,7 +188,8 @@ class JabatanKaryawanController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Data jabatan berhasil dihapus'
+                'message' => 'Data jabatan berhasil dihapus',
+                'data' => $data->nama
             ],200);
 
 

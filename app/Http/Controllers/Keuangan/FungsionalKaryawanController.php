@@ -3,17 +3,17 @@
 namespace App\Http\Controllers\Keuangan;
 
 use App\Http\Controllers\Controller;
-use App\Models\Keuangan\GolonganKaryawan;
+use App\Models\Keuangan\FungsionalKaryawan;
 use Illuminate\Http\Request;
 
-class GolonganKaryawanController extends Controller
+class FungsionalKaryawanController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $data = GolonganKaryawan::all();
+        $data = FungsionalKaryawan::all();
 
         return response()->json([
             'success' => true,
@@ -26,23 +26,17 @@ class GolonganKaryawanController extends Controller
      */
     public function store(Request $request)
     {
-        //protected $fillable = ['nama', 'pendidikan_terakhir', 'honor'];
-
         try{
 
             $validated = $request->validate([
-                'nama' => 'required|string|max:255',
-                'pendidikan_terakhir' => 'required|string',
-                'honor' => 'required|numeric',
+                'jabatan' => 'required|string|max:255',
+              
             ],[
-                'nama.required' => 'Kolom wajib diisi',
-                'nama.string' => 'Masukan nama dengan benar',
-                'pendidikan_terakhir.string' => 'Masukan pendidikan terkahir dengan benar',
-                'honor.required' => 'Kolom wajib diisi',
-                'honor.numeric' => 'Kolom wajib disi dengan angka',
+                'jabatan.required' => 'Kolom wajib diisi',
+                'jabatan.string' => 'Masukan jabatan dengan benar',
             ]);
 
-            $data = GolonganKaryawan::create($validated);
+            $data = FungsionalKaryawan::create($validated);
 
             return response()->json([
                 'success' => true,
@@ -71,9 +65,10 @@ class GolonganKaryawanController extends Controller
      */
     public function show($id)
     {
+        
         try{
 
-            $data = GolonganKaryawan::findOrFail($id);
+            $data = FungsionalKaryawan::findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -87,7 +82,7 @@ class GolonganKaryawanController extends Controller
                 'errors' => $error->getMessage()
             ], 404);
  
- 
+
         } catch (\Exception $error) {
             return response()->json([
                 'success' => false,
@@ -107,26 +102,22 @@ class GolonganKaryawanController extends Controller
         try{
 
             $validated = $request->validate([
-                'nama' => 'required|string|max:255',
-                'pendidikan_terakhir' => 'string',
-                'honor' => 'required|numeric',
+                'jabatan' => 'required|string|max:255',
+              
             ],[
-                'nama.required' => 'Kolom wajib diisi',
-                'nama.string' => 'Masukan nama dengan benar',
-                'pendidikan_terakhir.string' => 'Masukan pendidikan terkahir dengan benar',
-                'honor.required' => 'Kolom wajib diisi',
-                'honor.numeric' => 'Kolom wajib disi dengan angka',
+                'jabatan.required' => 'Kolom wajib diisi',
+                'jabatan.string' => 'Masukan jabatan dengan benar',
             ]);
 
-            $data = GolonganKaryawan::findOrFail($id);
+            $data = FungsionalKaryawan::findOrFail($id);
 
-            $filtered = collect($validated)->only((new GolonganKaryawan)->getFillable())->toArray();
+            $filtered = collect($validated)->only((new FungsionalKaryawan)->getFillable())->toArray();
 
             $data->update($filtered);
 
             return response()->json([
                 'succsess' => true,
-                'message' => 'Data golongan berhasil diupdate',
+                'message' => 'Data jabatan fungsional berhasil diupdate',
                 'data' => $filtered
             ],200);
             
@@ -162,16 +153,16 @@ class GolonganKaryawanController extends Controller
      */
     public function destroy($id)
     {
-        
+          
         try{
 
-            $data = GolonganKaryawan::findOrFail($id);
+            $data = FungsionalKaryawan::findOrFail($id);
             $data->delete();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Data berhasil dihapus',
-                'data' => $data->only(['nama','pendidikan_terakhir'])
+                'data' => $data->jabatan
             ], 200);
 
         }catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -193,5 +184,6 @@ class GolonganKaryawanController extends Controller
 
             ]);
         }
+    
     }
 }

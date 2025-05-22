@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Keuangan\FungsionalKaryawanController;
 use App\Http\Controllers\Keuangan\GolonganKaryawanController;
 use App\Http\Controllers\Keuangan\JabatanKaryawanController;
 use App\Http\Controllers\Keuangan\KeuanganController;
@@ -7,7 +8,7 @@ use App\Http\Controllers\Keuangan\StatusKaryawanController;
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Users\UserController;
-
+use App\Models\Keuangan\FungsionalKaryawan;
 
 Route::middleware('auth.jwt')
     ->prefix('/keuangan')
@@ -36,6 +37,7 @@ Route::middleware('auth.jwt')
     Route::apiResource('/karyawan/status', StatusKaryawanController::class);
     Route::apiResource('/karyawan/jabatan', JabatanKaryawanController::class);
     Route::apiResource('/karyawan/golongan', GolonganKaryawanController::class);
+    Route::apiResource('/karyawan/fungsional', FungsionalKaryawanController::class);
     
      
     
