@@ -161,9 +161,10 @@ class StatusKaryawanController extends Controller
 
             $data = StatusKaryawan::findOrFail($id);
             $data->delete();
-            return response()->json([
+            return response()->json([ 
                 'success' => true,
-                'massage' => 'Data status karyawan berhasil dihapus'
+                'massage' => 'Data status karyawan berhasil dihapus',
+                'data'=> $data->nama
             ], 200);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
