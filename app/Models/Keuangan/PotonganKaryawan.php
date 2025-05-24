@@ -12,7 +12,7 @@ class PotonganKaryawan extends Model
     protected $table = 'keuangan.k_potongan';
     protected $connection;
 
-    // protected $fillable = [];
+    protected $fillable = ['id_karyawan','id_potongan','bulan'];
 
     public function __construct()
     {
