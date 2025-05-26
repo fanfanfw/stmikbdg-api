@@ -8,10 +8,12 @@ use App\Http\Controllers\Keuangan\ListPotonganKaryawanController;
 use App\Http\Controllers\Keuangan\ListTunjanganKeluargaKaryawanController;
 use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
 use App\Http\Controllers\Keuangan\StatusKaryawanController;
-
+use App\Http\Controllers\Keuangan\ProfileKaryawanController
+;
+use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Users\UserController;
-use App\Models\Keuangan\FungsionalKaryawan;
+
 
 Route::middleware('auth.jwt')
     ->prefix('/keuangan')
@@ -43,7 +45,13 @@ Route::middleware('auth.jwt')
     Route::apiResource('/karyawan/fungsional', FungsionalKaryawanController::class);
     Route::apiResource('/karyawan/list-potongan', ListPotonganKaryawanController::class);
     Route::apiResource('/karyawan/skripsi-kp', SkripsiKpKaryawanController::class);
-    Route::apiResource('/karyawan/tunj-keuangan', ListTunjanganKeluargaKaryawanController::class);
+    Route::apiResource('/karyawan/tunj-keluarga', ListTunjanganKeluargaKaryawanController::class);
+    Route::apiResource('/karyawan/tunjangan', TunjanganKaryawanController::class);
+
+    Route::get('/karyawan/profile/detail', [ProfileKaryawanController::class, 'detailKaryawanBulanIni']);
+    Route::apiResource('/karyawan/profile', ProfileKaryawanController::class);
+
+    
     
      
     
