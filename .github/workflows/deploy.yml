@@ -13,7 +13,7 @@ jobs:
 
       - name: Run deployment script
         run: |
-          cd /var/www/stmikbdg-simak
+          cd /var/www/stmikbdg-api
           git pull origin Master
           composer install
           php artisan cache:clear
