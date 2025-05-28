@@ -1,5 +1,5 @@
 name: Self-Hosted Runner | CI/CD | stmikbdg-api
-# fix 6
+# fix 7
 
 on:
   push:
@@ -16,7 +16,7 @@ jobs:
         run: |
           cd /var/www/stmikbdg-api
           git pull origin Master
-          composer install
+          composer install --no-interaction --prefer-dist --optimize-autoloader
           php artisan cache:clear
           php artisan route:clear
           php artisan config:clear
