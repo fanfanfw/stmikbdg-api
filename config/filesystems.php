@@ -75,6 +75,7 @@ return [
             'endpoint' => env('R2_ENDPOINT'),
             'visibility' => 'public',
             'use_path_style_endpoint' => true,
+            'url' => env('R2_CUSTOM_DOMAIN')
         ],
 
 
