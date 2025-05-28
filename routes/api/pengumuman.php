@@ -7,6 +7,7 @@ use App\Http\Controllers\Pengumuman\DosenController as DosenPengumumanController
 use App\Http\Controllers\Pengumuman\AdminController as AdminPengumumanController;
 use App\Http\Controllers\Pengumuman\MahasiswaController as MahasiswaPengumumanController;
 use App\Http\Controllers\Pengumuman\MainController;
+use App\Http\Controllers\Pengumuman\PublicController;
 
 Route::middleware('auth.jwt')
     ->prefix('/pengumuman')
@@ -16,6 +17,7 @@ Route::middleware('auth.jwt')
         //     ->group(function () {
         //         Route::post('/add', 'addPengumuman');
         //     });
+        Route::get('/list', [AdminPengumumanController::class, 'getListPengumuman']);
 
         // ? dosen
         Route::controller(DosenPengumumanController::class)
@@ -25,6 +27,12 @@ Route::middleware('auth.jwt')
                 Route::get('/kelas-kuliah', 'getAllKelas');
                 Route::get('/list', 'getListPengumuman');
                 Route::post('/add', [MainController::class, 'addPengumumanByDosen']);
+            });
+
+        Route::controller(PublicController::class)
+            ->prefix('/public')
+            ->group(function () {
+                Route::get('/list', 'getListPengumuman');
             });
 
         // ? admin
