@@ -1,4 +1,4 @@
-name: Self-Hosted Runner | CI CD | stmikbdg-api
+name: Self-Hosted Runner | CI/CD | stmikbdg-api
 
 on:
   push:
