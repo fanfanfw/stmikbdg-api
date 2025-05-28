@@ -17,6 +17,10 @@ jobs:
           cd /var/www/stmikbdg-api
           git pull origin Master
           # composer install --no-interaction --prefer-dist --optimize-autoloader
+
+          sudo chown -R adm1:www-data storage bootstrap/cache
+          sudo chmod -R ug+rw storage bootstrap/cache
+          
           php artisan cache:clear
           php artisan route:clear
           php artisan config:clear
