@@ -1,5 +1,5 @@
 name: Self-Hosted Runner | CI/CD | stmikbdg-api
-# fix 5
+# fix 6
 
 on:
   push:
