@@ -16,7 +16,7 @@ jobs:
         run: |
           cd /var/www/stmikbdg-api
           git pull origin Master
-          # composer install --no-interaction --prefer-dist --optimize-autoloader
+          composer install --no-interaction --prefer-dist --optimize-autoloader
 
           php artisan cache:clear
           php artisan route:clear
