@@ -1,9 +1,21 @@
 <?php
 
+use App\Http\Controllers\Keuangan\FungsionalKaryawanController;
+use App\Http\Controllers\Keuangan\GolonganKaryawanController;
+use App\Http\Controllers\Keuangan\JabatanKaryawanController;
 use App\Http\Controllers\Keuangan\KeuanganController;
+
+use App\Http\Controllers\Keuangan\ListPotonganKaryawanController;
+use App\Http\Controllers\Keuangan\ListTunjanganKeluargaKaryawanController;
+use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
+use App\Http\Controllers\Keuangan\StatusKaryawanController;
+use App\Http\Controllers\Keuangan\ProfileKaryawanController;
+use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
 use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
 use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Users\UserController;
+
 
 Route::middleware('auth.jwt')
     ->prefix('/keuangan')
@@ -23,12 +35,43 @@ Route::middleware('auth.jwt')
                 Route::delete('/{id}', [KeuanganController::class, 'tahunAkademik_delete'])->middleware('auth.admin');
             });
 
+        
+        // Route::prefix('/karyawan/jabatan')
+        // ->group(function () {
+        //     // Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
+        // });
+
+
         Route::prefix('/master-komponen-biaya')
             ->group(function () {
                 // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
                 Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
             });
+
     });
+
+    Route::apiResource('/karyawan/status', StatusKaryawanController::class);
+    Route::apiResource('/karyawan/jabatan', JabatanKaryawanController::class);
+    Route::apiResource('/karyawan/golongan', GolonganKaryawanController::class);
+    Route::apiResource('/karyawan/fungsional', FungsionalKaryawanController::class);
+    Route::apiResource('/karyawan/list-potongan', ListPotonganKaryawanController::class);
+    Route::apiResource('/karyawan/skripsi-kp', SkripsiKpKaryawanController::class);
+    Route::apiResource('/karyawan/tunj-keluarga', ListTunjanganKeluargaKaryawanController::class);
+    Route::apiResource('/karyawan/tunjangan', TunjanganKaryawanController::class);
+
+    // dataKaryawanBulanIniById
+    Route::get('/karyawan/profile/detail', [ProfileKaryawanController::class, 'allDataKaryawan']);
+    Route::get('/karyawan/profile/{id}', [ProfileKaryawanController::class, 'dataKaryawanBulanIniById']);
+    Route::get('/karyawan/profile/bulan-ini', [ProfileKaryawanController::class, 'dataKaryawanBulanIni']);
+    Route::apiResource('/karyawan/profile', ProfileKaryawanController::class);
+
+
+    
+    
+     
+    
+
+    // CEK NEW TEXT
 
 // Route::get('/keuangan/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif']);
 
