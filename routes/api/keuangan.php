@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Keuangan\KeuanganController;
+use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
+use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth.jwt')
@@ -19,6 +21,12 @@ Route::middleware('auth.jwt')
                 Route::post('/', [KeuanganController::class, 'tahunAkademik_create'])->middleware('auth.admin');
                 Route::put('/{id}', [KeuanganController::class, 'tahunAkademik_update'])->middleware('auth.admin');
                 Route::delete('/{id}', [KeuanganController::class, 'tahunAkademik_delete'])->middleware('auth.admin');
+            });
+
+        Route::prefix('/master-komponen-biaya')
+            ->group(function () {
+                // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
+                Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
             });
     });
 
