@@ -13,7 +13,9 @@ class TunjanganKaryawanController extends Controller
      */
     public function index()
     {
-        $data = TunjanganKaryawan::all();
+        // $data = TunjanganKaryawan::all();
+        $data = TunjanganKaryawan::AllDataTunjangan()->get();
+
 
         return response()->json([
             'success' => true,

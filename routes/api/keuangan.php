@@ -48,8 +48,12 @@ Route::middleware('auth.jwt')
     Route::apiResource('/karyawan/tunj-keluarga', ListTunjanganKeluargaKaryawanController::class);
     Route::apiResource('/karyawan/tunjangan', TunjanganKaryawanController::class);
 
-    Route::get('/karyawan/profile/detail', [ProfileKaryawanController::class, 'detailKaryawanBulanIni']);
+    // dataKaryawanBulanIniById
+    Route::get('/karyawan/profile/detail', [ProfileKaryawanController::class, 'allDataKaryawan']);
+    Route::get('/karyawan/profile/{id}', [ProfileKaryawanController::class, 'dataKaryawanBulanIniById']);
+    Route::get('/karyawan/profile/bulan-ini', [ProfileKaryawanController::class, 'dataKaryawanBulanIni']);
     Route::apiResource('/karyawan/profile', ProfileKaryawanController::class);
+
 
     
     

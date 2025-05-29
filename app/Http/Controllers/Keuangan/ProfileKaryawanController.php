@@ -13,20 +13,20 @@ class ProfileKaryawanController extends Controller
      */
     public function index()
     {
+        
+        $data = ProfileKaryawan::all();
+        // $data = ProfileKaryawan::SimpleProfileKaryawan()->get();
 
-        // $data = ProfileKaryawan::SimpleDataProfile()->get();
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+
+    }
+
+    public function allDataKaryawan()
+    {
         $data = ProfileKaryawan::AllDataKaryawan()->get();
-    
-        return response()->json([
-            'success' => true,
-            'data' => $data,
-        ], 200);
-
-    }
-
-    public function detailKaryawanBulanIni()
-    {
-        $data = ProfileKaryawan::DataKaryawanBulanIni()->get();
 
         return response()->json([
             'success' => true,
@@ -34,18 +34,48 @@ class ProfileKaryawanController extends Controller
         ], 200);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function dataKaryawanBulanIni()
     {
-        //
+
+        $bulan = $bulan ?? now()->month;
+        $tahun = $tahun ?? now()->year;
+
+        $data = ProfileKaryawan::DataKaryawanWithFilter($bulan, $tahun)->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ], 200);
     }
+
+   
 
     /**
      * Display the specified resource.
      */
     public function show(string $id)
+    {
+        //
+    }
+
+     public function dataKaryawanBulanIniById($id)
+    {
+
+        $bulan = $bulan ?? now()->month;
+        $tahun = $tahun ?? now()->year;
+
+        $data = ProfileKaryawan::DataKaryawanWithFilter($bulan, $tahun)->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+            ], 200);
+    }
+
+     /**
+     * Store a newly created resource in storage.
+     */
+    public function store(Request $request)
     {
         //
     }

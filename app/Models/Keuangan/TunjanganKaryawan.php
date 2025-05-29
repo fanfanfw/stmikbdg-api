@@ -4,6 +4,8 @@ namespace App\Models\Keuangan;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+
 
 class TunjanganKaryawan extends Model
 {
@@ -13,16 +15,30 @@ class TunjanganKaryawan extends Model
     protected $connection ;
 
 
-    protected $fillable = ['id_karyawan', 'id_fungsional','yayasan','honor_fungsional','keluarga','makan','transportasi','lembur','bulan'];
-    protected $hidden = ['created_at','updated_at'];
-    
+    protected $fillable = ['id_karyawan','yayasan','honor_fungsional','makan','transportasi','lembur','bulan'];
+    protected $hidden = ['created_at','updated_at','id_keluarga'];
+
+
     public function __construct()
-    {
+    { 
         $this->connection = config('myconfig.database.first_connection');
     }
 
+    public function scopeAllDataTunjangan(Builder $query)
+    {
+        return $query->with([
+           'tunjanganKeluarga:id,kode,honor'
+            
+        ]);
+    }
+
+
     public function karyawan(){
-        return $this->toBelongs(ProfileKaryawan::class, 'id_karyawan');
+        return $this->belongsTo(ProfileKaryawan::class, 'id_karyawan');
+    }
+
+    public function tunjanganKeluarga(){
+        return $this->belongsTo(ListTunjanganKeluargaKaryawan::class, 'id_keluarga');
     }
 }
 

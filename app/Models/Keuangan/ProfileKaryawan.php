@@ -40,30 +40,11 @@ class ProfileKaryawan extends Model
         $this->connection = config('myconfig.database.first_connection');
     }
 
-    // protected $appends = ['tunjangan']; 
-
-    public function scopeDataKaryawanBulanIni(Builder $query)
-    {
-        return $query->with([
-            'fungsional:id,jabatan',
-            'status:id,nama,is_pengajar',
-            'jabatan:id,nama,kategori,honor',
-            'golongan:id,nama,honor',
-            'tunjangan' => function($q){
-                $q->whereMonth('bulan', now()->month)
-                ->whereMonth('bulan', now()->month);
-            }
-            
-        ]);
-    }
-
-    // public function getTunjanganAttribute()
-    // {
-    //     return $this->tunjanganKaryawan()
-    //         ->whereMonth('bulan', now()->month)
-    //         ->whereYear('bulan', now()->year)
-    //         ->get();
-            
+    // public function scopeSimpleProfileKaryawan(Builder $query){
+    //     return $query->select(['id','nidn_nuptk','nik','nama','email','status_menikah','pendidikan_terakhir','tmt'])
+    //     ->with([
+    //         'status:id,nama,is_pengajar',
+    //     ]);
     // }
 
     public function scopeAllDataKaryawan(Builder $query)
@@ -73,13 +54,87 @@ class ProfileKaryawan extends Model
             'status:id,nama,is_pengajar',
             'jabatan:id,nama,kategori,honor',
             'golongan:id,nama,honor',
-            'tunjangan'
+            'tunjangan' => function($q){
+                $q->with('tunjanganKeluarga:id,kode,honor') ;
+            }
+            
+        ]);
+    }
+    
+
+    public function scopeDataKaryawanWithFilter(Builder $query,$id = null, $bulan = null, $tahun = null)
+    {
+
+        return $query
+        ->when($id, function($q) use ($id){
+            $q->where('id', $id);
+        })
+        ->with([
+            'fungsional:id,jabatan',
+            'status:id,nama,is_pengajar',
+            'jabatan:id,nama,kategori,honor',
+            'golongan:id,nama,honor',
+            'tunjangan' => function($q) use ($bulan, $tahun){
+                $q->whereMonth('bulan', $bulan)
+                ->whereMonth('bulan', $tahun)
+                ->with('tunjanganKeluarga:id,kode,honor');
+            }
         ]);
     }
 
-    // public function scopeSimpleDataProfile(Builder $query)
+    
+
+
+
+    // public function scopeDataKaryawanBulanIni(Builder $query)
     // {
-    //     return $query->all();
+    //     return $query->with([
+    //         'fungsional:id,jabatan',
+    //         'status:id,nama,is_pengajar',
+    //         'jabatan:id,nama,kategori,honor',
+    //         'golongan:id,nama,honor',
+    //         'tunjangan' => function($q){
+    //             $q->whereMonth('bulan', now()->month)
+    //             ->whereMonth('bulan', now()->month)
+    //             ->with('tunjanganKeluarga:id,kode,honor') ;
+    //         }
+            
+    //     ]);
+    // }
+
+
+    // public function scopeDataKaryawanBulanIniById(Builder $query,  $id){
+       
+    //     return $query->where('id', $id)
+    //     ->with([
+    //         'fungsional:id,jabatan',
+    //         'status:id,nama,is_pengajar',
+    //         'jabatan:id,nama,kategori,honor',
+    //         'golongan:id,nama,honor',
+    //         'tunjangan' => function($q){
+    //             $q->whereMonth('bulan', now()->month)
+    //             ->whereMonth('bulan', now()->month)
+    //             ->with('tunjanganKeluarga:id,kode,honor') ;
+    //         }
+            
+    //     ]);
+    // }
+
+    // public function scopeDataKaryawanBulanIniByIdDanBulan(Builder $query,  $id, $bulan, $tahun){
+       
+    //     return $query->where('id', $id)
+    //     ->with([
+    //         'fungsional:id,jabatan',
+    //         'status:id,nama,is_pengajar',
+    //         'jabatan:id,nama,kategori,honor',
+    //         'golongan:id,nama,honor',
+    //         'tunjangan' => function($q) use ($bulan, $tahun) {
+    //             $q->whereMonth('bulan', $bulan)
+    //             ->whereMonth('bulan', $tahun)
+    //             ->with('tunjanganKeluarga:id,kode,honor') ;
+    //         }
+            
+    //     ]);
     // }
 
     public function potongan(){

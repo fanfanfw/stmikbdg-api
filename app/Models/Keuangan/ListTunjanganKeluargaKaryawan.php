@@ -19,7 +19,4 @@ class ListTunjanganKeluargaKaryawan extends Model
         $this->connection = config('myconfig.database.first_connection');
     }
 
-    // public function tunjanganKaryawan(){
-    //     return $this->hasMany(TunjanganKaryawan::claas, 'id_tunjangan_keluarga');
-    // }
 }
