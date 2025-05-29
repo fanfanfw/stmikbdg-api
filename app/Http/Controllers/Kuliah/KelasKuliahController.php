@@ -37,7 +37,7 @@ class KelasKuliahController extends Controller {
                 $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $dosen['dosen_id'], true);
                 
                 // add by ziyad - nambah kontrak kelas kuliah - ngambil kontrak kelas kuliah berdasarkan kelas kuliah id
-                // $kontrakKelasKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
+                $kontrakKelasKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
 
                 // get riwayat pertemuan
                 $riwayatPertemuan = Pertemuan::getRiwayatPertemuanKelasKuliahByDosen($item['kelas_kuliah_id'], $dosen['dosen_id']);
@@ -60,7 +60,7 @@ class KelasKuliahController extends Controller {
                     'matakuliah' => $item['matakuliah'],
                     'riwayat_pertemuan' => $riwayatPertemuan,
                     'riwayat_pertemuan_maks' => 20, // sementara, untuk menentukan maksimal pertemuan,
-                    // 'kontrak_kuliah' => $kontrakKelasKuliah->last()
+                    'kontrak_kuliah' => $kontrakKelasKuliah->last()
                 ];
 
                 // atur response properti kelas dan jadwal
@@ -115,7 +115,7 @@ class KelasKuliahController extends Controller {
                         foreach ($kelasKuliah as $index => $item) {
                             $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
 
-                            // $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
+                            $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
 
                             // get riwayat presensi mahasiswa
                             $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
@@ -150,7 +150,7 @@ class KelasKuliahController extends Controller {
                                 'matakuliah' => $item['matakuliah'],
                                 'riwayat_presensi' => $riwayatPresensi,
                                 'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                // 'kontrak_kuliah' => $kontrakKuliah->last()
+                                'kontrak_kuliah' => $kontrakKuliah->last()
                             ];
 
                             $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);

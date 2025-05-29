@@ -30,18 +30,25 @@ class KontrakKelasKuliahController extends Controller
             $extension = $file->getClientOriginalExtension();
             $fileName = Str::uuid() . '.' . $extension;
 
-            $path = 'kelas-kuliah/kontrak/' . $kelas_kuliah_id . '/' . $fileName;
+            // $path = 'kelas-kuliah/kontrak/' . $kelas_kuliah_id . '/' . $fileName;
 
-            $isUploaded = Storage::disk('supabase')->put($path, file_get_contents($file));
+            $path = Storage::disk('r2')->putFileAs('kelas-kuliah/kontrak/' . $kelas_kuliah_id , $file, $fileName);
 
-            if(!$isUploaded) {
+            if(!$path) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Gagal mengunggah file'
                 ], 500);
             }
 
-            $url = Storage::disk('supabase')->getAdapter()->getPublicUrl($path);
+            $url = Storage::disk('r2')->url($path);
+
+            if(!$url) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Gagal mengunggah file'
+                ], 500);
+            }
 
             KontrakKelasKuliah::create([
                 'fk_kelas_kuliah_id' => $kelas_kuliah_id,
