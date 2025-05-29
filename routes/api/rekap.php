@@ -36,4 +36,10 @@ Route::prefix('rekap')
             ->group(function () {
                 Route::get('', [RekapPresensiController::class, 'getRekapPertemuan']);
             });
+
+        Route::prefix('berita-acara')
+            ->middleware('auth.admin')
+            ->group(function () {
+                Route::get('', [RekapPresensiController::class, 'getRekapBeritaAcara']);
+            });
     });

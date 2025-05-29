@@ -4,13 +4,15 @@ use App\Http\Controllers\Keuangan\FungsionalKaryawanController;
 use App\Http\Controllers\Keuangan\GolonganKaryawanController;
 use App\Http\Controllers\Keuangan\JabatanKaryawanController;
 use App\Http\Controllers\Keuangan\KeuanganController;
+
 use App\Http\Controllers\Keuangan\ListPotonganKaryawanController;
 use App\Http\Controllers\Keuangan\ListTunjanganKeluargaKaryawanController;
 use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
 use App\Http\Controllers\Keuangan\StatusKaryawanController;
-use App\Http\Controllers\Keuangan\ProfileKaryawanController
-;
+use App\Http\Controllers\Keuangan\ProfileKaryawanController;
 use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
+use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
+use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Users\UserController;
 
@@ -32,11 +34,20 @@ Route::middleware('auth.jwt')
                 Route::put('/{id}', [KeuanganController::class, 'tahunAkademik_update'])->middleware('auth.admin');
                 Route::delete('/{id}', [KeuanganController::class, 'tahunAkademik_delete'])->middleware('auth.admin');
             });
+
         
         // Route::prefix('/karyawan/jabatan')
         // ->group(function () {
         //     // Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
         // });
+
+
+        Route::prefix('/master-komponen-biaya')
+            ->group(function () {
+                // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
+                Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
+            });
+
     });
 
     Route::apiResource('/karyawan/status', StatusKaryawanController::class);

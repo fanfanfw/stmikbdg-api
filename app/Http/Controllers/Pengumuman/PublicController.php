@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Pengumuman;
 
 use App\Http\Controllers\Controller;
+use App\Models\Perkuliahan\Pengumuman;
 use Illuminate\Http\Request;
+
 use App\Exceptions\ErrorHandler;
 use App\Models\KelasKuliah\KelasKuliahJoinView;
 use App\Models\KelasKuliah\KelasKuliahView;
@@ -11,44 +13,16 @@ use App\Models\KRS\KRSMatkul;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 
-// ? Models - Tables
-use App\Models\Perkuliahan\Pengumuman;
-
-class AdminController extends Controller
+class PublicController extends Controller
 {
     public function getListPengumuman(Request $request) {
         try {
             $page = $request->query('page');
             $listPengumuman = Pengumuman::orderBy('tgl_dikirim', 'DESC')
+                ->where('target', 0)
                 ->distinct('tgl_dikirim')
                 ->get();
-            
-            $kelasKuliahIds = [];
 
-            foreach($listPengumuman as $item) {
-                array_push($kelasKuliahIds, $item['target']);
-            }
-
-            $kelasKuliah = KelasKuliahJoinView::with('matakuliah')->whereIn('kelas_kuliah_id', $kelasKuliahIds)->get();
-
-            foreach ($listPengumuman as $item) {
-
-                $matching_kelas_kuliah_id = null;
-                foreach ($kelasKuliah as $kelas) {
-                    if ($kelas['kelas_kuliah_id'] == $item['target']) {
-                        $matching_kelas_kuliah_id = $kelas['kelas_kuliah_id'];
-                        break;
-                    }
-                }
-
-                if ($matching_kelas_kuliah_id) {
-                    $item['keterangan_target'] = 'Pengumuman untuk kelas ' . $kelas['matakuliah']['nm_mk'];
-                    $item['matakuliah'] = $kelas['matakuliah']['nm_mk'];
-                }else{
-                    $item['keterangan_target'] = 'Pengumuman Umum';
-                    $item['matakuliah'] = null;
-                }
-            }
 
             if ($page) {
                 $perPage = 5;

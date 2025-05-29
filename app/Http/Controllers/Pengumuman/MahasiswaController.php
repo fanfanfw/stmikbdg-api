@@ -89,8 +89,10 @@ class MahasiswaController extends Controller
     
                     if ($matching_kelas_kuliah_id) {
                         $item['keterangan_target'] = 'Pengumuman untuk kelas ' . $kelas['matakuliah']['nm_mk'];
+                        $item['matakuliah'] = $kelas['matakuliah']['nm_mk'];
                     }else{
                         $item['keterangan_target'] = 'Pengumuman Umum';
+                        $item['matakuliah'] = null;
                     }
                 }
             }
