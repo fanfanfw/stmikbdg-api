@@ -1,7 +1,14 @@
 <?php
 
+use App\Http\Controllers\SIKPS\DataKpSkripsiController;
 use App\Http\Controllers\SIKPS\DeteksiProposalController;
+use App\Http\Controllers\SIKPS\DospemPembimbingMahasiswaController;
 use App\Http\Controllers\SIKPS\MahasiswaDeteksiProposalController;
+use App\Http\Controllers\SIKPS\MasterAbsensiController;
+use App\Http\Controllers\SIKPS\MasterBimbinganController;
+use App\Http\Controllers\SIKPS\MasterJadwalController;
+use App\Http\Controllers\SIKPS\MasterTahunAkademikController;
+use App\Models\SIKPS\DospemPembimbingMahasiswa;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -28,6 +35,97 @@ Route::prefix('/sikps')
                 Route::put('/similarities/limit/update', 'updateSimilarityLimit');
                 Route::get('/similarities/limit', 'getSimilarityLimit')
                     ->withoutMiddleware('auth.admin');
+            });
+
+        Route::controller(DataKpSkripsiController::class)
+            ->group(function () {
+
+                Route::post('/import/data-kp-skripsi', 'import');
+
+                Route::prefix('/data-kp-skripsi')
+                    ->group(function () {
+                        Route::get('/', 'getAll');
+                        Route::get('/mahasiswa', 'getForMahasiswa');
+                        Route::get('/nim/{nim}', 'getByNim');
+                        Route::get('/dospem', 'getForDospem');
+                        
+                        Route::post('/', 'create');
+                        Route::put('/{id}', 'update');
+                        Route::delete('/{id}', 'delete');
+                    });
+                
+            });
+
+        Route::controller(MasterJadwalController::class)
+            ->group(function () {
+                Route::prefix('/master-jadwal')
+                    ->group(function () {
+                        Route::get('/', 'getAll');
+                        Route::post('/', 'create');
+                        Route::put('/id/{id}', 'update');
+                        Route::delete('/id/{id}', 'delete');
+                    });
+            });
+
+        Route::controller(MasterBimbinganController::class)
+            ->group(function () {
+                Route::prefix('/master-bimbingan')
+                    ->group(function () {
+
+                        Route::prefix('/admin')
+                            ->middleware('auth.admin')
+                            ->group(function () {
+                                Route::get('/', 'getAll_admin');
+                                Route::post('/', 'create_admin');
+                                // Route::put('/id/{id}', 'update_admin');
+                                Route::post('/update/id/{id}', 'update_admin');
+                                Route::delete('/id/{id}', 'delete_admin');
+                                Route::put('/arsip', 'arsip_admin');
+                            });
+
+                        Route::prefix('/dospem')
+                            ->middleware('auth.dospem')
+                            ->group(function () {
+                                Route::get('/', 'getAll_dospem');
+                                // Route::post('/', 'create_dospem');
+                                // Route::put('/id/{id}', 'update_dospem');
+                                Route::delete('/id/{id}', 'delete_dospem');
+                                Route::get('/review/id/{id}', 'review_dospem');
+                                Route::post('/feedback/id/{id}', 'feedback_dospem');
+                                Route::put('/arsip', 'arsip_dospem');
+                            });
+
+                        Route::prefix('/mahasiswa')
+                            ->middleware('auth.mahasiswa')
+                            ->group(function () {
+                                Route::get('/', 'getAll_mahasiswa');
+                                Route::post('/', 'create_mahasiswa');
+                                Route::put('/id/{id}', 'update_mahasiswa');
+                                Route::delete('/id/{id}', 'delete_mahasiswa');
+                            });
+                    });
+            });
+
+        Route::controller(MasterAbsensiController::class)
+            ->prefix('/master-absensi')
+            ->group(function () {
+                
+                Route::prefix('/mahasiswa')
+                    ->middleware('auth.mahasiswa')
+                    ->group(function () {
+                        Route::get('/', 'getAll_mahasiswa'); 
+                        Route::post('/booking', 'booking_mahasiswa');
+                        Route::delete('/booking/{id}', 'delete_booking_mahasiswa');
+                    });
+
+                Route::prefix('/dospem')
+                    ->middleware('auth.dospem')
+                    ->group(function () {
+                        Route::get('/', 'getAll_dospem');
+                        Route::put('/id/{id}', 'update_single_dospem');
+                        Route::put('/multi-id', 'update_multi_dospem');
+                    });
+
             });
 
         // mahasiswa
