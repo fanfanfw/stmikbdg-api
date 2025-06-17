@@ -14,6 +14,7 @@ use App\Models\Users\Admin;
 use App\Models\Users\MahasiswaView;
 use App\Models\Users\Dosen;
 use App\Models\Users\AllStaffView;
+use Illuminate\Support\Facades\Storage;
 
 class Controller extends BaseController
 {
@@ -137,5 +138,44 @@ class Controller extends BaseController
             'status' => 'success',
             'message' => $message,
         ], $statusCode);
+    }
+
+    public function parseFilters(array $filters = []): array {
+        $parsed = [];
+
+        foreach ($filters as $key => $value) {
+            if (is_string($value) && str_contains($value, ',')) {
+                // Convert comma-separated string into array
+                $parsed[$key] = explode(',', $value);
+            } else {
+                $parsed[$key] = $value;
+            }
+        }
+
+        return $parsed;
+    }
+
+    public function uploadFile(string $path, string $fileName, $file, string $storage = 'r2') {
+        try {
+
+            $storage_path = Storage::disk($storage)->putFileAs($path, $file, $fileName);
+
+            $url = Storage::disk($storage)->url($storage_path);
+
+            return [
+                'success' => true,
+                'message' => 'File berhasil diupload.',
+                'data' => [
+                    'url' => $url
+                ]
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => null,
+                'error' => $e
+            ];
+        }
     }
 }
