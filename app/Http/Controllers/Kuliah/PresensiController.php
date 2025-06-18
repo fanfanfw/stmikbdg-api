@@ -108,9 +108,14 @@ class PresensiController extends Controller {
                 }
 
                 if ($isSamePIN) {
-                    // hapus setiap pin yang ada di cache
-                    foreach ($kelasKuliahIdArr as $item) {
-                        Cache::forget(((string) $item));
+                    // hapus cache hanya jika pin bersifat unique
+                    if (is_array(Cache::get((string) $request->kelas_kuliah_id))) {
+                        $dataPIN = Cache::get((string) $request->kelas_kuliah_id);
+                        if ($dataPIN['type_pin'] === 'unique') {
+                            foreach ($kelasKuliahIdArr as $item) {
+                                Cache::forget(((string) $item));
+                            }
+                        }
                     }
                 }
 
