@@ -4,6 +4,8 @@ use App\Http\Controllers\Keuangan\FungsionalKaryawanController;
 use App\Http\Controllers\Keuangan\GolonganKaryawanController;
 use App\Http\Controllers\Keuangan\JabatanKaryawanController;
 use App\Http\Controllers\Keuangan\KeuanganController;
+use App\Http\Controllers\Keuangan\KomponenBiayaController;
+use App\Http\Controllers\Keuangan\MasterBeasiswaController;
 
 use App\Http\Controllers\Keuangan\ListPotonganKaryawanController;
 use App\Http\Controllers\Keuangan\ListTunjanganKeluargaKaryawanController;
@@ -13,6 +15,7 @@ use App\Http\Controllers\Keuangan\ProfileKaryawanController;
 use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
 use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
 use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
+use App\Http\Controllers\TahunAjaranController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Users\UserController;
 
@@ -43,8 +46,52 @@ Route::middleware('auth.jwt')
 
 
         Route::prefix('/master-komponen-biaya')
+            ->controller(KomponenBiayaController::class)
             ->group(function () {
                 // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
+
+
+
+                Route::get('/', 'getAll')->middleware('auth.admin');
+                // Route::post('/', 'create')->middleware('auth.admin');
+                // Route::prefix('/id')
+                //     ->middleware('auth.admin')
+                //     ->group(function () {
+                //         Route::put('/{id}', 'update_by_id');
+                //         // Route::delete('/{id}', 'delete_by_id');
+                        
+                //     });
+                Route::prefix('/tahun-angkatan')
+                    ->middleware('auth.admin')
+                    ->group(function () {
+                        Route::get('/', 'getAll_by_tahun_angkatan');
+                        Route::post('/', 'create_by_tahun_angkatan');
+                        Route::put('/', 'update_by_tahun_angkatan');
+                        // Route::delete('/{tahun_angkatan}', 'delete_by_tahun_angkatan');
+                        
+                    });
+        });
+        
+        Route::prefix('/master-beasiswa')
+            ->controller(MasterBeasiswaController::class)
+            ->middleware('auth.admin')
+            ->group(function () {
+                Route::get('/', 'getAll');
+                Route::post('/', 'create');
+                Route::post('/id/{id}', 'update_by_id');
+                Route::delete('/id/{id}', 'delete_by_id');
+                Route::delete('/mhs_id/{mhs_id}', 'delete_by_mhs_id');
+                Route::delete('/id_penerima/{id_penerima}', 'delete_by_id_penerima');
+
+                Route::prefix('/filters')
+                    ->group(function () {
+                        Route::get('/tahun-ajaran', 'getAll_filters_tahun_ajaran');
+                    });
+        });
+
+        Route::prefix('/filters')
+            ->group(function () {
+                Route::get('/tahun-ajaran', [TahunAjaranController::class, 'getTahunAjaranAktifV2']);
                 Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
             });
 

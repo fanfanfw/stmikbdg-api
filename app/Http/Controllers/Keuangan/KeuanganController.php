@@ -10,20 +10,20 @@ use Illuminate\Http\Request;
 class KeuanganController extends Controller
 {
 
-    private function parseFilters(array $filters = []): array {
-        $parsed = [];
+    // private function parseFilters(array $filters = []): array {
+    //     $parsed = [];
 
-        foreach ($filters as $key => $value) {
-            if (is_string($value) && str_contains($value, ',')) {
-                // Convert comma-separated string into array
-                $parsed[$key] = explode(',', $value);
-            } else {
-                $parsed[$key] = $value;
-            }
-        }
+    //     foreach ($filters as $key => $value) {
+    //         if (is_string($value) && str_contains($value, ',')) {
+    //             // Convert comma-separated string into array
+    //             $parsed[$key] = explode(',', $value);
+    //         } else {
+    //             $parsed[$key] = $value;
+    //         }
+    //     }
 
-        return $parsed;
-    }
+    //     return $parsed;
+    // }
 
     public function getAllMahasiswaAktif(Request $request) {
         $query = $this->parseFilters($request->query('filters') ?? []);
@@ -41,6 +41,8 @@ class KeuanganController extends Controller
         $tahun_angkatan = Mahasiswa::getAllUniqueByColumns([
             'masuk_tahun'
         ]);
+
+        
 
         return response()->json([
             'success' => true,

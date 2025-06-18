@@ -73,4 +73,8 @@ class KelasKuliahJoinView extends Model
     public function matakuliah() {
         return $this->belongsTo(MatKulView::class, 'mk_id', 'mk_id');
     }
+
+    public function kontrak_kelas_kuliah() {
+        return $this->hasMany(KontrakKelasKuliah::class, 'fk_kelas_kuliah_id', 'kelas_kuliah_id');
+    }
 }

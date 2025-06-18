@@ -17,7 +17,7 @@ class KontrakKelasKuliah extends Model
      */
     use HasFactory;
 
-    protected $table = 'kontrak_kelas_kuliah';
+    protected $table = 'public.kontrak_kelas_kuliah';
     protected $connection;
 
     public $fillable = ['fk_kelas_kuliah_id', 'file_link'];
@@ -40,5 +40,9 @@ class KontrakKelasKuliah extends Model
 
     public function scopeGetKontrakKelasKuliah(Builder $query, $filter) {
         return $query->where('fk_kelas_kuliah_id', $filter['kelas_kuliah_id'])->get();
+    }
+
+    public function kelas_kuliah() {
+        return $this->belongsTo(KelasKuliahJoinView::class, 'fk_kelas_kuliah_id', 'kelas_kuliah_id');
     }
 }
