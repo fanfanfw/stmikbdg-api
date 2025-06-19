@@ -45,6 +45,9 @@ require __DIR__.'/api/rekap.php';
 // ? Berita Acara
 require __DIR__.'/api/berita.php';
 
+// ? SIKPS V2
+require __DIR__.'/api/sikpsv2.php';
+
 // ? Additional Routes (Tambahan)
 require __DIR__.'/api/additional.php';
 require __DIR__.'/api/file.php';
