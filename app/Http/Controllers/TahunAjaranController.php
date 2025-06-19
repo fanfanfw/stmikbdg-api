@@ -6,6 +6,7 @@ use App\Exceptions\ErrorHandler;
 use App\Models\JurusanView;
 use App\Models\KampusView;
 use App\Models\Kuesioner\KuesionerPerkuliahan;
+use App\Models\TahunAjaran;
 use Illuminate\Http\Request;
 
 // ? Models - view
@@ -190,7 +191,7 @@ class TahunAjaranController extends Controller
     public function getTahunAjaranAktifNoFilter() {
         try {
            
-            $tahunAjaran = TahunAjaranView::get(); // Or TahunAjaranView::all(); depending on your model
+            $tahunAjaran = TahunAjaran::get(); // Or TahunAjaranView::all(); depending on your model
             // dd($tahunAjaran);
             return $this->successfulResponseJSON([
                 'tahun_ajaran' => $tahunAjaran,
