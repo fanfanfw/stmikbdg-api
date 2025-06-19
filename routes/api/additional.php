@@ -12,4 +12,4 @@ use App\Http\Controllers\TahunAjaranController;
 Route::get('/current-semester', [TahunAjaranController::class, 'getSemesterMahasiswaSekarang'])
     ->middleware(['auth.jwt', 'auth.mahasiswa']);
 
-Route::get('/tahun-ajaran-all', [TahunAjaranController::class, 'getTahunAjaranAktifNoFilter']);
+Route::get('/all/tahun-ajaran-all', [TahunAjaranController::class, 'getTahunAjaranAktifNoFilter']);
