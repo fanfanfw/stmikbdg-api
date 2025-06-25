@@ -80,61 +80,86 @@ class ProfileKaryawanController extends Controller
         try{
 
             $validated = $request->validate([
+
                 'nidn_nuptk' => 'required|string|max:50',
-                'nik' => 'string|max:50',
-                'nama' => 'required|string|max:50',
-                'email' => 'required|string|max:75',
-                'no_telepon' => 'required|string|max:50',
-                'alamat' => 'required|string',
-                'pendidikan_terakhir' => 'required|string',                                                                                                                                                                                                                                             
-                'tmt' => 'required|date',                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-                'no_rekening' => 'string',
-                'nama_bank' => 'string',
+                'nik' => 'string|max:20',
+                'nama' => 'required|string|max:100',
+                'email' => 'nullable|email|max:100',
+                'nomor_telepon' => 'nullable|string|max:20',
+                'alamat' => 'nullable|string|max:255',
+                'jabatan' => 'required|integer',
+                'fungsional' => 'nullable|integer',
+                'ttm' => 'required|date',
+                'pendidikan_terakhir' => 'required|string',
                 'status_menikah' => 'required|boolean',
-                'jabatan' => 'integer',
-                'golongan' => 'integer',
-                'fungsional' => 'integer',
-                'status' => 'integer',
-                'beban_max_sks' => 'integer',                                                                                                                                                                                                                                                                                                                                                                                                                                                                   
-                'honor_per_sks' => 'integer',
-                'tunjangan_yayasan' => 'integer',
-                'tunjangan_fungsional' => 'integer',
+                'golongan' => 'nullable|integer',
+                'status' => 'required|integer',
+                'no_rekening' => 'nullable|string|max:50',
+                'nama_bank' => 'nullable|string|max:100',
+
+                'beban_max_sks' => 'nullable|numeric|min:0',
+                'honor_per_ks' => 'nullable|numeric|min:0',
+
+                'tunjangan_yayasan' => 'nullable|numeric|min:0',
+                'tunjangan_fungsional' => 'nullable|numeric|min:0',
                 //validasi tunangan lainnya (keluarga, makan, transport)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                
               
             ],[
                 'nidn_nuptk.required' => 'NIDN/NUPTK wajib diisi.',
-                'nidn_nuptk.string'   => 'NIDN/NUPTK harus berupa teks.',
-                'nidn_nuptk.max'      => 'NIDN/NUPTK maksimal 50 karakter.',
+                'nidn_nuptk.string' => 'NIDN/NUPTK harus berupa teks.',
+                'nidn_nuptk.max' => 'NIDN/NUPTK maksimal 50 karakter.',
 
-                'nik.string' => 'Kolom nik harus berupa teks.',
-                'nik.max'    => 'Kolom nik maksimal 50 karakter.',
+                'nik.string' => 'NIK harus berupa teks.',
+                'nik.max' => 'NIK maksimal 20 karakter.',
 
-                'nama.required' => 'Kolom nama wajib diisi.',
-                'nama.string'   => 'Kolom nama harus berupa teks.',
-                'nama.max'      => 'Kolom D2 maksimal 50 karakter.',
+                'nama.required' => 'Nama wajib diisi.',
+                'nama.string' => 'Nama harus berupa teks.',
+                'nama.max' => 'Nama maksimal 100 karakter.',
 
-                'email.required' => 'Kolom email wajib diisi.',
-                'email.string'   => 'Kolom email harus berupa teks.',
-                'email.max'      => 'Kolom email maksimal 75 karakter.',
+                'email.email' => 'Format email tidak valid.',
+                'email.max' => 'Email maksimal 100 karakter.',
 
-                'no_telpon.required' => 'Kolom no telpon wajib diisi.',
-                'no_telpon.string'   => 'Kolom no telpon harus berupa teks.',
-                'no_telpon.max'      => 'Kolom no telpon maksimal 50 karakter.',
+                'nomor_telepon.max' => 'Nomor telepon maksimal 20 karakter.',
 
-                'alamat.required' => 'Kolom alamat wajib diisi.',
-                'alamat.string'   => 'Kolom alamat harus berupa teks.',
+                'alamat.string' => 'Alamat harus berupa teks.',
+                'alamat.max' => 'Alamat maksimal 255 karakter.',
 
-                'pendidikan_terakhir.required' => 'Kolom pendidikan_terakhir wajib diisi.',
-                'pendidikan_terakhir.string'   => 'Kolom pendidikan_terakhir harus berupa teks.',
+                'jabatan.required' => 'Jabatan wajib dipilih.',
+                'jabatan.integer' => 'Jabatan harus berupa angka.',
 
-                'tmt.required' => 'Kolom tmt wajib diisi.',
-                'tmt.date'     => 'Kolom tmt harus berupa tanggal yang valid.',
+                'fungsional.integer' => 'Fungsional harus berupa angka.',
 
-                'no_rekening.string' => 'Kolom no rekening harus berupa teks.',
-                'nama_bank.string' => 'Kolom nama bank harus berupa teks.',
+                'ttm.required' => 'Tanggal mulai tugas (TTM) wajib diisi.',
+                'ttm.date' => 'Tanggal TTM tidak valid.',
 
-                'status_menikah.required' => 'Kolom status menikah wajib diisi.',
-                'status_menikah.boolean'  => 'Kolom status menikah harus berupa true atau false.',
+                'pendidikan_terakhir.required' => 'Pendidikan terakhir wajib diisi.',
+                'pendidikan_terakhir.string' => 'Pendidikan terakhir harus berupa teks.',
+
+                'status_menikah.required' => 'Status menikah wajib diisi.',
+                'status_menikah.boolean' => 'Status menikah harus berupa ya/tidak.',
+
+                'golongan.integer' => 'Golongan harus berupa angka.',
+
+                'status.required' => 'Status wajib diisi.',
+                'status.integer' => 'Status harus berupa angka.',
+
+                'no_rekening.string' => 'Nomor rekening harus berupa teks.',
+                'no_rekening.max' => 'Nomor rekening maksimal 50 karakter.',
+
+                'nama_bank.string' => 'Nama bank harus berupa teks.',
+                'nama_bank.max' => 'Nama bank maksimal 100 karakter.',
+
+                'beban_max_sks.numeric' => 'Beban maksimal SKS harus berupa angka.',
+                'beban_max_sks.min' => 'Beban maksimal SKS minimal 0.',
+
+                'honor_per_ks.numeric' => 'Honor per kelas harus berupa angka.',
+                'honor_per_ks.min' => 'Honor per kelas minimal 0.',
+
+                'tunjangan_yayasan.numeric' => 'Tunjangan yayasan harus berupa angka.',
+                'tunjangan_yayasan.min' => 'Tunjangan yayasan minimal 0.',
+
+                'tunjangan_fungsional.numeric' => 'Tunjangan fungsional harus berupa angka.',
+                'tunjangan_fungsional.min' => 'Tunjangan fungsional minimal 0.'
             ]);
 
             $data = ProfileKaryawan::create($validated);
