@@ -86,9 +86,10 @@ class MasterBeasiswaController extends Controller
             $data = $beasiswa->map(function ($item) use ($mahasiswa) {
                 $item['mahasiswa'] = $mahasiswa->where('mhs_id', $item['mhs_id'])->select(['nm_mhs', 'nim', 'jurusan'])->first();
                 return $item;
-            })->filter(function ($item) {
-                return $item['mahasiswa'] != null;
-            })->values();
+            });
+            // ->filter(function ($item) {
+            //     return $item['mahasiswa'] != null;
+            // })->values(); jangan dulu di pake karena eror
         }else if($filters['by'] == 'beasiswa') {
 
             $mahasiswa = $this->mahasiswa_model

@@ -6,10 +6,12 @@ use App\Exceptions\ErrorHandler;
 use App\Models\JurusanView;
 use App\Models\KampusView;
 use App\Models\Kuesioner\KuesionerPerkuliahan;
+use App\Models\TahunAjaran;
 use Illuminate\Http\Request;
 
 // ? Models - view
 use App\Models\TahunAjaranView;
+use PhpParser\Node\Expr\FuncCall;
 
 class TahunAjaranController extends Controller
 {
@@ -181,6 +183,18 @@ class TahunAjaranController extends Controller
                 'smt' => $tahunAjaran['smt'],
                 'keterangan_smt' => $tahunAjaran['smt'] === 1 ? 'Ganjil' : 'Genap',
                 'semester'=> $semester,
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+    public function getTahunAjaranAktifNoFilter() {
+        try {
+           
+            $tahunAjaran = TahunAjaran::get(); // Or TahunAjaranView::all(); depending on your model
+            // dd($tahunAjaran);
+            return $this->successfulResponseJSON([
+                'tahun_ajaran' => $tahunAjaran,
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);

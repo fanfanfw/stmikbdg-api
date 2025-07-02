@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Models\Sidang;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Pengajuan extends Model
+{
+    /**
+     * Model ini mengarah ke tabel PENGAJUAN db simak baru skema antrian
+     */
+    use HasFactory;
+
+    protected $table = 'sikps.pendaftaran_sidang';
+    protected $connection;
+    protected $guarded = ['id'];
+
+    public $primaryKey = 'id';
+    public $timestamps = false;
+
+    public function __construct()
+    {
+        $this->connection = config('myconfig.database.first_connection');
+    }
+    
+    public function statusPengajuan()
+    {
+        return $this->hasOne(StatusPengajuan::class, 'id_pengajuan_sidang', 'id');
+    }
+}
