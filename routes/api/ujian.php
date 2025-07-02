@@ -4,7 +4,6 @@ use App\Http\Controllers\Ujian\MataKuliahUjianController;
 use App\Http\Controllers\Ujian\MigrationsController;
 use Illuminate\Support\Facades\Route;
 
-
 Route::middleware('auth.jwt')
     ->prefix('/ujian')
     ->group(function () {
