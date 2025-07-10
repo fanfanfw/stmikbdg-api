@@ -202,7 +202,11 @@ class MahasiswaController extends Controller
 
             return $this->failedResponseJSON('Pastikan KRS di tahun ajaran saat ini telah disetujui', 400);
         } catch (\Exception $e) {
-            return ErrorHandler::handle($e);
+            return response()->json([
+                'status' => 'failed',
+                'message' => $e->getMessage(),
+                'debug' => $e
+            ], 500);
         }
     }
 
