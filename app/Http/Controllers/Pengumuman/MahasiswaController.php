@@ -170,6 +170,7 @@ class MahasiswaController extends Controller
                             $dosen = DosenView::where('dosen_id', $item['kelasKuliahJoin']['pengajar_id'])
                                 ->select('dosen_id', 'nm_dosen', 'gelar')
                                 ->first();
+                            
                             $pengajar = [
                                 'nm_dosen' => trim($dosen['nm_dosen']),
                                 'gelar' => trim($dosen['gelar'])
@@ -188,7 +189,7 @@ class MahasiswaController extends Controller
                                 'semester' => $item['matakuliah']['semester'],
                                 'sks' => $item['matakuliah']['sks'],
                             ],
-                            'dosen' => $pengajar
+                            // 'dosen' => $pengajar
                         ];
 
                         array_push($kelasKuliahArr, $kelas);
