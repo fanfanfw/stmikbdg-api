@@ -205,7 +205,7 @@ class MahasiswaController extends Controller
             return response()->json([
                 'status' => 'failed',
                 'message' => $e->getMessage(),
-                'debug' => $e
+                'debug' => $e->getTraceAsString()
             ], 500);
         }
     }
