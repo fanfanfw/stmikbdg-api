@@ -15,10 +15,10 @@ Route::prefix('/sikpsv2')
         // admin
         Route::controller(PengajuanController::class)
             ->prefix('/pengajuan')
-            ->middleware('auth.admin')
+            // ->middleware('auth.admin')
             ->group(function () {
                 Route::get('/all', 'getAllPengajuan');
-                Route::post('/tambah','KirimPengajuan');
+                Route::post('/tambah','KirimPengajuan')->middleware('auth.admin');
             });
 
   });

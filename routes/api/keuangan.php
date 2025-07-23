@@ -9,6 +9,7 @@ use App\Http\Controllers\Keuangan\MasterBeasiswaController;
 
 use App\Http\Controllers\Keuangan\ListPotonganKaryawanController;
 use App\Http\Controllers\Keuangan\ListTunjanganKeluargaKaryawanController;
+use App\Http\Controllers\Keuangan\ManajemenBiayaController;
 use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
 use App\Http\Controllers\Keuangan\StatusKaryawanController;
 use App\Http\Controllers\Keuangan\ProfileKaryawanController;
@@ -28,6 +29,8 @@ Route::middleware('auth.jwt')
             ->group( function () {
                 Route::get('/', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
                 Route::get('/tahun-angkatan', [KeuanganController::class, 'getAllTahunAngkatan'])->middleware('auth.admin');
+                Route::get('/total-sks/mhs_id/{mhs_id}', [KeuanganController::class, 'getTotalSksByMhsId'])->middleware('auth.admin');
+                Route::get('/mata-kuliah-aktif/mhs_id/{mhs_id}', [KeuanganController::class, 'getMataKuliahAktifByMhsId'])->middleware('auth.admin');
             });
 
         Route::prefix('/tahun-akademik')
@@ -95,6 +98,17 @@ Route::middleware('auth.jwt')
             ->group(function () {
                 Route::get('/tahun-ajaran', [TahunAjaranController::class, 'getTahunAjaranAktifV2']);
                 Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
+        });
+
+        Route::prefix('/manajemen-biaya')
+            ->middleware('auth.admin')
+            ->controller(ManajemenBiayaController::class)
+            ->group(function () {
+                Route::get('/', 'getAll');
+                Route::get('/id_manajemen_biaya/{id}', 'get_by_id_manajemen_biaya');
+                Route::get('/mhs_id/{mhs_id}', 'get_by_mhs_id');
+                Route::post('/', 'create');
+                Route::put('/id_manajemen_biaya/{id}', 'update_by_id_manajemen_biaya');
             });
 
 

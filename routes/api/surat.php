@@ -30,13 +30,14 @@ Route::prefix('/surat')
                         Route::post('/master-surat', [MasterSuratController::class, 'masterSurat_create']);
                         Route::put('/master-surat/{id}', [MasterSuratController::class, 'masterSurat_update']);
                         Route::delete('/master-surat/{id}', [MasterSuratController::class, 'masterSurat_delete']);
-
+                        
                         Route::get('/master-pengajuan', [MasterPengajuanController::class, 'masterPengajuan_getAll']);
                         Route::post('/master-pengajuan', [MasterPengajuanController::class, 'masterPengajuan_create']);
-                        Route::put('/master-pengajuan/{id}', [MasterPengajuanController::class, 'masterPengajuan_update']);
-                        Route::delete('/master-pengajuan/{id}', [MasterPengajuanController::class, 'masterPengajuan_delete']);
+                        Route::put('/master-pengajuan/id/{id}', [MasterPengajuanController::class, 'masterPengajuan_update']);
+                        Route::delete('/master-pengajuan/id/{id}', [MasterPengajuanController::class, 'masterPengajuan_delete']);
                     });
 
+                // Route::get('/master-pengajuan/me', [MasterPengajuanController::class, 'masterPengajuan_getAll_me']);
 
                 Route::prefix('/pengajuan')
                     ->group(function () {
@@ -48,6 +49,7 @@ Route::prefix('/surat')
                     });
 
                 Route::put('/verifikasi-pengajuan/{pengajuan_id}', [PengajuanController::class, 'pengajuanMahasiswa_verify']);
+                Route::post('/storage/r2', [PengajuanController::class, 'storage_upload']);
             });
 
         Route::controller(MainController::class)
