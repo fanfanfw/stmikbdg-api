@@ -202,6 +202,69 @@ class RekapPresensiController extends Controller
         }
     }
 
+    public function getRekapPertemuanV2(Request $request) {
+        try {
+            $kelasKuliahId = $request->query('kelas_kuliah_id');
+            $fromDate = $request->query('from');
+            $toDate = $request->query('to');
+
+            if ($kelasKuliahId and $fromDate and $toDate) {
+                $kelasKuliah = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)
+                    ->with('dosen:dosen_id,nm_dosen,kd_dosen,gelar')
+                    ->with('matakuliah:mk_id,nm_mk,kd_mk,sks')
+                    ->first(['kelas_kuliah_id', 'tahun_id', 'mk_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'pengajar_id']);
+
+                if ($kelasKuliah) {
+                    // cek kemungkinan kelas join
+                    $tempKelasKuliahIdArr = [];
+
+                    if ($kelasKuliah['kjoin_kelas']) {
+                        $kelasKuliahIdParent = $kelasKuliah['join_kelas_kuliah_id'];
+                    } else {
+                        $kelasKuliahIdParent = $kelasKuliah['kelas_kuliah_id'];
+                    }
+
+                    // get kelas-kelas yang dijoin dengan kelas parent
+                    $kelasKuliahJoinIdArr = KelasKuliahJoinView::where('join_kelas_kuliah_id', $kelasKuliahIdParent)
+                        ->get(['kelas_kuliah_id'])
+                        ->pluck('kelas_kuliah_id')
+                        ->toArray();
+                    $tempKelasKuliahIdArr = array_merge($kelasKuliahJoinIdArr, [$kelasKuliahIdParent]);
+
+                    // hitung total mahasiswa
+                    $totalMahasiswa = KRSMatkul::whereIn('kelas_kuliah_id', $tempKelasKuliahIdArr)->count();
+
+                    $tahunIdArr = KelasKuliahJoinView::whereIn('kelas_kuliah_id', $tempKelasKuliahIdArr)
+                        ->get(['tahun_id'])
+                        ->pluck('tahun_id')
+                        ->toArray();
+
+                    // get uraian tahun ajaran untuk setiap kelas
+                    $tahunAjaranArr = TahunAjaranView::whereIn('tahun_id', $tahunIdArr)
+                        ->get(['tahun_id', 'uraian', 'kd_kampus', 'jns_mhs']);
+
+                    // get semua pertemuan
+                    $pertemuan = Pertemuan::whereBetween('tanggal', [$fromDate, $toDate])
+                        ->where('kelas_kuliah_id', $kelasKuliahId)
+                        ->get(['tanggal']);
+
+                    return $this->successfulResponseJSON([
+                        'total_mahasiswa' => $totalMahasiswa,
+                        'total_pertemuan' => $pertemuan->count(),
+                        'tahun_ajaran' => $tahunAjaranArr,
+                        'dosen' => $kelasKuliah->dosen,
+                        'matakuliah' => $kelasKuliah->matakuliah,
+                        'rekap_pertemuan' => $pertemuan
+                    ]);
+                }
+            }
+
+            return $this->failedResponseJSON('Nilai query kelas_kuliah_id, from, atau to tidak ditemukan', 404);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function getRekapBeritaAcara(Request $request) {
         try {
             $kelasKuliahId = $request->query('kelas_kuliah_id');

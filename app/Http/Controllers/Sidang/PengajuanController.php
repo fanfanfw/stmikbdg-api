@@ -9,11 +9,59 @@ use App\Models\Sidang\StatusPengajuan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+use function PHPUnit\Framework\isEmpty;
+
 class PengajuanController extends Controller
 {
-    public function getAllPengajuan() {
+    public function getAllPengajuan(Request $request) {
         try{
-            $pengajuan = Pengajuan::with('statusPengajuan')->first();
+            $pengajuan = null;
+            // Admin
+            if($request->query('is_admin')) {
+                if(!auth()->user()->is_admin) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anda bukan admin'
+                    ], 403);
+                }
+                $pengajuan = Pengajuan::with('statusPengajuan')->get();
+            }
+
+            // Mahasiswa
+            if($request->query('is_mhs')) {
+                if(!auth()->user()->is_mhs) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anda bukan mahasiswa'
+                    ], 403);
+                }
+                $user = $this->getUserAuth();
+                // return response()->json([
+                //    'success' => true,
+                //    'data' => $user
+                // ]);
+                // $nim = explode('-', $user->kd_user)[1];
+
+                $pengajuan = Pengajuan::with('statusPengajuan')
+                    ->where('nim', $user->nim)
+                    ->get();
+            }
+
+            if($request->query('is_dospem')) {
+                if(!auth()->user()->is_dospem) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Anda bukan dosen pembimbing'
+                    ], 403);
+                }
+
+                $dospem = $this->getUserAuth();
+                $pengajuan = Pengajuan::with('statusPengajuan')
+                    ->where('pembimbing', 'like', '%'.$dospem->nama.'%')
+                    ->get();
+            }
+
+            // $pengajuan = Pengajuan::with('statusPengajuan')->first();
             // dd($pengajuan);
             return $this->successfulResponseJSON([
                 'pengajuan' => $pengajuan
