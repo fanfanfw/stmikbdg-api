@@ -81,7 +81,8 @@ class KeuanganController extends Controller
                 'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
                 'antara_pelaksanaan_mulai' => 'required|date',
                 'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
-                'status' => 'required|integer|in:0,1'
+                'status' => 'required|integer|in:0,1',
+                'termin' => 'required|integer'
             ]);
     
             $body = $request->only((new TahunAkademik)->getFillable());
@@ -118,7 +119,8 @@ class KeuanganController extends Controller
                 'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
                 'antara_pelaksanaan_mulai' => 'required|date',
                 'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
-                'status' => 'required|integer|in:0,1'
+                'status' => 'required|integer|in:0,1',
+                'termin' => 'required|integer'
             ]);
     
             $payload = $request->only((new TahunAkademik)->getFillable());
