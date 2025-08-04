@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Kuliah;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
+use App\Models\KelasKuliah\BeritaAcara;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -273,5 +274,40 @@ class KelasKuliahController extends Controller {
         }
 
         return false;
+    }
+
+    public function getBAPbyKelasKuliahId(Request $request, int $kelas_kuliah_id) {
+        try {
+            $kelasKuliahId = $kelas_kuliah_id;
+
+            if(!$kelasKuliahId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Harap masukkan kelas kuliah id'
+                ], 403);
+            }
+
+            $kelasKuliah = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)
+                ->with('dosen:dosen_id,nm_dosen,kd_dosen,gelar')
+                ->with('matakuliah:mk_id,nm_mk,kd_mk,sks')
+                ->first(['kelas_kuliah_id', 'tahun_id', 'mk_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'pengajar_id']);
+
+            if(!$kelasKuliah) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kelas Kuliah tidak ditemukan'
+                ], 404);
+            }
+
+            $berita_acara = BeritaAcara::where('kelas_kuliah_id', $kelasKuliahId)
+                ->get(['berita_acara', 'jml_mhs', 'mhs_hdr', 'mhs_tdk_hdr', 'created_at', 'berita_acara_id']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $berita_acara
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
     }
 }
