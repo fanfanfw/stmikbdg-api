@@ -56,12 +56,19 @@ class KelasKuliahController extends Controller {
                         'sts_kelas' => $item['sts_kelas'],
                         'pengajar_id' => $item['pengajar_id'],
                         'join_jur' => $item['join_jur'],
+                        // 'kelas_kuliah' => $item
                     ],
                     'dosen' => $item['dosen'],
                     'matakuliah' => $item['matakuliah'],
                     'riwayat_pertemuan' => $riwayatPertemuan,
                     'riwayat_pertemuan_maks' => 20, // sementara, untuk menentukan maksimal pertemuan,
-                    'kontrak_kuliah' => $kontrakKelasKuliah->last()
+                    'kontrak_kuliah' => $kontrakKelasKuliah->last(),
+                    'minimal_presensi' => [
+                        'persentase' => $item['tahun_ajaran']['minimal_presensi']
+                            ? $item['tahun_ajaran']['minimal_presensi']['persentase']
+                            : 0,
+                        'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
+                    ]
                 ];
 
                 // atur response properti kelas dan jadwal
@@ -151,7 +158,13 @@ class KelasKuliahController extends Controller {
                                 'matakuliah' => $item['matakuliah'],
                                 'riwayat_presensi' => $riwayatPresensi,
                                 'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                'kontrak_kuliah' => $kontrakKuliah->last()
+                                'kontrak_kuliah' => $kontrakKuliah->last(),
+                                'minimal_presensi' => [
+                                    'persentase' => $item['tahun_ajaran']['minimal_presensi']
+                                        ? $item['tahun_ajaran']['minimal_presensi']['persentase']
+                                        : 0,
+                                    'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
+                                ]
                             ];
 
                             $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
