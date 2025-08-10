@@ -30,11 +30,11 @@ class Pengajuan extends Model
     }
 
     public function scopeGetAll(Builder $query) {
-        return $query->with('master_pengajuan.master_surat', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan')->get();
+        return $query->with('master_pengajuan.master_surat', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan', 'nomor_surat')->get();
     }
 
     public function scopeGetById(Builder $query, int $id) {
-        return $query->with('master_pengajuan.master_surat', 'pengajuan_persetujuan', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan')
+        return $query->with('master_pengajuan.master_surat', 'pengajuan_persetujuan', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan', 'nomor_surat')
             ->where('id', $id)
             ->get();
     }
@@ -53,5 +53,9 @@ class Pengajuan extends Model
 
     public function pengajuan_persetujuan() {
         return $this->hasMany(PengajuanPersetujuan::class, 'pengajuan_id', 'id');
+    }
+
+    public function nomor_surat() {
+        return $this->hasOne(NoSurat::class, 'pengajuan_id', 'id');
     }
 }

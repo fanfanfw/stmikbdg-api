@@ -2,6 +2,8 @@
 
 namespace App\Models\Surat_V2;
 
+use App\Models\Users\User;
+use App\Models\Users\UserView;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,6 +20,9 @@ class PengajuanPersetujuan extends Model
         'status',
         'user_id',
         'komentar',
+        'status',
+        'verified_at',
+        'value',
         'is_mhs',
         'is_dev',
         'is_doswal',
@@ -46,6 +51,10 @@ class PengajuanPersetujuan extends Model
 
     public function pengajuan() {
         return $this->belongsTo(Pengajuan::class, 'pengajuan_id', 'id');
+    }
+
+    public function user() {
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
 

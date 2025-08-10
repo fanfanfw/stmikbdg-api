@@ -72,7 +72,8 @@ class MasterPengajuan extends Model
         'for_mhs',
         'for_admin',
         'deleted_at',
-        'delete_from_user'
+        'delete_from_user',
+        'minimum_semester'
     ];
     public $increment = true;
     public $timestamps = false;
@@ -92,4 +93,9 @@ class MasterPengajuan extends Model
     public function master_surat() {
         return $this->belongsTo(MasterSurat::class, 'pilih_surat', 'id');
     }
+
+    public function pengajuan() {
+        return $this->hasMany(Pengajuan::class, 'master_pengajuan_id', 'id');
+    }
+    
 }

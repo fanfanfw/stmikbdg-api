@@ -2,6 +2,7 @@
 
 namespace App\Models\Sidang;
 
+use App\Models\SIKPS\DataKpSkripsi;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -27,5 +28,9 @@ class Pengajuan extends Model
     public function statusPengajuan()
     {
         return $this->hasOne(StatusPengajuan::class, 'id_pengajuan_sidang', 'id');
+    }
+
+    public function data_kp_skripsi() {
+        return $this->belongsTo(DataKpSkripsi::class, 'id_kp_skripsi', 'id');
     }
 }

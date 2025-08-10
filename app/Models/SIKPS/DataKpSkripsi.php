@@ -2,6 +2,7 @@
 
 namespace App\Models\SIKPS;
 
+use App\Models\Sidang\Pengajuan;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,5 +49,9 @@ class DataKpSkripsi extends Model
 
     public function master_bimbingan() {
         return $this->hasMany(MasterBimbingan::class, 'data_kp_skripsi_id', 'id');
+    }
+
+    public function pendaftaran_sidang() {
+        return $this->hasMany(Pengajuan::class, 'id_kp_skripsi', 'id');
     }
 }

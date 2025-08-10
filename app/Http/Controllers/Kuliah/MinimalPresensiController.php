@@ -35,16 +35,18 @@ class MinimalPresensiController extends Controller
             })
             ->first();
 
-        if(!$data) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Data tidak ditemukan'
-            ], 404);
-        }
+        // if(!$data) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Data tidak ditemukan'
+        //     ], 404);
+        // }
 
         return response()->json([
             'success' => true,
-            'data' => $data
+            'data' => [
+                'persentase' => $data ? $data['persentase'] : 0
+            ]
         ]);
     }
 
