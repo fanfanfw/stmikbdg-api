@@ -20,7 +20,7 @@ class DataKpSkripsiController extends Controller
 
     public function getAll(Request $request){
 
-        if(!auth()->user()->is_dospem || !auth()->user()->is_admin || !auth()->user()->is_prodi) {
+        if(!auth()->user()->is_dospem || !auth()->user()->is_prodi) {
             return response()->json([
                 'success' => false,
                 'message' => 'Akses ditolak'
@@ -33,44 +33,28 @@ class DataKpSkripsiController extends Controller
             ->get();
 
         $data = $data->map(function ($item) {
-            $maxBab = 6;
-            $babProgress = [];
-            $totalProgress = 0;
+            $totalProgress = 0.0;
+            $jumlahEntri = 0;
 
-            // Inisialisasi bab 1-6
-            for ($i = 1; $i <= $maxBab; $i++) {
-                $babProgress[$i] = [
-                    'bab' => $i,
-                    'progress' => 0.0,
-                    'status' => 'belum diajukan'
-                ];
-            }
-
-            // Ambil data dari master_bimbingan
             foreach ($item->master_bimbingan as $bimbingan) {
-                $bab = (int) $bimbingan->bab;
-                if ($bab >= 1 && $bab <= $maxBab) {
-                    $progress = (float) $bimbingan->progress;
-                    $babProgress[$bab] = [
-                        'bab' => $bab,
-                        'progress' => $progress,
-                        'status' => $bimbingan->status
-                    ];
+                $progress = (float) $bimbingan->progress;
+
+                // Hitung hanya jika progress valid
+                if ($progress > 0) {
                     $totalProgress += $progress;
+                    $jumlahEntri++;
                 }
             }
 
-            // Hitung persentase kumulatif dari 6 bab
-            $maxTotal = $maxBab * 100; // 600
-            $persentaseKumulatif = round(($totalProgress / $maxTotal) * 100, 2);
+            // Jika ingin anggap maksimal 100% progress itu target akhir
+            // atau bisa juga disesuaikan dengan total entri maksimal jika diketahui
+            $persentaseKumulatif = round(min($totalProgress, 100), 2);
 
-            $item->bab_progress = array_values($babProgress);
-            $item->total_bab_diajukan = count(array_filter($babProgress, fn($b) => $b['progress'] > 0));
+            $item->total_bimbingan_diajukan = $jumlahEntri;
             $item->total_progress_kumulatif = $totalProgress;
-            $item->persentase_kumulatif = $persentaseKumulatif; // hasil akhir yang Anda inginkan
+            $item->persentase_kumulatif = $persentaseKumulatif;
 
-            unset($item->master_bimbingan);
-            unset($item->bab_progress);
+            unset($item->master_bimbingan); // opsional
 
             return $item;
         });
