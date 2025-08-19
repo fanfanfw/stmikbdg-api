@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Kuliah;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
+use App\Models\KelasKuliah\BeritaAcara;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -55,12 +56,19 @@ class KelasKuliahController extends Controller {
                         'sts_kelas' => $item['sts_kelas'],
                         'pengajar_id' => $item['pengajar_id'],
                         'join_jur' => $item['join_jur'],
+                        // 'kelas_kuliah' => $item
                     ],
                     'dosen' => $item['dosen'],
                     'matakuliah' => $item['matakuliah'],
                     'riwayat_pertemuan' => $riwayatPertemuan,
                     'riwayat_pertemuan_maks' => 20, // sementara, untuk menentukan maksimal pertemuan,
-                    'kontrak_kuliah' => $kontrakKelasKuliah->last()
+                    'kontrak_kuliah' => $kontrakKelasKuliah->last(),
+                    'minimal_presensi' => [
+                        'persentase' => $item['tahun_ajaran']['minimal_presensi']
+                            ? $item['tahun_ajaran']['minimal_presensi']['persentase']
+                            : 0,
+                        'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
+                    ]
                 ];
 
                 // atur response properti kelas dan jadwal
@@ -150,7 +158,13 @@ class KelasKuliahController extends Controller {
                                 'matakuliah' => $item['matakuliah'],
                                 'riwayat_presensi' => $riwayatPresensi,
                                 'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                'kontrak_kuliah' => $kontrakKuliah->last()
+                                'kontrak_kuliah' => $kontrakKuliah->last(),
+                                'minimal_presensi' => [
+                                    'persentase' => $item['tahun_ajaran']['minimal_presensi']
+                                        ? $item['tahun_ajaran']['minimal_presensi']['persentase']
+                                        : 0,
+                                    'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
+                                ]
                             ];
 
                             $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
@@ -273,5 +287,40 @@ class KelasKuliahController extends Controller {
         }
 
         return false;
+    }
+
+    public function getBAPbyKelasKuliahId(Request $request, int $kelas_kuliah_id) {
+        try {
+            $kelasKuliahId = $kelas_kuliah_id;
+
+            if(!$kelasKuliahId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Harap masukkan kelas kuliah id'
+                ], 403);
+            }
+
+            $kelasKuliah = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)
+                ->with('dosen:dosen_id,nm_dosen,kd_dosen,gelar')
+                ->with('matakuliah:mk_id,nm_mk,kd_mk,sks')
+                ->first(['kelas_kuliah_id', 'tahun_id', 'mk_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'pengajar_id']);
+
+            if(!$kelasKuliah) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kelas Kuliah tidak ditemukan'
+                ], 404);
+            }
+
+            $berita_acara = BeritaAcara::where('kelas_kuliah_id', $kelasKuliahId)
+                ->get(['berita_acara', 'jml_mhs', 'mhs_hdr', 'mhs_tdk_hdr', 'created_at', 'berita_acara_id']);
+
+            return response()->json([
+                'success' => true,
+                'data' => $berita_acara
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
     }
 }

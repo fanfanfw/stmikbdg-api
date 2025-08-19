@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Models\KelasKuliah\KelasKuliahJoinView;
+use App\Models\KelasKuliah\MinimalPresensi;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
@@ -43,5 +45,13 @@ class TahunAjaran extends Model
      */
     public function krs() {
         return $this->hasMany(KRS::class, 'tahun_id', 'tahun_id');
+    }
+
+    public function minimal_presensi() {
+        return $this->hasOne(MinimalPresensi::class, 'fk_tahun_ajaran', 'tahun_id');
+    }
+
+    public function kelas_kuliah() {
+        return $this->hasMany(KelasKuliahJoinView::class, 'tahun_id', 'tahun_id');
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Surat_V2;
 
 use App\Http\Controllers\Controller;
 use App\Models\Surat_V2\MasterPengajuan;
+use App\Models\Surat_V2\NoSurat;
 use App\Models\Surat_V2\Pengajuan;
 use App\Models\Surat_V2\PengajuanPersetujuan;
 use App\Models\Surat_V2\PengajuanPertanyaan;
@@ -17,7 +18,7 @@ class PengajuanController extends Controller
 {
     public function pengajuanMahasiswa_getAll(Request $request) {
         $account = auth()->user();
-        $data = Pengajuan::with('master_pengajuan.master_surat', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan', 'pengajuan_persetujuan')
+        $data = Pengajuan::with('master_pengajuan.master_surat', 'user', 'pengajuan_jawaban.pengajuan_pertanyaan', 'pengajuan_persetujuan', 'nomor_surat')
             ->whereHas('master_pengajuan', function ($query) use ($account) {
                 $query
                     ->where('is_admin', $account->is_admin)
@@ -333,9 +334,10 @@ class PengajuanController extends Controller
             });
 
             $body = $request->validate([
-                'status' => 'boolean|required',
-                'role' => 'string|required|in:is_admin,is_dev,is_doswal,is_prodi,is_dosen,is_staff,is_wk,is_pimpinan,is_dospem,is_marketing,is_akademik,is_baak,is_secretary,is_bendahara,is_kemahasiswaan',
-                'komentar' => 'string|required'
+                'status' => 'required|string', // contoh: "diterima" atau "ditolak"
+                'role' => 'required|string', // contoh: 'is_admin', 'is_mhs', dll.
+                'komentar' => 'nullable|string',
+                'value' => 'required|boolean',  // 'true' atau 'false'
             ]);
 
             if(!auth()->user()->{$body['role']}) {
@@ -345,7 +347,9 @@ class PengajuanController extends Controller
                 ], 403);
             }
             
-            $pengajuan = Pengajuan::with('master_pengajuan.master_surat')->find($pengajuan_id);
+            $pengajuan = Pengajuan::with('master_pengajuan')->where('id', $pengajuan_id)->first();
+            
+            
 
             if (!$pengajuan) {
                 return response()->json([
@@ -361,19 +365,36 @@ class PengajuanController extends Controller
                 ], 403);
             }
 
+            // dd($pengajuan);
+
+            
             $pengajuan_persetujuan = PengajuanPersetujuan::where('pengajuan_id', $pengajuan_id)
                 ->where($body['role'], true)
                 ->first();
 
-            if(empty($pengajuan_persetujuan)) {
-                $pengajuan_persetujuan = PengajuanPersetujuan::create([
+                
+                
+            if(!$pengajuan_persetujuan) {
+                // dd('atas');
+                $payload = [
                     'pengajuan_id' => $pengajuan_id,
                     'komentar' => $body['komentar'],
-                    $body['role'] => $body['status'],
-                    'user_id' => $user['id']
+                    $body['role'] => true,
+                    'status' => $body['status'],
+                    'user_id' => $user['id'],
+                    'value' => $body['value']
+                ];
+
+                // dd($payload);
+                $pengajuan_persetujuan_new = PengajuanPersetujuan::create([
+                    'pengajuan_id' => $pengajuan_id,
+                    'komentar' => $body['komentar'],
+                    $body['role'] => true,
+                    'status' => $body['status'],
+                    'user_id' => $user['id'],
+                    'value' => $body['value']
                 ]); 
             }else{
-
                 if($pengajuan_persetujuan->user_id != $user['id']) {
                     return response()->json([
                         'success' => false,
@@ -381,21 +402,19 @@ class PengajuanController extends Controller
                     ], 403);
                 }
 
-                $pengajuan_persetujuan = $pengajuan_persetujuan->first();
-                $pengajuan_persetujuan->update([
+                $pengajuan_persetujuan_new = $pengajuan_persetujuan->first();
+                $pengajuan_persetujuan_new->update([
                     'komentar' => $body['komentar'],
-                    $body['role'] => $body['status'],
-                    'user_id' => $user['id']
+                    $body['role'] => true,
+                    'status' => $body['status'],
+                    'user_id' => $user['id'],
+                    'value' => $body['value']
                 ]);
             }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pengajuan berhasil diverifikasi.',
-                'data' => [
-                    'pengajuan' => $pengajuan,
-                    'pengajuan_persetujuan' => $pengajuan_persetujuan
-                ]
+                'message' => 'Pengajuan berhasil diverifikasi.'
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
@@ -435,6 +454,33 @@ class PengajuanController extends Controller
                 'data' => [
                     'url' => $url
                 ]
+            ]);
+        } catch (\Exception $error) {
+            return response()->json([
+                'success' => false,
+                'message' => $error->getMessage(),
+                'error' => $error
+            ]);
+        }
+    }
+
+    public function noSuratAdd(Request $request, int $pengajuan_id) {
+        try {
+            $nomor_surat = NoSurat::where('pengajuan_id', $pengajuan_id)->first();
+
+            $data = null;
+
+            if(!$nomor_surat) {
+                $data = NoSurat::create([
+                    'pengajuan_id' => $pengajuan_id,
+                    'nomor_surat' => $request->input('nomor_surat')
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Nomor surat berhasil ditambahkan!',
+                'data' => $data
             ]);
         } catch (\Exception $error) {
             return response()->json([

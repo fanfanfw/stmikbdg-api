@@ -152,14 +152,16 @@ class MasterPengajuanController extends Controller
                 'by_is_bendahara_user_id' => 'nullable|integer',
                 'by_is_kemahasiswaan_user_id' => 'nullable|integer',
                 'for_admin' => 'boolean|nullable',
-                'for_mhs' => 'boolean|nullable'
+                'for_mhs' => 'boolean|nullable',
+                'minimum_semester' => 'string|nullable'
             ]);
 
             $payload = $request->all();
 
             $body = [
                 'pilih_surat' => $payload['jenis_surat_akhir'],
-                'nama_pengajuan' => $payload['nama_pengajuan']
+                'nama_pengajuan' => $payload['nama_pengajuan'],
+                'minimum_semester' => $payload['minimum_semester'],
             ];
 
             if(isset($payload['status'])) {
@@ -167,8 +169,9 @@ class MasterPengajuanController extends Controller
             }
 
             $body = $this->masterPengajuan_create_roleBased($body, $payload);
+            // dd($body);
 
-            $master_surat = MasterSurat::findOrFail($payload['jenis_surat_akhir']);
+            $master_surat = MasterSurat::find($payload['jenis_surat_akhir']);
 
             if(!$master_surat) {
                 return response()->json([
@@ -239,7 +242,8 @@ class MasterPengajuanController extends Controller
                 'by_is_bendahara_user_id' => 'nullable|integer',
                 'by_is_kemahasiswaan_user_id' => 'nullable|integer',
                 'for_admin' => 'boolean|nullable',
-                'for_mhs' => 'boolean|nullable'
+                'for_mhs' => 'boolean|nullable',
+                'minimum_semester' => 'integer|nullable'
             ]);
 
             $payload = $request->all();
@@ -249,6 +253,7 @@ class MasterPengajuanController extends Controller
             $body['pilih_surat'] = $payload['jenis_surat_akhir'];
 
             $body['input_pertanyaan'] = $payload['input_pertanyaan'];
+            $body['minimum_semester'] = $payload['minimum_semester'];
 
             unset($body['jenis_surat_akhir']);
 

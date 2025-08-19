@@ -24,7 +24,7 @@ class PengajuanController extends Controller
                         'message' => 'Anda bukan admin'
                     ], 403);
                 }
-                $pengajuan = Pengajuan::with('statusPengajuan')->get();
+                $pengajuan = Pengajuan::with('statusPengajuan', 'data_kp_skripsi')->get();
             }
 
             // Mahasiswa
@@ -36,15 +36,11 @@ class PengajuanController extends Controller
                     ], 403);
                 }
                 $user = $this->getUserAuth();
-                // return response()->json([
-                //    'success' => true,
-                //    'data' => $user
-                // ]);
-                // $nim = explode('-', $user->kd_user)[1];
 
-                $pengajuan = Pengajuan::with('statusPengajuan')
+                $pengajuan = Pengajuan::with('statusPengajuan', 'data_kp_skripsi')
                     ->where('nim', $user->nim)
-                    ->get();
+                    ->get()
+                    ->first();
             }
 
             if($request->query('is_dospem')) {

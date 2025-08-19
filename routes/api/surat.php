@@ -46,6 +46,12 @@ Route::prefix('/surat')
                         Route::post('/', [PengajuanController::class, 'pengajuanMahasiswa_create']);
                         Route::put('/{id}', [PengajuanController::class, 'pengajuanMahasiswa_update']);
                         Route::delete('/{id}', [PengajuanController::class, 'pengajuanMahasiswa_delete']);
+
+                        Route::prefix('/no-surat')
+                            ->group(function () {
+                                Route::post('/{pengajuan_id}', [PengajuanController::class, 'noSuratAdd']);
+                        });
+
                     });
 
                 Route::put('/verifikasi-pengajuan/{pengajuan_id}', [PengajuanController::class, 'pengajuanMahasiswa_verify']);
