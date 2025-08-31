@@ -189,6 +189,13 @@ class UserController extends Controller {
 
         // 2. Ambil tahun ajaran aktif (untuk ambil tahun_id)
         $tahunAktif = TahunAjaranView::getTahunAjaran($profile);
+        if(!$tahunAktif->exists()) {
+            return [
+                'success' => false,
+                'message' => 'Belum ada tahun ajaran aktif!',
+                'termin'  => 0
+            ];
+        }
         $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
         $tahunId = $semesterSekarang['tahun_id'] ?? null;
 
