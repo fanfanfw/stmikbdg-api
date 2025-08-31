@@ -52,7 +52,9 @@ class KRSController extends Controller
             ], 404);
         }
 
-        $krs = KRS::checkCurrentKRS($tahunAjaran['tahun_id'], $this->user);
+        $krs = KRS::checkCurrentKRS(
+            $tahunAjaran['tahun_id'], $this->user
+        );
 
         // return response()->json([
         //     'data' => $krs
