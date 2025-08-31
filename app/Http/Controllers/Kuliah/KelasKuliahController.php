@@ -110,10 +110,12 @@ class KelasKuliahController extends Controller {
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
 
             // return response()->json([
-            //     'data' => $tahunAjaranAktif
+            //     'data' => [
+            //         isset($tahunAjaranAktif)
+            //     ]
             // ]);
 
-            if(!isset($tahunAjaranAktif['tahun_id'])) {
+            if(!isset($tahunAjaranAktif)) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
