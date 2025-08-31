@@ -37,9 +37,7 @@ class KRSController extends Controller
 
                 // dd($response);
 
-                $this->currentSemester = $tahunAjaranController
-                    ->getSemesterMahasiswaSekarang()
-                    ->getData('data')['data']['semester'];
+                $this->currentSemester = $response['data']['semester'];
             }
             $this->user = $this->getUserAuth();
         }
@@ -54,6 +52,10 @@ class KRSController extends Controller
             ], 404);
         }
         $krs = KRS::checkCurrentKRS($tahunAjaran['tahun_id'], $this->user);
+
+        return response()->json([
+            'data' => $krs
+        ]);
 
         if ($krs) {
             $dataKRS = self::getStatusKRS($krs, $tahunAjaran['du_open']);
