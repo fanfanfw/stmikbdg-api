@@ -139,6 +139,14 @@ class MahasiswaController extends Controller
             // cek krs di tahun ajaran aktif
             $mahasiswa = $this->getUserAuth();
             $tahunAjaran = TahunAjaranView::getTahunAjaran($mahasiswa);
+
+            if(!$tahunAjaran->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
+                ], 404);
+            }
+            
             $lastKRS = KRS::where('tahun_id', $tahunAjaran['tahun_id'])
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
