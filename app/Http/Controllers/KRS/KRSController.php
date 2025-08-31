@@ -51,6 +51,11 @@ class KRSController extends Controller
                 'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
             ], 404);
         }
+
+        return response()->json([
+            'data' => $tahunAjaran
+        ]);
+
         $krs = KRS::checkCurrentKRS($tahunAjaran['tahun_id'], $this->user);
 
         return response()->json([
