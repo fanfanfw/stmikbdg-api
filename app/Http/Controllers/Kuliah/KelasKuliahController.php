@@ -113,7 +113,7 @@ class KelasKuliahController extends Controller {
             //     'data' => $tahunAjaranAktif
             // ]);
 
-            if(empty($tahunAjaranAktif)) {
+            if(!isset($tahunAjaranAktif['tahun_id'])) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
