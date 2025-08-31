@@ -108,13 +108,14 @@ class KelasKuliahController extends Controller {
             $filterHari = $request->query('hari');
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
+            return response()->json([
+                'data' => $tahunAjaranAktif
+            ]);
             $lastKRS = KRS::where('tahun_id', $tahunAjaranAktif['tahun_id'])
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
 
-            return response()->json([
-                'data' => $lastKRS
-            ]);
+            
 
             if ($lastKRS) {
                 if ($lastKRS['sts_krs'] === 'S') {
