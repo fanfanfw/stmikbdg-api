@@ -112,6 +112,10 @@ class KelasKuliahController extends Controller {
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
 
+            return response()->json([
+                'data' => $lastKRS
+            ]);
+
             if ($lastKRS) {
                 if ($lastKRS['sts_krs'] === 'S') {
                     $krsMatkul = KRSMatkul::getKRSMatkulWithKelasKuliah($lastKRS['krs_id'])->toArray();
