@@ -16,7 +16,7 @@ class BiayaPerMahasiswa extends Model
     protected $primaryKey = 'id_biaya_per_mahasiswa';
 
     protected $fillable = [
-        'id_manajemen_biaya', 'potongan_beasiswa', 'jumlah', 'sisa', 'status', 'id_komponen_biaya', 'ket'
+        'id_manajemen_biaya', 'potongan_persen', 'potongan_beasiswa', 'jumlah', 'sisa', 'status', 'id_komponen_biaya', 'ket', 'tahun_id'
     ];
 
     public $timestamps = true;

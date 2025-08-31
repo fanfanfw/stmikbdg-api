@@ -14,7 +14,7 @@ class ManajemenBiaya extends Model
     protected $primaryKey = 'id_manajemen_biaya';
 
     protected $fillable = [
-        'id_komponen_biaya', 'status', 'status_mahasiswa', 'mhs_id',
+        'id_komponen_biaya', 'status', 'status_mahasiswa', 'mhs_id', 'tahun_id', 'potongan_persen'
     ];
 
     public $timestamps = true;

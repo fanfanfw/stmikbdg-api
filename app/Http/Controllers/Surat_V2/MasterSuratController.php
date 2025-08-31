@@ -92,13 +92,14 @@ class MasterSuratController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Data tidak ditemukan.',
+                'error' => $e
             ], 404);
         } catch (\Exception $error) {
             return response()->json([
                 'success' => false,
                 'message' => $error->getMessage(),
                 'error' => $error
-            ]);
+            ], 500);
         }
     }
 }

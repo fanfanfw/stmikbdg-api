@@ -20,6 +20,7 @@ use App\Models\Keuangan\StatusKeuangan;
 // ? Models - view
 use App\Models\TahunAjaranView;
 use App\Models\KRS\MatkulDiselenggarakanView;
+use App\Models\Users\Dosen;
 
 class KRSController extends Controller
 {
@@ -474,5 +475,21 @@ class KRSController extends Controller
                     ]
                 ];
             }
+    }
+
+    public function getRiwayat(Request $request) {
+        try {
+            $user = $this->getUserAuth();
+
+            $krs = KRS::with('krsMatkul.mataKuliah')
+                ->where('mhs_id', $user['mhs_id'])->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $krs
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
     }
 }
