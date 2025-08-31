@@ -109,9 +109,9 @@ class KelasKuliahController extends Controller {
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
 
-            return response()->json([
-                'data' => $tahunAjaranAktif
-            ]);
+            // return response()->json([
+            //     'data' => $tahunAjaranAktif
+            // ]);
 
             if(!$tahunAjaranAktif) {
                 return response()->json([
