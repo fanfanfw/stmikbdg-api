@@ -479,10 +479,20 @@ class KRSController extends Controller
 
     public function getRiwayat(Request $request) {
         try {
+
+            $krs_id = $request->query('krs_id');
+
             $user = $this->getUserAuth();
 
-            $krs = KRS::with('krsMatkul.mataKuliah', 'tahun_ajaran')
-                ->where('mhs_id', $user['mhs_id'])->get();
+            if($krs_id) {
+                $krs = KRS::with('krsMatkul.mataKuliah', 'tahun_ajaran')
+                    ->where('mhs_id', $user['mhs_id'])
+                    ->where('krs_id', $krs_id)
+                    ->first();
+            }else{
+                $krs = KRS::with('krsMatkul.mataKuliah', 'tahun_ajaran')
+                    ->where('mhs_id', $user['mhs_id'])->get();
+            }
 
             return response()->json([
                 'success' => true,
