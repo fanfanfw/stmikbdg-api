@@ -481,7 +481,7 @@ class KRSController extends Controller
         try {
             $user = $this->getUserAuth();
 
-            $krs = KRS::with('krsMatkul.mataKuliah')
+            $krs = KRS::with('krsMatkul.mataKuliah', 'tahun_ajaran')
                 ->where('mhs_id', $user['mhs_id'])->get();
 
             return response()->json([
