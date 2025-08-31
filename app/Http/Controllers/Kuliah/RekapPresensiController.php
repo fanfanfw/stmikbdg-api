@@ -359,4 +359,76 @@ class RekapPresensiController extends Controller
             return ErrorHandler::handle($e);
         }
     }
+
+    public function getFilterBAPDosenByMatkul(Request $request, int $tahunId) {
+        try {
+            $dosen = $this->getUserAuth();
+
+            // dd($dosen);
+            $dosenId = $dosen['dosen_id'];
+            // $tahunId = $request->query('tahun_id');
+
+            if ($dosenId and $tahunId) {
+                $tahunAndDosenExists = KelasKuliahJoinView::where('tahun_id', $tahunId)
+                    ->where('pengajar_id', $dosenId)
+                    ->exists();
+
+                if ($tahunAndDosenExists) {
+                    $matkulList = KelasKuliahJoinView::where('tahun_id', $tahunId)
+                        ->where('pengajar_id', $dosenId)
+                        ->select('kelas_kuliah_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'mk_id')
+                        ->with('matakuliah:mk_id,nm_mk,kd_mk')
+                        ->get();
+
+                    return $this->successfulResponseJSON([
+                        'matakuliah_diselenggarakan' => $matkulList
+                    ]);
+                }
+            }
+        } catch (\Exception $error) {
+
+        }
+    }
+
+    public function getBAPDosenByKelasKuliahId(Request $request, int $kelas_kuliah_id) {
+        $kelasKuliahId = $kelas_kuliah_id;
+        $fromDate = $request->query('from');
+        $toDate = $request->query('to');
+
+        $data = [];
+
+        if ($fromDate and $toDate) {
+            $kelasKuliah = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)
+                ->with('dosen:dosen_id,nm_dosen,kd_dosen,gelar')
+                ->with('matakuliah:mk_id,nm_mk,kd_mk,sks')
+                ->first(['kelas_kuliah_id', 'tahun_id', 'mk_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'pengajar_id']);
+
+            if ($kelasKuliah) {
+
+                $berita_acara = BeritaAcara::whereBetween('created_at', [$fromDate, $toDate])
+                    ->where('kelas_kuliah_id', $kelasKuliahId)
+                    ->get(['berita_acara', 'jml_mhs', 'mhs_hdr', 'mhs_tdk_hdr', 'created_at', 'berita_acara_id']);
+
+                $data = $berita_acara;
+            }
+        }else{
+            $kelasKuliah = KelasKuliahJoinView::where('kelas_kuliah_id', $kelasKuliahId)
+                ->with('dosen:dosen_id,nm_dosen,kd_dosen,gelar')
+                ->with('matakuliah:mk_id,nm_mk,kd_mk,sks')
+                ->first(['kelas_kuliah_id', 'tahun_id', 'mk_id', 'kjoin_kelas', 'join_kelas_kuliah_id', 'pengajar_id']);
+
+            if ($kelasKuliah) {
+
+                $berita_acara = BeritaAcara::where('kelas_kuliah_id', $kelasKuliahId)
+                    ->get(['berita_acara', 'jml_mhs', 'mhs_hdr', 'mhs_tdk_hdr', 'created_at', 'berita_acara_id']);
+
+                $data = $berita_acara;
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $data
+        ]);
+    }
 }
