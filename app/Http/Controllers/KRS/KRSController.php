@@ -54,9 +54,9 @@ class KRSController extends Controller
 
         $krs = KRS::checkCurrentKRS($tahunAjaran['tahun_id'], $this->user);
 
-        return response()->json([
-            'data' => $krs
-        ]);
+        // return response()->json([
+        //     'data' => $krs
+        // ]);
 
         if ($krs) {
             $dataKRS = self::getStatusKRS($krs, $tahunAjaran['du_open']);
