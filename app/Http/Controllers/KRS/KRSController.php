@@ -35,7 +35,7 @@ class KRSController extends Controller
                     ->getSemesterMahasiswaSekarang()
                     ->getData('data');
 
-                dd($response);
+                // dd($response);
 
                 $this->currentSemester = $tahunAjaranController
                     ->getSemesterMahasiswaSekarang()
