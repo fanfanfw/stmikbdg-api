@@ -113,7 +113,7 @@ class KelasKuliahController extends Controller {
                 'data' => [
                     isset($tahunAjaranAktif),
                     empty($tahunAjaranAktif),
-                    !$tahunAjaranAktif['tahun_id'] ? true : false,
+                    // !$tahunAjaranAktif['tahun_id'] ? true : false,
                     $tahunAjaranAktif->exists(),
                     $tahunAjaranAktif->isEmpty()
                 ]
