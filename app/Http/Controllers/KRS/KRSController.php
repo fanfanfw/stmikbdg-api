@@ -30,6 +30,13 @@ class KRSController extends Controller
         if (auth()->user()) {
             if (!auth()->user()->is_dosen) {
                 $tahunAjaranController = new TahunAjaranController();
+
+                $response = $tahunAjaranController
+                    ->getSemesterMahasiswaSekarang()
+                    ->getData('data');
+
+                dd($response);
+
                 $this->currentSemester = $tahunAjaranController
                     ->getSemesterMahasiswaSekarang()
                     ->getData('data')['data']['semester'];
@@ -41,12 +48,10 @@ class KRSController extends Controller
     public function checkKRS() {
         $tahunAjaran = TahunAjaranView::getTahunAjaran($this->user);
         if($tahunAjaran->exists()) {
-            if(!$tahunAjaran->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
-                ], 404);
-            }
+            return response()->json([
+                'success' => false,
+                'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
+            ], 404);
         }
         $krs = KRS::checkCurrentKRS($tahunAjaran['tahun_id'], $this->user);
 

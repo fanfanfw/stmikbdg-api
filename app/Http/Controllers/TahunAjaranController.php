@@ -177,7 +177,13 @@ class TahunAjaranController extends Controller
             if(!$tahunAjaran->exists()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
+                    'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!',
+                    'data' => [
+                        'tahun' => null,
+                        'smt' => 0,
+                        'keterangan_smt' => 'Belum ada, dikarenakan belum tahun ajaran aktif!',
+                        'semester' => 0
+                    ]
                 ], 404);
             }
 
