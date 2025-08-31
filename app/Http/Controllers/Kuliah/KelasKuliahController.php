@@ -109,17 +109,17 @@ class KelasKuliahController extends Controller {
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
 
-            return response()->json([
-                'data' => [
-                    isset($tahunAjaranAktif),
-                    empty($tahunAjaranAktif),
-                    // !$tahunAjaranAktif['tahun_id'] ? true : false,
-                    $tahunAjaranAktif->exists(),
-                    // $tahunAjaranAktif->isEmpty()
-                ]
-            ]);
+            // return response()->json([
+            //     'data' => [
+            //         isset($tahunAjaranAktif),
+            //         empty($tahunAjaranAktif),
+            //         // !$tahunAjaranAktif['tahun_id'] ? true : false,
+            //         $tahunAjaranAktif->exists(),
+            //         // $tahunAjaranAktif->isEmpty()
+            //     ]
+            // ]);
 
-            if(!isset($tahunAjaranAktif)) {
+            if(!$tahunAjaranAktif->exists()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
