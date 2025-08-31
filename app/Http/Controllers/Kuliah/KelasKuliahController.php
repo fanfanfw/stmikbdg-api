@@ -115,7 +115,7 @@ class KelasKuliahController extends Controller {
                     empty($tahunAjaranAktif),
                     // !$tahunAjaranAktif['tahun_id'] ? true : false,
                     $tahunAjaranAktif->exists(),
-                    $tahunAjaranAktif->isEmpty()
+                    // $tahunAjaranAktif->isEmpty()
                 ]
             ]);
 
