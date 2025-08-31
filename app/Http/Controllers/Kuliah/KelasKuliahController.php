@@ -108,7 +108,11 @@ class KelasKuliahController extends Controller {
             $filterHari = $request->query('hari');
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
-            
+
+            return response()->json([
+                'data' => $tahunAjaranAktif
+            ]);
+
             if(!$tahunAjaranAktif) {
                 return response()->json([
                     'success' => false,
