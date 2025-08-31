@@ -21,6 +21,10 @@ use App\Models\Users\StaffMarketingView;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Imports\ImportUser;
 use App\Exceptions\ExcelImportException;
+use App\Models\Keuangan\MasterPembayaran;
+use App\Models\Keuangan\TahunAkademik;
+use App\Models\TahunAjaranView;
+use Illuminate\Support\Carbon;
 
 class UserController extends Controller {
     public function addNewUser(Request $request) {
@@ -139,13 +143,71 @@ class UserController extends Controller {
                 unset($account['is_staff']);
             }
 
+            $keuangan = null;
+
+            if(isset($account['is_mhs'])) {
+                if($account['is_mhs']) {
+                    $keuangan = $this->cek_keuangan_mhs($user);
+                }
+            }
+
             return $this->successfulResponseJSON([
                 'profile' => $user,
-                'account' => $account
+                'account' => $account,
+                'keuangan' => $keuangan
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
+    }
+
+    public function cek_keuangan_mhs($profile) {
+
+        $mhsId = $profile['mhs_id'] ?? null;
+        $allTahunAkademik = TahunAkademik::getTahunAkademik([
+            'status' => 1
+        ]);
+        $today = Carbon::now();
+
+        $terminAktif = null;
+
+        // 1. Cari termin berdasarkan tanggal
+        foreach ($allTahunAkademik as $ta) {
+            if ($today->between(Carbon::parse($ta['ganjil_pelaksanaan_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
+                $terminAktif = $ta['termin'];
+                break;
+            }
+            if ($today->between(Carbon::parse($ta['genap_pelaksanaan_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
+                $terminAktif = $ta['termin'];
+                break;
+            }
+            if ($today->between(Carbon::parse($ta['antara_pelaksanaan_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
+                $terminAktif = $ta['termin'];
+                break;
+            }
+        }
+
+        // 2. Ambil tahun ajaran aktif (untuk ambil tahun_id)
+        $tahunAktif = TahunAjaranView::getTahunAjaran($profile);
+        $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
+        $tahunId = $semesterSekarang['tahun_id'] ?? null;
+
+        // 3. Kalau tidak ada termin aktif → ambil termin terakhir
+        if (!$terminAktif) {
+            $terminAktif = collect($allTahunAkademik)->max('termin');
+        }
+
+        // 4. Cek apakah sudah bayar di termin yang ketemu
+        $sudahBayar = MasterPembayaran::where('mhs_id', $mhsId)
+            ->where('tahun_id', $tahunId)
+            ->where('termin', $terminAktif)
+            ->exists();
+
+        return [
+            'success'  => $sudahBayar,                   // true/false
+            'message' => $sudahBayar ? 'Sudah Bayar' : 'Belum Bayar',
+            'termin'  => $terminAktif
+        ];
     }
 
     public function putMyPassword(Request $request) {
