@@ -173,6 +173,14 @@ class TahunAjaranController extends Controller
         try {
             $mahasiswa = $this->getUserAuth();
             $tahunAjaran = TahunAjaranView::getTahunAjaran($mahasiswa);
+
+            if(!$tahunAjaran->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Saat ini belum ada tahun ajaran yang sedang aktif!'
+                ], 404);
+            }
+
             $gap = $tahunAjaran['tahun'] - $mahasiswa['angkatan'];
             $semester = $tahunAjaran['smt'] === 1
                 ? $gap * 2 + 1
