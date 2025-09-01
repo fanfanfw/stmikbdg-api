@@ -51,7 +51,8 @@ class KRSMatkul extends Model
                     $query->select('dosen_id', 'kd_dosen', 'nm_dosen', 'gelar');
                 }])->with(['matakuliah' => function ($query) {
                     $query->select('mk_id', 'kur_id', 'kd_mk', 'nm_mk', 'semester', 'sks', 'sts_mk', 'smt', 'kd_kur');
-                }]);
+                }])
+                ->with('tahun_ajaran.minimal_presensi');
             }])->get();
     }
 
