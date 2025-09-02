@@ -141,7 +141,7 @@ class KeuanganController extends Controller
             //         && $item['status'] == 1;
             // });
 
-            $existing = MasterTahunAkademik::where('thn_akademik', $request->thn_akademik)
+            $existing = TahunAkademik::where('thn_akademik', $request->thn_akademik)
                 ->where('termin', $request->termin)
                 ->where('status', 1)
                 ->exists();
@@ -181,7 +181,7 @@ class KeuanganController extends Controller
             //     ]);
             // }
 
-            $data = MasterTahunAkademik::create($data);
+            $data = TahunAkademik::create($data);
 
             return response()->json([
                 'success' => true,
@@ -283,7 +283,7 @@ class KeuanganController extends Controller
             $data['deleted_at'] = null;
             $data['deleted_by'] = null;
 
-            $tahun_akademik = MasterTahunAkademik::find($id_thn_akademik);
+            $tahun_akademik = TahunAkademik::find($id_thn_akademik);
 
             if(!$tahun_akademik) {
                 return response()->json([
