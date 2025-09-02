@@ -6,6 +6,7 @@ use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use App\Models\Keuangan\TahunAkademik;
 use App\Models\KRS\NilaiAkhirView;
+use App\Models\SIKPS\MasterTahunAkademik;
 use App\Models\Users\Mahasiswa;
 use Illuminate\Http\Request;
 
@@ -67,33 +68,125 @@ class KeuanganController extends Controller
     public function tahunAkademik_create(Request $request) {
 
         try {
-            $request->validate([
-                'thn_akademik' => 'required|string|max:4',
-                'ganjil_mulai' => 'required|date',
-                'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
-                'genap_mulai' => 'required|date',
-                'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
-                'antara_mulai' => 'required|date',
-                'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
-                'ganjil_pelaksanaan_mulai' => 'required|date',
-                'ganjil_pelaksanaan_akhir' => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
-                'genap_pelaksanaan_mulai' => 'required|date',
-                'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
-                'antara_pelaksanaan_mulai' => 'required|date',
-                'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
-                'status' => 'required|integer|in:0,1',
-                'termin' => 'required|integer'
+            // $request->validate([
+            //     'thn_akademik' => 'required|string|max:4',
+            //     'ganjil_mulai' => 'required|date',
+            //     'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
+            //     'genap_mulai' => 'required|date',
+            //     'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
+            //     'antara_mulai' => 'required|date',
+            //     'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
+            //     'ganjil_pelaksanaan_mulai' => 'required|date',
+            //     'ganjil_pelaksanaan_akhir' => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
+            //     'genap_pelaksanaan_mulai' => 'required|date',
+            //     'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
+            //     'antara_pelaksanaan_mulai' => 'required|date',
+            //     'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
+            //     'status' => 'required|integer|in:0,1',
+            //     'termin' => 'required|integer'
+            // ]);
+    
+            // $body = $request->only((new TahunAkademik)->getFillable());
+    
+            // $data = TahunAkademik::create($body);
+    
+            // return response()->json([
+            //     'success' => true,
+            //     'message' => 'Data tahun akademik berhasil ditambahkan.',
+            //     'data' => $data
+            // ], 200);
+
+            // Ubah format tanggal dd/mm/yyyy -> Y-m-d
+            $request->merge([
+                'ganjil_mulai'                => $request->ganjil_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
+                'ganjil_akhir'                => $request->ganjil_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
+                'genap_mulai'                 => $request->genap_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
+                'genap_akhir'                 => $request->genap_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
+                'antara_mulai'                => $request->antara_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
+                'antara_akhir'                => $request->antara_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
+                'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
+                'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
+                'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
             ]);
-    
-            $body = $request->only((new TahunAkademik)->getFillable());
-    
-            $data = TahunAkademik::create($body);
-    
+
+            // Baru lakukan validasi
+            $request->validate([
+                'thn_akademik'   => 'required|string|max:5',
+                'termin'         => 'required',
+                'ganjil_mulai'   => 'required|date',
+                'ganjil_akhir'   => 'required|date|after_or_equal:ganjil_mulai',
+                'genap_mulai'    => 'required|date',
+                'genap_akhir'    => 'required|date|after_or_equal:genap_mulai',
+                'antara_mulai'   => 'nullable|date',
+                'antara_akhir'   => 'nullable|date|after_or_equal:antara_mulai',
+                'ganjil_pelaksanaan_mulai'   => 'required|date',
+                'ganjil_pelaksanaan_akhir'   => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
+                'genap_pelaksanaan_mulai'    => 'required|date',
+                'genap_pelaksanaan_akhir'    => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
+                'antara_pelaksanaan_mulai'   => 'nullable|date',
+                'antara_pelaksanaan_akhir'   => 'nullable|date|after_or_equal:antara_pelaksanaan_mulai',
+            ]);
+
+            // Ambil semua tahun akademik dari tahunAkademikService API
+            // $allTahunAkademik = $this->tahunAkademikService->getTahunAkademik(); // pastikan ini mengembalikan array
+
+            // Cek apakah tahun akademik dan termin yang sama dan aktif (status = 1) sudah ada
+            // $existing = MasterTahunAkademik::->first(function ($item) use ($request) {
+            //     return $item['thn_akademik'] == $request->thn_akademik 
+            //         && $item['termin'] == $request->termin 
+            //         && $item['status'] == 1;
+            // });
+
+            $existing = MasterTahunAkademik::where('thn_akademik', $request->thn_akademik)
+                ->where('termin', $request->termin)
+                ->where('status', 1)
+                ->exists();
+
+            if ($existing) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Periode ' . $request->thn_akademik . ' Termin ' . $request->termin . ' sudah ada!'
+                ], 400);
+            }
+
+            // Tambah data baru
+            $data = [
+                'thn_akademik' => $request->thn_akademik,
+                'termin'       => $request->termin,
+                'ganjil_mulai' => $request->ganjil_mulai,
+                'ganjil_akhir' => $request->ganjil_akhir,
+                'genap_mulai'  => $request->genap_mulai,
+                'genap_akhir'  => $request->genap_akhir,
+                'antara_mulai' => $request->antara_mulai,
+                'antara_akhir' => $request->antara_akhir,
+                'ganjil_pelaksanaan_mulai' => $request->ganjil_pelaksanaan_mulai,
+                'ganjil_pelaksanaan_akhir' => $request->ganjil_pelaksanaan_akhir,
+                'genap_pelaksanaan_mulai'  => $request->genap_pelaksanaan_mulai,
+                'genap_pelaksanaan_akhir'  => $request->genap_pelaksanaan_akhir,
+                'antara_pelaksanaan_mulai' => $request->antara_pelaksanaan_mulai,
+                'antara_pelaksanaan_akhir' => $request->antara_pelaksanaan_akhir,
+                'status'       => 1,
+            ];
+
+            // $response = $this->tahunAkademikService->postTahunAkademik($data);
+
+            // if ($response['status'] === 'success') {
+            //     return response()->json([
+            //         'success' => true,
+            //         'message' => 'Periode pembayaran berhasil ditambahkan!'
+            //     ]);
+            // }
+
+            $data = MasterTahunAkademik::create($data);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Data tahun akademik berhasil ditambahkan.',
+                'message' => 'Berhasil menambahkan tahun akademik yang baru',
                 'data' => $data
-            ], 200);
+            ]);
         } catch (\Exception $error) {
             return response()->json([
                 'success' => false,
@@ -105,35 +198,107 @@ class KeuanganController extends Controller
 
     public function tahunAkademik_update(Request $request, int $id_thn_akademik) {
         try {
-           $request->validate([
-                'thn_akademik' => 'required|string|max:4',
-                'ganjil_mulai' => 'required|date',
-                'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
-                'genap_mulai' => 'required|date',
-                'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
-                'antara_mulai' => 'required|date',
-                'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
-                'ganjil_pelaksanaan_mulai' => 'required|date',
-                'ganjil_pelaksanaan_akhir' => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
-                'genap_pelaksanaan_mulai' => 'required|date',
-                'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
-                'antara_pelaksanaan_mulai' => 'required|date',
-                'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
-                'status' => 'required|integer|in:0,1',
-                'termin' => 'required|integer'
-            ]);
+        //    $request->validate([
+        //         'thn_akademik' => 'required|string|max:4',
+        //         'ganjil_mulai' => 'required|date',
+        //         'ganjil_akhir' => 'required|date|after_or_equal:ganjil_mulai',
+        //         'genap_mulai' => 'required|date',
+        //         'genap_akhir' => 'required|date|after_or_equal:genap_mulai',
+        //         'antara_mulai' => 'required|date',
+        //         'antara_akhir' => 'required|date|after_or_equal:antara_mulai',
+        //         'ganjil_pelaksanaan_mulai' => 'required|date',
+        //         'ganjil_pelaksanaan_akhir' => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
+        //         'genap_pelaksanaan_mulai' => 'required|date',
+        //         'genap_pelaksanaan_akhir' => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
+        //         'antara_pelaksanaan_mulai' => 'required|date',
+        //         'antara_pelaksanaan_akhir' => 'required|date|after_or_equal:antara_pelaksanaan_mulai',
+        //         'status' => 'required|integer|in:0,1',
+        //         'termin' => 'required|integer'
+        //     ]);
     
-            $payload = $request->only((new TahunAkademik)->getFillable());
+        //     $payload = $request->only((new TahunAkademik)->getFillable());
     
-            $data = TahunAkademik::findOrFail($id_thn_akademik);
+        //     $data = TahunAkademik::findOrFail($id_thn_akademik);
 
-            $data->update($payload);
+        //     $data->update($payload);
     
+        //     return response()->json([
+        //         'success' => true,
+        //         'message' => 'Data tahun akademik berhasil diubah.',
+        //         'data' => $data
+        //     ], 200);
+
+        // Ubah format tanggal dd/mm/yyyy -> Y-m-d
+            $request->merge([
+                'ganjil_mulai'                => $request->ganjil_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
+                'ganjil_akhir'                => $request->ganjil_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
+                'genap_mulai'                 => $request->genap_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
+                'genap_akhir'                 => $request->genap_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
+                'antara_mulai'                => $request->antara_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
+                'antara_akhir'                => $request->antara_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
+                'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
+                'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
+                'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
+                'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? \Carbon\Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
+            ]);
+            
+            $request->validate([
+                'thn_akademik'   => 'required|string|max:5',
+                'termin'         => 'required',
+                'ganjil_mulai'   => 'required|date',
+                'ganjil_akhir'   => 'required|date|after_or_equal:ganjil_mulai',
+                'genap_mulai'    => 'required|date',
+                'genap_akhir'    => 'required|date|after_or_equal:genap_mulai',
+                'antara_mulai'   => 'nullable|date',
+                'antara_akhir'   => 'nullable|date|after_or_equal:antara_mulai',
+                'ganjil_pelaksanaan_mulai'   => 'required|date',
+                'ganjil_pelaksanaan_akhir'   => 'required|date|after_or_equal:ganjil_pelaksanaan_mulai',
+                'genap_pelaksanaan_mulai'    => 'required|date',
+                'genap_pelaksanaan_akhir'    => 'required|date|after_or_equal:genap_pelaksanaan_mulai',
+                'antara_pelaksanaan_mulai'   => 'nullable|date',
+                'antara_pelaksanaan_akhir'   => 'nullable|date|after_or_equal:antara_pelaksanaan_mulai',
+            ]);
+
+            $data = $request->only([
+                'thn_akademik',
+                'termin',
+                'ganjil_mulai',
+                'ganjil_akhir',
+                'genap_mulai',
+                'genap_akhir',
+                'antara_mulai',
+                'antara_akhir',
+                'ganjil_pelaksanaan_mulai',
+                'ganjil_pelaksanaan_akhir',
+                'genap_pelaksanaan_mulai',
+                'genap_pelaksanaan_akhir',
+                'antara_pelaksanaan_mulai',
+                'antara_pelaksanaan_akhir',
+            ]);
+
+            $data['status'] = 1;
+            $data['deleted_at'] = null;
+            $data['deleted_by'] = null;
+
+            $tahun_akademik = MasterTahunAkademik::find($id_thn_akademik);
+
+            if(!$tahun_akademik) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Data Tahun Akademik tidak ditemukan'
+                ], 404);
+            }
+
+            $data = $tahun_akademik->update($data);
+
+
             return response()->json([
                 'success' => true,
-                'message' => 'Data tahun akademik berhasil diubah.',
+                'message' => 'Data berhasil diperbarui',
                 'data' => $data
-            ], 200);
+            ]);
 
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json([
