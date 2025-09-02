@@ -54,47 +54,38 @@ class MinimalPresensiController extends Controller
         try {
             $request->validate([
                 'fk_tahun_ajaran' => 'integer|required',
-                'persentase' => 'integer|required|min:0,max:100'
+                'persentase' => 'integer|required|min:0|max:100', // fixed validation syntax
             ]);
 
             $body = $request->only((new MinimalPresensi)->getFillable());
 
-            $minimal_presensi = $this->model_minimal_presensi
-                ->where('fk_tahun_ajaran', $body['fk_tahun_ajaran'])
-                ->first();
-
-            if($minimal_presensi) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Data tahun sebelumnya sudah pernah dibuat'
-                ], 403);
-            }
-
+            // Check Tahun Ajaran exists
             $tahun_ajaran = TahunAjaran::where('tahun_id', $body['fk_tahun_ajaran'])->first();
-
-            // return response()->json([
-            //     'success' => true,
-            //     'data' => $tahun_ajaran
-            // ]);
-
-            if(!$tahun_ajaran) {
+            if (!$tahun_ajaran) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Tahun Ajaran tidak ditemukan'
                 ], 404);
             }
 
-            $data = $this->model_minimal_presensi->create($body);
+            // Create or update
+            $minimal_presensi = $this->model_minimal_presensi
+                ->updateOrCreate(
+                    ['fk_tahun_ajaran' => $body['fk_tahun_ajaran']], // match condition
+                    $body // update values
+                );
 
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data' => $minimal_presensi,
+                'message' => $minimal_presensi->wasRecentlyCreated
+                    ? 'Data berhasil dibuat'
+                    : 'Data berhasil diperbarui'
             ]);
         } catch (\Exception $error) {
             return response()->json([
-                'success' => true,
+                'success' => false, // should be false if error
                 'message' => $error->getMessage(),
-                'debug' => $error
             ], 500);
         }
     }

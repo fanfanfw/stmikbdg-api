@@ -99,7 +99,7 @@ class KeuanganController extends Controller
                 'success' => false,
                 'message' => $error->getMessage(),
                 'error' => $error
-            ]);
+            ], 500);
         }
     }
 
@@ -145,7 +145,7 @@ class KeuanganController extends Controller
                 'success' => false,
                 'message' => $error->getMessage(),
                 'error' => $error
-            ]);
+            ], 500);
         }
     }
 
@@ -174,7 +174,7 @@ class KeuanganController extends Controller
                 'success' => false,
                 'message' => $error->getMessage(),
                 'error' => $error
-            ]);
+            ], 500);
         }
     }
 
