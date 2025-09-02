@@ -98,20 +98,20 @@ class KeuanganController extends Controller
             // ], 200);
 
             // Ubah format tanggal dd/mm/yyyy -> Y-m-d
-            $request->merge([
-                'ganjil_mulai'                => $request->ganjil_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
-                'ganjil_akhir'                => $request->ganjil_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
-                'genap_mulai'                 => $request->genap_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
-                'genap_akhir'                 => $request->genap_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
-                'antara_mulai'                => $request->antara_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
-                'antara_akhir'                => $request->antara_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
-                'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
-                'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
-                'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
-            ]);
+            // $request->merge([
+            //     'ganjil_mulai'                => $request->ganjil_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
+            //     'ganjil_akhir'                => $request->ganjil_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
+            //     'genap_mulai'                 => $request->genap_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
+            //     'genap_akhir'                 => $request->genap_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
+            //     'antara_mulai'                => $request->antara_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
+            //     'antara_akhir'                => $request->antara_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
+            //     'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
+            //     'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
+            //     'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
+            // ]);
 
             // Baru lakukan validasi
             $request->validate([
@@ -230,20 +230,20 @@ class KeuanganController extends Controller
         //     ], 200);
 
         // Ubah format tanggal dd/mm/yyyy -> Y-m-d
-            $request->merge([
-                'ganjil_mulai'                => $request->ganjil_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
-                'ganjil_akhir'                => $request->ganjil_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
-                'genap_mulai'                 => $request->genap_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
-                'genap_akhir'                 => $request->genap_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
-                'antara_mulai'                => $request->antara_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
-                'antara_akhir'                => $request->antara_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
-                'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
-                'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
-                'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
-                'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
-            ]);
+            // $request->merge([
+            //     'ganjil_mulai'                => $request->ganjil_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_mulai)->format('Y-m-d') : null,
+            //     'ganjil_akhir'                => $request->ganjil_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_akhir)->format('Y-m-d') : null,
+            //     'genap_mulai'                 => $request->genap_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_mulai)->format('Y-m-d') : null,
+            //     'genap_akhir'                 => $request->genap_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_akhir)->format('Y-m-d') : null,
+            //     'antara_mulai'                => $request->antara_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_mulai)->format('Y-m-d') : null,
+            //     'antara_akhir'                => $request->antara_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_akhir)->format('Y-m-d') : null,
+            //     'ganjil_pelaksanaan_mulai'    => $request->ganjil_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'ganjil_pelaksanaan_akhir'    => $request->ganjil_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->ganjil_pelaksanaan_akhir)->format('Y-m-d') : null,
+            //     'genap_pelaksanaan_mulai'     => $request->genap_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'genap_pelaksanaan_akhir'     => $request->genap_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->genap_pelaksanaan_akhir)->format('Y-m-d') : null,
+            //     'antara_pelaksanaan_mulai'    => $request->antara_pelaksanaan_mulai ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_mulai)->format('Y-m-d') : null,
+            //     'antara_pelaksanaan_akhir'    => $request->antara_pelaksanaan_akhir ? Carbon::createFromFormat('d/m/Y', $request->antara_pelaksanaan_akhir)->format('Y-m-d') : null,
+            // ]);
             
             $request->validate([
                 'thn_akademik'   => 'required|string|max:5',
