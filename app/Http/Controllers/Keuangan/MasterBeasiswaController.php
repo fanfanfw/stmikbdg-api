@@ -331,10 +331,12 @@ class MasterBeasiswaController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Beasiswa berhasil ditambahkan.',
-                'data' => $beasiswa,
-                'jumlah_berhasil' => count($success ?? []),
-                'jumlah_gagal' => count($nim_tidak_ada ?? []),
-                'nim_gagal' => $nim_tidak_ada ?? []
+                'data' => [
+                    'beasiswa' => $beasiswa,
+                    'jumlah_berhasil' => count($success ?? []),
+                    'jumlah_gagal' => count($nim_tidak_ada ?? []),
+                    'nim_gagal' => $nim_tidak_ada ?? []
+                ]
             ]);
         } catch (\Exception $error) {
             return response()->json([
