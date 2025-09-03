@@ -14,14 +14,12 @@ use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
 use App\Http\Controllers\Keuangan\StatusKaryawanController;
 use App\Http\Controllers\Keuangan\ProfileKaryawanController;
 use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
-use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
 use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
 use App\Http\Controllers\Keuangan\MhsController;
 use App\Http\Controllers\Keuangan\NotifikasiController;
 use App\Http\Controllers\Keuangan\VerifikasiPembayaranController;
 use App\Http\Controllers\TahunAjaranController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Users\UserController;
 
 
 Route::middleware('auth.jwt')
@@ -29,7 +27,6 @@ Route::middleware('auth.jwt')
     ->group(function () {
         // Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
         Route::prefix('/mahasiswa')
-            
             ->group( function () {
                 Route::get('/', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
                 Route::get('/tahun-angkatan', [KeuanganController::class, 'getAllTahunAngkatan'])->middleware('auth.admin');
@@ -47,7 +44,7 @@ Route::middleware('auth.jwt')
                         Route::get('/total-sks', 'getTotalSKS');
                 });
 
-            });
+        });
 
         Route::prefix('/tahun-akademik')
             ->group(function () {
@@ -86,8 +83,6 @@ Route::middleware('auth.jwt')
             ->group(function () {
                 // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
 
-
-
                 Route::get('/', 'getAll')->middleware('auth.admin');
                 // Route::post('/', 'create')->middleware('auth.admin');
                 // Route::prefix('/id')
@@ -105,7 +100,7 @@ Route::middleware('auth.jwt')
                         Route::put('/', 'update_by_tahun_angkatan');
                         // Route::delete('/{tahun_angkatan}', 'delete_by_tahun_angkatan');
                         
-                    });
+                });
         });
         
         Route::prefix('/master-beasiswa')
@@ -142,7 +137,7 @@ Route::middleware('auth.jwt')
                 Route::put('/id_manajemen_biaya/{id}', 'update');
         });
 
-    });
+});
 
     Route::apiResource('/karyawan/status', StatusKaryawanController::class);
     Route::apiResource('/karyawan/jabatan', JabatanKaryawanController::class);
