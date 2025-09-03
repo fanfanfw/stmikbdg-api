@@ -14,14 +14,12 @@ use App\Http\Controllers\Keuangan\SkripsiKpKaryawanController;
 use App\Http\Controllers\Keuangan\StatusKaryawanController;
 use App\Http\Controllers\Keuangan\ProfileKaryawanController;
 use App\Http\Controllers\Keuangan\TunjanganKaryawanController;
-use App\Http\Controllers\Keuangan\MasterKomponenBiaya;
 use App\Http\Controllers\Keuangan\MasterKomponenBiayaController;
 use App\Http\Controllers\Keuangan\MhsController;
 use App\Http\Controllers\Keuangan\NotifikasiController;
 use App\Http\Controllers\Keuangan\VerifikasiPembayaranController;
 use App\Http\Controllers\TahunAjaranController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Users\UserController;
 
 
 Route::middleware('auth.jwt')
@@ -29,7 +27,6 @@ Route::middleware('auth.jwt')
     ->group(function () {
         // Route::get('/mahasiswa', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
         Route::prefix('/mahasiswa')
-            
             ->group( function () {
                 Route::get('/', [KeuanganController::class, 'getAllMahasiswaAktif'])->middleware('auth.admin');
                 Route::get('/tahun-angkatan', [KeuanganController::class, 'getAllTahunAngkatan'])->middleware('auth.admin');
@@ -47,7 +44,7 @@ Route::middleware('auth.jwt')
                         Route::get('/total-sks', 'getTotalSKS');
                 });
 
-            });
+        });
 
         Route::prefix('/tahun-akademik')
             ->group(function () {
@@ -80,15 +77,11 @@ Route::middleware('auth.jwt')
         //         // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
         //         Route::post('/', [MasterKomponenBiayaController::class, 'create'])->middleware('auth.admin');
         //     });
-            
-    });
 
         Route::prefix('/master-komponen-biaya')
             ->controller(KomponenBiayaController::class)
             ->group(function () {
                 // Route::get('/', [KeuanganController::class, 'getMasterKomponenBiaya'])->middleware('auth.admin') 
-
-
 
                 Route::get('/', 'getAll')->middleware('auth.admin');
                 // Route::post('/', 'create')->middleware('auth.admin');
@@ -107,7 +100,7 @@ Route::middleware('auth.jwt')
                         Route::put('/', 'update_by_tahun_angkatan');
                         // Route::delete('/{tahun_angkatan}', 'delete_by_tahun_angkatan');
                         
-                    });
+                });
         });
         
         Route::prefix('/master-beasiswa')
@@ -143,33 +136,35 @@ Route::middleware('auth.jwt')
                 Route::post('/', 'create');
                 Route::put('/id_manajemen_biaya/{id}', 'update');
         });
-
-
+      
     Route::prefix('/karyawan')
-    ->group(function () {
-        // Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
-        Route::apiResource('/status', StatusKaryawanController::class);
-        Route::apiResource('/jabatan', JabatanKaryawanController::class);
+        ->group(function () {
+            // Route::get('/', [KeuanganController::class, 'getTahunAkademik'])->middleware('auth.admin');
+            Route::apiResource('/status', StatusKaryawanController::class);
+            Route::apiResource('/jabatan', JabatanKaryawanController::class);
 
-        Route::get('/pendidikan-terakhir', [GolonganKaryawanController::class, 'allDataPendidikanTerakhir']);
-        Route::apiResource('/golongan', GolonganKaryawanController::class);
+            Route::get('/pendidikan-terakhir', [GolonganKaryawanController::class, 'allDataPendidikanTerakhir']);
+            Route::apiResource('/golongan', GolonganKaryawanController::class);
 
 
-        Route::apiResource('/fungsional', FungsionalKaryawanController::class);
-        Route::apiResource('/list-potongan', ListPotonganKaryawanController::class);
-        Route::apiResource('/skripsi-kp', SkripsiKpKaryawanController::class);
-        Route::apiResource('/tunj-keluarga', ListTunjanganKeluargaKaryawanController::class);
-        Route::apiResource('/tunjangan', TunjanganKaryawanController::class);
+            Route::apiResource('/fungsional', FungsionalKaryawanController::class);
+            Route::apiResource('/list-potongan', ListPotonganKaryawanController::class);
+            Route::apiResource('/skripsi-kp', SkripsiKpKaryawanController::class);
+            Route::apiResource('/tunj-keluarga', ListTunjanganKeluargaKaryawanController::class);
+            Route::apiResource('/tunjangan', TunjanganKaryawanController::class);
 
-        // dataKaryawan
-        Route::get('/profile/detail', [ProfileKaryawanController::class, 'allDataKaryawan']);
-        Route::get('/profile/{id}', [ProfileKaryawanController::class, 'dataKaryawanBulanIniById']);
-        Route::get('/profile/month/current', [ProfileKaryawanController::class, 'dataKaryawanBulanIni']);
-        Route::apiResource('/profile', ProfileKaryawanController::class);
+            // dataKaryawan
+            Route::get('/profile/detail', [ProfileKaryawanController::class, 'allDataKaryawan']);
+            Route::get('/profile/{id}', [ProfileKaryawanController::class, 'dataKaryawanBulanIniById']);
+            Route::get('/profile/month/current', [ProfileKaryawanController::class, 'dataKaryawanBulanIni']);
+            Route::apiResource('/profile', ProfileKaryawanController::class);
     });
 
 
     Route::apiResource('/karyawan/fungsional', FungsionalKaryawanController::class);
+
+});
+
     
     
 
