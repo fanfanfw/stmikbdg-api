@@ -194,4 +194,31 @@ class GolonganKaryawanController extends Controller
             ]);
         }
     }
+
+
+    public function allDataPendidikanTerakhir(){
+        
+         try{
+            $data = GolonganKaryawan::AllDataPendidikanTerakhir();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+        ], 200);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => 'Data gagal dihapus karena golongan masih digunakan. Periksa data karyawan atau data lain yang masih mneggunakan golongan yang dimaksud.',
+                'error' => $e->getMessage()
+            ], 409);       
+        } catch (\Exception $error) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menghapus data.',
+                'error' => $error->getMessage() // hapus di production
+
+            ]);
+        }
+    }
 }
