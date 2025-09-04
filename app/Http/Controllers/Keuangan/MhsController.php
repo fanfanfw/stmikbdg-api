@@ -194,6 +194,8 @@ class MhsController extends Controller
                 'kodeMKDiAmbil' => $kodeMKDiambil
             ];
 
+            return response()->json($data);
+
             $merged_data = collect(); // mulai dengan empty collection
 
             // selalu masuk biaya_tanggal
@@ -206,8 +208,6 @@ class MhsController extends Controller
                 // kalau bukan semester pertama, buang semua komponen SEMESTER PERTAMA
                 return $col->reject(fn($item) => in_array($item['id_nama_komponen'], self::KOMPONEN_SEMESTER_PERTAMA));
             });
-
-            dd($merged_data);
 
             // hanya tambahkan biaya_kp kalau ada datanya
             $merged_data = $merged_data->when($data['biaya_kp']->isNotEmpty(), function ($col) use ($data) {
