@@ -206,6 +206,12 @@ class UserController extends Controller {
 
         // 4. Cek apakah sudah bayar di termin yang ketemu
         $sudahBayar = MasterPembayaran::where('mhs_id', $mhsId)
+            ->whereHas([
+                'detailPembayaran.biayaPerMahasiswa.m_komponen_biaya', function ($query) {
+                    $query
+                        ->whereIn('id_nama_komponen', [4, 5, 6]);
+                }
+            ])
             ->where('tahun_id', $tahunId)
             ->where('termin', $terminAktif)
             ->exists();
