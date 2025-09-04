@@ -207,6 +207,8 @@ class MhsController extends Controller
                 return $col->reject(fn($item) => in_array($item['id_nama_komponen'], self::KOMPONEN_SEMESTER_PERTAMA));
             });
 
+            dd($merged_data);
+
             // hanya tambahkan biaya_kp kalau ada datanya
             $merged_data = $merged_data->when($data['biaya_kp']->isNotEmpty(), function ($col) use ($data) {
                 return $col->concat($data['biaya_kp']);
