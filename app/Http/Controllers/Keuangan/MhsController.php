@@ -109,19 +109,19 @@ class MhsController extends Controller
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 1,
-                    'mulai' => Carbon::parse($ta['ganjil_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['ganjil_mulai']),
                     'akhir' => Carbon::parse($ta['ganjil_pelaksanaan_akhir']),
                 ],
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 2,
-                    'mulai' => Carbon::parse($ta['genap_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['genap_mulai']),
                     'akhir' => Carbon::parse($ta['genap_pelaksanaan_akhir']),
                 ],
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 3,
-                    'mulai' => Carbon::parse($ta['antara_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['antara_mulai']),
                     'akhir' => Carbon::parse($ta['antara_pelaksanaan_akhir']),
                 ]
             ];
