@@ -38,7 +38,7 @@ class Mahasiswa extends Model
 
         $query->where('sts_mhs', 'A')
         //   ->where('kd_kampus', 'A')
-          ->whereNotNull('krs_id_last')
+          // ->whereNotNull('krs_id_last')
           ->with('jurusan');
 
         // Apply dynamic filters
