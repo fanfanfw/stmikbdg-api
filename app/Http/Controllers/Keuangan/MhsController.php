@@ -194,7 +194,7 @@ class MhsController extends Controller
                 'kodeMKDiAmbil' => $kodeMKDiambil
             ];
 
-            return response()->json($data);
+            return response()->json($semester);
 
             $merged_data = collect(); // mulai dengan empty collection
 
