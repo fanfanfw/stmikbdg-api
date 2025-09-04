@@ -515,8 +515,8 @@ class MhsController extends Controller
 
         // 2. Ambil tahun ajaran aktif (untuk ambil tahun_id)
         $tahunAktif = TahunAjaranView::getTahunAjaran($profile);
-        dd($tahunAktif);
-        $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
+        $semesterSekarang = $tahunAktif ?? null;
+
         $tahunId = $semesterSekarang['tahun_id'] ?? null;
 
         // 3. Kalau tidak ada termin aktif → ambil termin terakhir

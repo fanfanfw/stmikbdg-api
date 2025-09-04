@@ -196,7 +196,7 @@ class UserController extends Controller {
                 'termin'  => 0
             ];
         }
-        $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
+        $semesterSekarang = $tahunAktif ?? null;
         $tahunId = $semesterSekarang['tahun_id'] ?? null;
 
         // 3. Kalau tidak ada termin aktif → ambil termin terakhir
