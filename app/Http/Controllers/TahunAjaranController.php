@@ -50,7 +50,7 @@ class TahunAjaranController extends Controller
         try {
             $tahunAjaranArr = TahunAjaranView::getTahunAjaranWithKRS()->filter(function ($item) {
                 // if ($item['krs']->count() > 0) {
-                //     return $item;
+                    return $item;
                 // }
             })->flatten();
 
