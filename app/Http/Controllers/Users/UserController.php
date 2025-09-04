@@ -209,6 +209,9 @@ class UserController extends Controller {
             ->whereHas('detailPembayaran.biayaPerMahasiswa.m_komponen_biaya', function ($query) {
                 $query->whereIn('id_nama_komponen', [4, 5, 6]);
             })
+            // ->whereHas('detailPembayaran', function ($query) {
+            //     $query->where('status_verifikasi', 1)
+            // })
             ->where('tahun_id', $tahunId)
             ->where('termin', $terminAktif)
             ->exists();
