@@ -173,15 +173,15 @@ class UserController extends Controller {
 
         // 1. Cari termin berdasarkan tanggal
         foreach ($allTahunAkademik as $ta) {
-            if ($today->between(Carbon::parse($ta['ganjil_pelaksanaan_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['ganjil_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['genap_pelaksanaan_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['genap_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['antara_pelaksanaan_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['antara_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
