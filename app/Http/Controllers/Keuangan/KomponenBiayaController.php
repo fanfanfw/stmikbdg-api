@@ -172,7 +172,7 @@ class KomponenBiayaController extends Controller
             $mahasiswa = Mahasiswa::where('sts_mhs', 'A')
                 
                 // ->where('kd_kampus', 'A')
-                ->whereNotNull('krs_id_last')
+                // ->whereNotNull('krs_id_last')
                 // ->whereIn('mhs_id', $beasiswa->pluck('mhs_id')->toArray())
                 // ->whereHas('krs.krsMatkul.kelasKuliahJoin', function ($query) use ($filters) {
                 //     $query->where('tahun_id', $filters['tahun_id']);
@@ -201,9 +201,9 @@ class KomponenBiayaController extends Controller
             // Ambil detail tahun ajaran terpilih
             $tahunAjaranTerpilih = TahunAjaranView::getTahunAjaranWithKRS()
                 ->filter(function ($item) {
-                    if ($item['krs']->count() > 0) {
+                    // if ($item['krs']->count() > 0) {
                         return $item;
-                    }
+                    // }
                 })
                 ->flatten()
                 ->firstWhere('tahun_id', $tahunId);
