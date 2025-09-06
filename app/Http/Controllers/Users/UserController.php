@@ -331,7 +331,7 @@ class UserController extends Controller {
 
             $response = $this->uploadFile('profile/images', $fileName, $image);
 
-            if ($response['status'] != 'success') {
+            if (!$response['success']) {
                 return response()->json([
                     'status' => 'fail',
                     'message' => 'Gagal mengunggah foto profil'
