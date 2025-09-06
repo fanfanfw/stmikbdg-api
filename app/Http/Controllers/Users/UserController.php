@@ -173,15 +173,15 @@ class UserController extends Controller {
 
         // 1. Cari termin berdasarkan tanggal
         foreach ($allTahunAkademik as $ta) {
-            if ($today->between(Carbon::parse($ta['ganjil_pelaksanaan_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['ganjil_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['genap_pelaksanaan_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['genap_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['antara_pelaksanaan_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['antara_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
@@ -196,7 +196,7 @@ class UserController extends Controller {
                 'termin'  => 0
             ];
         }
-        $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
+        $semesterSekarang = $tahunAktif ?? null;
         $tahunId = $semesterSekarang['tahun_id'] ?? null;
 
         // 3. Kalau tidak ada termin aktif → ambil termin terakhir
@@ -206,6 +206,12 @@ class UserController extends Controller {
 
         // 4. Cek apakah sudah bayar di termin yang ketemu
         $sudahBayar = MasterPembayaran::where('mhs_id', $mhsId)
+            ->whereHas('detailPembayaran.biayaPerMahasiswa.m_komponen_biaya', function ($query) {
+                $query->whereIn('id_nama_komponen', [4, 5, 6]);
+            })
+            // ->whereHas('detailPembayaran', function ($query) {
+            //     $query->where('status_verifikasi', 1)
+            // })
             ->where('tahun_id', $tahunId)
             ->where('termin', $terminAktif)
             ->exists();

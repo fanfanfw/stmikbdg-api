@@ -109,19 +109,19 @@ class MhsController extends Controller
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 1,
-                    'mulai' => Carbon::parse($ta['ganjil_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['ganjil_mulai']),
                     'akhir' => Carbon::parse($ta['ganjil_pelaksanaan_akhir']),
                 ],
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 2,
-                    'mulai' => Carbon::parse($ta['genap_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['genap_mulai']),
                     'akhir' => Carbon::parse($ta['genap_pelaksanaan_akhir']),
                 ],
                 [
                     'tahun' => $ta['thn_akademik'],
                     'smt' => 3,
-                    'mulai' => Carbon::parse($ta['antara_pelaksanaan_mulai']),
+                    'mulai' => Carbon::parse($ta['antara_mulai']),
                     'akhir' => Carbon::parse($ta['antara_pelaksanaan_akhir']),
                 ]
             ];
@@ -193,6 +193,8 @@ class MhsController extends Controller
                 'biaya_semester_pertama' => $biaya_semester_pertama,
                 'kodeMKDiAmbil' => $kodeMKDiambil
             ];
+
+            
 
             $merged_data = collect(); // mulai dengan empty collection
 
@@ -497,15 +499,15 @@ class MhsController extends Controller
 
         // 1. Cari termin berdasarkan tanggal
         foreach ($allTahunAkademik as $ta) {
-            if ($today->between(Carbon::parse($ta['ganjil_pelaksanaan_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['ganjil_mulai']), Carbon::parse($ta['ganjil_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['genap_pelaksanaan_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['genap_mulai']), Carbon::parse($ta['genap_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
-            if ($today->between(Carbon::parse($ta['antara_pelaksanaan_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
+            if ($today->between(Carbon::parse($ta['antara_mulai']), Carbon::parse($ta['antara_pelaksanaan_akhir']))) {
                 $terminAktif = $ta['termin'];
                 break;
             }
@@ -513,7 +515,8 @@ class MhsController extends Controller
 
         // 2. Ambil tahun ajaran aktif (untuk ambil tahun_id)
         $tahunAktif = TahunAjaranView::getTahunAjaran($profile);
-        $semesterSekarang = $tahunAktif['tahun_ajaran'] ?? null;
+        $semesterSekarang = $tahunAktif ?? null;
+
         $tahunId = $semesterSekarang['tahun_id'] ?? null;
 
         // 3. Kalau tidak ada termin aktif → ambil termin terakhir

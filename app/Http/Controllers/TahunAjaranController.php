@@ -49,9 +49,9 @@ class TahunAjaranController extends Controller
     public function getTahunAjaranAktifForKuesioner() {
         try {
             $tahunAjaranArr = TahunAjaranView::getTahunAjaranWithKRS()->filter(function ($item) {
-                if ($item['krs']->count() > 0) {
+                // if ($item['krs']->count() > 0) {
                     return $item;
-                }
+                // }
             })->flatten();
 
             $filteredTahunAjaran = [];
