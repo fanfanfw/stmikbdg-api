@@ -317,25 +317,34 @@ class UserController extends Controller {
 
             $image = $request->file('image');
             $fileName = $image->hashName();
-            $image->storeAs('public/users/images/', $fileName);
+            // $image->storeAs('public/users/images/', $fileName);
 
-            // cek old image
-            $oldImage = auth()->user()->image;
+            // // cek old image
+            // $oldImage = auth()->user()->image;
 
-            if ($oldImage !== config('app.url') . 'storage/users/images/college_student.png') {
-                $pathOldImage = 'public/users/images/' . auth()->user()->image;
-                Storage::delete($pathOldImage);
+            // if ($oldImage !== config('app.url') . 'storage/users/images/college_student.png') {
+            //     $pathOldImage = 'public/users/images/' . auth()->user()->image;
+            //     Storage::delete($pathOldImage);
+            // }
+
+            // $imgUrl = config('app.url') . 'storage/users/images/' . $fileName;
+
+            $response = $this->uploadFile('profile/images', $fileName, $image);
+
+            if ($response['status'] != 'success') {
+                return response()->json([
+                    'status' => 'fail',
+                    'message' => 'Gagal mengunggah foto profil'
+                ], 500);
             }
-
-            $imgUrl = config('app.url') . 'storage/users/images/' . $fileName;
 
             User::where('id', auth()->user()->id)
                 ->update([
-                    'image' => $imgUrl,
+                    'image' => $response['data']['url'],
                 ]);
 
             return $this->successfulResponseJSON([
-                'image' => $imgUrl
+                'image' => $response['data']['url']
             ], 'Foto profil berhasil diperbarui');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
