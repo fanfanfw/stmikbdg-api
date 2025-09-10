@@ -129,14 +129,10 @@ class KelasKuliahController extends Controller {
             $lastKRS = KRS::where('tahun_id', $tahunAjaranAktif['tahun_id'])
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
-
-            return response()->json([
-                'data' => $lastKRS
-            ]);
             
 
             if ($lastKRS) {
-                if ($lastKRS['sts_krs'] === 'S') {
+                if ($lastKRS['sts_krs'] == 'S') {
                     $krsMatkul = KRSMatkul::getKRSMatkulWithKelasKuliah($lastKRS['krs_id'])->toArray();
                     $kelasKuliah = array_map(function ($item) {
                         return $item['kelas_kuliah_join'];
@@ -213,6 +209,11 @@ class KelasKuliahController extends Controller {
                             'kelas_kuliah' => $transformedResponse
                         ]);
                     }
+
+                    return response()->json([
+                        'status' => 'fail',
+                        'message' => 'Kelas kuliah tidak ditemukan pada pengajuan KRS terakhir'
+                    ], 404);
                 }
 
                 return response()->json([
