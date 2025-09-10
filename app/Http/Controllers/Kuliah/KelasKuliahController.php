@@ -130,6 +130,9 @@ class KelasKuliahController extends Controller {
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
 
+            return response()->json([
+                'data' => $lastKRS
+            ]);
             
 
             if ($lastKRS) {
