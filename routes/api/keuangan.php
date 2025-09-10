@@ -44,7 +44,13 @@ Route::middleware('auth.jwt')
                         Route::get('/total-sks', 'getTotalSKS');
                 });
 
-        });
+                Route::prefix('/tahun-ajaran')
+                    ->middleware('auth.admin')
+                    ->group(function () {
+                        Route::get('/mhs_id/{mhs_id}', [TahunAjaranController::class, 'getTahunAjaranAktifByMhsId']);
+                });
+
+        });        
 
         Route::prefix('/tahun-akademik')
             ->group(function () {

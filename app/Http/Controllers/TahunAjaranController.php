@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 
 // ? Models - view
 use App\Models\TahunAjaranView;
+use App\Models\Users\Mahasiswa;
 use PhpParser\Node\Expr\FuncCall;
 
 class TahunAjaranController extends Controller
@@ -38,6 +39,24 @@ class TahunAjaranController extends Controller
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
+    }
+
+    public function getTahunAjaranAktifByMhsId(Request $request, int $mhs_id) {
+        $mahasiswa = Mahasiswa::where('mhs_id', $mhs_id)->first();
+        if (!$mahasiswa) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mahasiswa tidak ditemukan',
+                'data' => null
+            ], 404);
+        }
+
+        $tahunAjaran = TahunAjaranView::getTahunAjaran($mahasiswa);
+
+        return response()->json([
+            'success' => true,
+            'data' => $tahunAjaran
+        ]);
     }
 
     /**
