@@ -146,15 +146,15 @@ class UserController extends Controller {
 
             $keuangan = null;
 
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Berhasil mengambil data profile',
-                'data' => [
-                    'profile' => $user,
-                    'account' => $account,
-                    'keuangan' => $keuangan
-                ]
-            ], 200);
+            // return response()->json([
+            //     'status' => 'success',
+            //     'message' => 'Berhasil mengambil data profile',
+            //     'data' => [
+            //         'profile' => $user,
+            //         'account' => $account,
+            //         'keuangan' => $keuangan
+            //     ]
+            // ], 200);
 
             if(isset($account['is_mhs'])) {
                 if($account['is_mhs']) {
