@@ -131,6 +131,7 @@ class UserController extends Controller {
     public function getMyProfile() {
         try {
             $user = $this->getUserAuth();
+
             $account= collect(auth()->user())->filter(function ($item) {
                 return $item;
             });
@@ -147,7 +148,9 @@ class UserController extends Controller {
 
             if(isset($account['is_mhs'])) {
                 if($account['is_mhs']) {
-                    $keuangan = $this->cek_keuangan_mhs($user);
+                    if(isset($user['mhs_id'])) {
+                        $keuangan = $this->cek_keuangan_mhs($user);
+                    }
                 }
             }
 
