@@ -39,12 +39,12 @@ class KRSDosenController extends Controller
             $jurusanMahasiswa = $mahasiswa->jurusan()->first();
             $krsMahasiswa = $mahasiswa->krs()->first();
             $krsMatkulDipilih = $krsMahasiswa->krsMatkul()->get();
-            // return $this->debug_log([
-            //     'mahasiswa' => $mahasiswa,
-            //     'jurusanMahasiswa' => $jurusanMahasiswa,
-            //     'krsMahasiswa' => $krsMahasiswa,
-            //     'krsMatkulDipilih' => $krsMatkulDipilih,
-            // ]);
+            return $this->debug_log([
+                'mahasiswa' => $mahasiswa,
+                'jurusanMahasiswa' => $jurusanMahasiswa,
+                'krsMahasiswa' => $krsMahasiswa,
+                'krsMatkulDipilih' => $krsMatkulDipilih,
+            ]);
             $setKRSData = self::setKRSData($jurusanMahasiswa, $krsMahasiswa, $krsMatkulDipilih, $mahasiswa['mhs_id']);
 
             return $this->successfulResponseJSON([
