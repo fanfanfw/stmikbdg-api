@@ -295,10 +295,13 @@ class KRSDosenController extends Controller
                 ->where('mk_id', $item['mk_id'])
                 ->first();
 
-            return $this->debug_log([
-                'detailMatkul' => $detailMatkul,
-                'item' => $item,
-            ]);
+            // return $this->debug_log([
+            //     'detailMatkul' => $detailMatkul,
+            //     'item' => $item,
+            // ]);
+            if(!$detailMatkul) {
+                continue;
+            }
 
             // get nilai akhir
             $nilaiAkhirMatkul = NilaiAkhirView::where('mhs_id', $mhsId)
