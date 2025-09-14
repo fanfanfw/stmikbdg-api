@@ -309,7 +309,7 @@ class KRSDosenController extends Controller
                 ->select('nilai', 'mutu')
                 ->first();
 
-            $tempMatkul[$index] = [
+            $tempMatkul[] = [
                 'krs_mk_id' => $item['krs_mk_id'],
                 'mk_id' => $item['mk_id'],
                 'sts_mk_krs' => $item['sts_mk_krs'],
