@@ -39,12 +39,12 @@ class KRSDosenController extends Controller
             $jurusanMahasiswa = $mahasiswa->jurusan()->first();
             $krsMahasiswa = $mahasiswa->krs()->first();
             $krsMatkulDipilih = $krsMahasiswa->krsMatkul()->get();
-            return $this->debug_log([
-                'mahasiswa' => $mahasiswa,
-                'jurusanMahasiswa' => $jurusanMahasiswa,
-                'krsMahasiswa' => $krsMahasiswa,
-                'krsMatkulDipilih' => $krsMatkulDipilih,
-            ]);
+            // return $this->debug_log([
+            //     'mahasiswa' => $mahasiswa,
+            //     'jurusanMahasiswa' => $jurusanMahasiswa,
+            //     'krsMahasiswa' => $krsMahasiswa,
+            //     'krsMatkulDipilih' => $krsMatkulDipilih,
+            // ]);
             $setKRSData = self::setKRSData($jurusanMahasiswa, $krsMahasiswa, $krsMatkulDipilih, $mahasiswa['mhs_id']);
 
             return $this->successfulResponseJSON([
@@ -294,6 +294,11 @@ class KRSDosenController extends Controller
                 ->where('tahun_id', $krs['tahun_id'])
                 ->where('mk_id', $item['mk_id'])
                 ->first();
+
+            return $this->debug_log([
+                'detailMatkul' => $detailMatkul,
+                'item' => $item,
+            ]);
 
             // get nilai akhir
             $nilaiAkhirMatkul = NilaiAkhirView::where('mhs_id', $mhsId)
