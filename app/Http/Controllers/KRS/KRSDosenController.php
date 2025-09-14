@@ -55,7 +55,10 @@ class KRSDosenController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            return ErrorHandler::handle($e);
+            return response()->json([
+                'status' => 'fail',
+                'message' => $e->getTrace(),
+            ], 500);
         }
     }
 
