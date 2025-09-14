@@ -335,7 +335,7 @@ class KRSDosenController extends Controller
             'ditolak_tanggal' => $krs['ditolak_tanggal'],
             'ditolak_alasan' => $krs['ditolak_alasan'],
             'ditolak_stlh_sah' => $krs['ditolak_stlh_sah'],
-            'krs_matkul' => $tempMatkul,
+            'krs_matkul' => collect($tempMatkul)->values(),
         ];
 
         return $krsData;
