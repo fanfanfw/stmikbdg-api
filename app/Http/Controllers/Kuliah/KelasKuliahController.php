@@ -224,7 +224,10 @@ class KelasKuliahController extends Controller {
 
             return $this->failedResponseJSON('Kelas kuliah tidak ditemukan', 404);
         } catch (\Exception $e) {
-            return ErrorHandler::handle($e);
+            return response()->json([
+                'success' => false,
+                'message' => $e->getTrace()
+            ], 500);
         }
     }
 
