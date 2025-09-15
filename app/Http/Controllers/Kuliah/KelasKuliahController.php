@@ -138,6 +138,11 @@ class KelasKuliahController extends Controller {
                         return $item['kelas_kuliah_join'];
                     }, $krsMatkul);
 
+                    return $this->debug_log([
+                        'krsMatkul' => $krsMatkul,
+                        'kelasKuliah' => $kelasKuliah
+                    ]);
+
                     if (count($kelasKuliah) > 0) {
                         foreach ($kelasKuliah as $index => $item) {
                             $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
