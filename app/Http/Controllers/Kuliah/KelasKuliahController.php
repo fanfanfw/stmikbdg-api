@@ -105,6 +105,9 @@ class KelasKuliahController extends Controller {
          * - Jika kelas_dibuka true, maka mahasiswa dapat mengirim pin presensi
          */
         try {
+
+            $isDebug = $request->query('debug');
+
             $filterHari = $request->query('hari');
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
@@ -145,16 +148,24 @@ class KelasKuliahController extends Controller {
 
                     if (count($kelasKuliah) > 0) {
                         foreach ($kelasKuliah as $index => $item) {
-                            $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
 
-                            $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
+                            $jadwal = isset($item['kelas_kuliah_id']) 
+                                ? JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false)
+                                : null;
+
+                            $kontrakKuliah = isset($item['kelas_kuliah_id'])
+                                ? KontrakKelasKuliah::getKontrakKelasKuliah($item) 
+                                : null;
 
                             // get riwayat presensi mahasiswa
-                            $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
-                                ->select('pertemuan_id')
-                                ->get()
-                                ->pluck('pertemuan_id')
-                                ->toArray();
+                            $arrPertemuan = isset($item['kelas_kuliah_id'])
+                                ? Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
+                                    ->select('pertemuan_id')
+                                    ->get()
+                                    ->pluck('pertemuan_id')
+                                    ->toArray()
+                                : [];
+
                             $riwayatPresensi = [];
 
                             if ($arrPertemuan) {
@@ -166,7 +177,7 @@ class KelasKuliahController extends Controller {
 
                             $formattedItem = [
                                 'data_kelas' => [
-                                    'kelas_kuliah_id' => $item['kelas_kuliah_id'],
+                                    'kelas_kuliah_id' => isset($item['kelas_kuliah_id']) ? $item['kelas_kuliah_id'] : null,
                                     'tahun_id' => $item['tahun_id'],
                                     'jur_id' => $item['jur_id'],
                                     'mk_id' => $item['mk_id'],
@@ -188,7 +199,8 @@ class KelasKuliahController extends Controller {
                                         ? $item['tahun_ajaran']['minimal_presensi']['persentase']
                                         : 0,
                                     'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
-                                ]
+                                ],
+                                'kelas_kuliah_id_exist' => isset($item['kelas_kuliah_id']) ? true : false
                             ];
 
                             $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
