@@ -178,28 +178,28 @@ class KelasKuliahController extends Controller {
                             $formattedItem = [
                                 'data_kelas' => [
                                     'kelas_kuliah_id' => isset($item['kelas_kuliah_id']) ? $item['kelas_kuliah_id'] : null,
-                                    'tahun_id' => $item['tahun_id'],
-                                    'jur_id' => $item['jur_id'],
-                                    'mk_id' => $item['mk_id'],
-                                    'join_kelas_kuliah_id' => $item['join_kelas_kuliah_id'],
-                                    'kjoin_kelas' => $item['kjoin_kelas'],
-                                    'kelas_kuliah' => $item['kelas_kuliah'],
-                                    'jns_mhs' => $item['jns_mhs'],
-                                    'sts_kelas' => $item['sts_kelas'],
-                                    'pengajar_id' => $item['pengajar_id'],
-                                    'join_jur' => $item['join_jur'],
+                                    'tahun_id' => isset($item['kelas_kuliah_id']) ? $item['tahun_id'] : null,
+                                    'jur_id' => isset($item['kelas_kuliah_id']) ? $item['jur_id'] : null,
+                                    'mk_id' => isset($item['kelas_kuliah_id']) ? $item['mk_id'] : null,
+                                    'join_kelas_kuliah_id' => isset($item['kelas_kuliah_id']) ? $item['join_kelas_kuliah_id'] : null,
+                                    'kjoin_kelas' => isset($item['kelas_kuliah_id']) ? $item['kjoin_kelas'] : null,
+                                    'kelas_kuliah' => isset($item['kelas_kuliah_id']) ? $item['kelas_kuliah'] : null,
+                                    'jns_mhs' => isset($item['kelas_kuliah_id']) ? $item['jns_mhs'] : null,
+                                    'sts_kelas' => isset($item['kelas_kuliah_id']) ? $item['sts_kelas'] : null,
+                                    'pengajar_id' => isset($item['kelas_kuliah_id']) ? $item['pengajar_id'] : null,
+                                    'join_jur' => isset($item['kelas_kuliah_id']) ? $item['join_jur'] : null,
                                 ],
-                                'dosen' => $item['dosen'],
-                                'matakuliah' => $item['matakuliah'],
-                                'riwayat_presensi' => $riwayatPresensi,
+                                'dosen' => isset($item['kelas_kuliah_id']) ? $item['dosen'] : null,
+                                'matakuliah' => isset($item['kelas_kuliah_id']) ? $item['matakuliah'] : [],
+                                'riwayat_presensi' => isset($item['kelas_kuliah_id']) ? $riwayatPresensi : [],
                                 'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                'kontrak_kuliah' => $kontrakKuliah->last(),
-                                'minimal_presensi' => [
+                                'kontrak_kuliah' => isset($item['kelas_kuliah_id']) ? $kontrakKuliah->last() : null,
+                                'minimal_presensi' => isset($item['kelas_kuliah_id']) ? [
                                     'persentase' => $item['tahun_ajaran']['minimal_presensi']
                                         ? $item['tahun_ajaran']['minimal_presensi']['persentase']
                                         : 0,
-                                    'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false 
-                                ],
+                                    'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false
+                                ] : null,
                                 'kelas_kuliah_id_exist' => isset($item['kelas_kuliah_id']) ? true : false
                             ];
 
