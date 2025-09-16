@@ -263,9 +263,9 @@ class KelasKuliahController extends Controller {
             $objKelasKuliah['data_kelas']['join_jur'] = trim($objKelasKuliah['data_kelas']['join_jur']);
         }
 
-        $objKelasKuliah['jadwal'] = $objJadwal ? $objJadwal->exists() ? $objJadwal : null : null;
+        $objKelasKuliah['jadwal'] = $objJadwal !== null ? $objJadwal->exists() ? $objJadwal : null : null;
         
-        if($objJadwal) {
+        if($objJadwal !== null) {
             if ($objJadwal->exists()) {
                 // format ke waktu lokal
                 $carbonDate = Carbon::parse($objJadwal['tanggal']);
