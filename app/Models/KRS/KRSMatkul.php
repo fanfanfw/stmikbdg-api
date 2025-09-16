@@ -47,13 +47,28 @@ class KRSMatkul extends Model
             ->with(['kelasKuliahJoin' => function ($query) {
                 $query->select(
                     'kelas_kuliah_id', 'tahun_id', 'jur_id', 'mk_id', 'join_kelas_kuliah_id', 'kjoin_kelas', 'kelas_kuliah', 'jns_mhs', 'sts_kelas', 'pengajar_id', 'join_jur'
-                )->with(['dosen' => function ($query) {
+                )
+                ->with(['dosen' => function ($query) {
                     $query->select('dosen_id', 'kd_dosen', 'nm_dosen', 'gelar');
-                }])->with(['matakuliah' => function ($query) {
+                }])
+                ->with(['matakuliah' => function ($query) {
                     $query->select('mk_id', 'kur_id', 'kd_mk', 'nm_mk', 'semester', 'sks', 'sts_mk', 'smt', 'kd_kur');
                 }])
                 ->with('tahun_ajaran.minimal_presensi');
-            }])->get();
+            }])
+            ->with(['kelasKuliah' => function ($query) {
+                $query->select(
+                    'kelas_kuliah_id', 'tahun_id', 'jur_id', 'mk_id', 'join_kelas_kuliah_id', 'kjoin_kelas', 'kelas_kuliah', 'jns_mhs', 'sts_kelas', 'pengajar_id', 'join_jur'
+                )
+                ->with(['dosen' => function ($query) {
+                    $query->select('dosen_id', 'kd_dosen', 'nm_dosen', 'gelar');
+                }])
+                ->with(['matakuliah' => function ($query) {
+                    $query->select('mk_id', 'kur_id', 'kd_mk', 'nm_mk', 'semester', 'sks', 'sts_mk', 'smt', 'kd_kur');
+                }])
+                ->with('tahun_ajaran.minimal_presensi');
+            }])
+            ->get();
     }
 
     public function scopeGetKRSMatkulDisejutuiByKelasKuliahIdArr(Builder $query, $kelasKuliahIdArr) {
