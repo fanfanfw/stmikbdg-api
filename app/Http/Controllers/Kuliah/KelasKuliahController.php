@@ -108,20 +108,11 @@ class KelasKuliahController extends Controller {
         try {
 
             $isDebug = $request->query('debug');
+            $debugSection = $request->query('debug_section');
 
             $filterHari = $request->query('hari');
             $mahasiswa = $this->getUserAuth();
             $tahunAjaranAktif = TahunAjaranView::getTahunAjaran($mahasiswa);
-
-            // return response()->json([
-            //     'data' => [
-            //         isset($tahunAjaranAktif),
-            //         empty($tahunAjaranAktif),
-            //         // !$tahunAjaranAktif['tahun_id'] ? true : false,
-            //         $tahunAjaranAktif->exists(),
-            //         // $tahunAjaranAktif->isEmpty()
-            //     ]
-            // ]);
 
             if(!$tahunAjaranAktif->exists()) {
                 return response()->json([
@@ -133,17 +124,28 @@ class KelasKuliahController extends Controller {
             $lastKRS = KRS::where('tahun_id', $tahunAjaranAktif['tahun_id'])
                 ->where('mhs_id', $mahasiswa['mhs_id'])
                 ->first();
+
+            if($isDebug && $debugSection === '1') {
+                return $this->debug_log([
+                    'lastKRS' => $lastKRS
+                ]);
+            }
             
 
             if ($lastKRS) {
                 if ($lastKRS['sts_krs'] == 'S') {
                     $krsMatkul = KRSMatkul::getKRSMatkulWithKelasKuliah($lastKRS['krs_id'])->toArray();
-                    $kelasKuliah = $krsMatkul;
+                    $kelasKuliah = array_map(function ($item) {
+                        return $item['kelas_kuliah_join'];
+                    }, $krsMatkul);
 
-                    // return $this->debug_log([
-                    //     'krsMatkul' => $krsMatkul,
-                    //     'kelasKuliah' => $kelasKuliah
-                    // ]);
+                    if($isDebug && $debugSection === '2') {
+                        return $this->debug_log([
+                            'lastKRS' => $lastKRS,
+                            'krsMatkul' => $krsMatkul,
+                            'kelasKuliah' => $kelasKuliah
+                        ]);
+                    }
 
                     if (count($kelasKuliah) > 0) {
                         foreach ($kelasKuliah as $index => $item) {
@@ -201,7 +203,7 @@ class KelasKuliahController extends Controller {
                                 $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
                             }else{
 
-                                $matakuliah = MatKulView::where('mk_id', $item['mk_id'])
+                                $matakuliah = MatKulView::where('mk_id', $krsMatkul[$index]['mk_id'])
                                     ->select('mk_id', 'kd_mk', 'nm_mk', 'semester', 'sks', 'sts_mk', 'smt')
                                     ->first();
 
