@@ -18,6 +18,7 @@ use App\Models\KelasKuliah\Pertemuan;
 use App\Models\KelasKuliah\Presensi;
 use App\Models\KRS\KRS;
 use App\Models\KRS\KRSMatkul;
+use App\Models\KRS\MatKulView;
 
 class KelasKuliahController extends Controller {
     public function getKelasKuliahByDosen(Request $request) {
@@ -137,9 +138,7 @@ class KelasKuliahController extends Controller {
             if ($lastKRS) {
                 if ($lastKRS['sts_krs'] == 'S') {
                     $krsMatkul = KRSMatkul::getKRSMatkulWithKelasKuliah($lastKRS['krs_id'])->toArray();
-                    $kelasKuliah = array_map(function ($item) {
-                        return $item['kelas_kuliah_join'];
-                    }, $krsMatkul);
+                    $kelasKuliah = $krsMatkul;
 
                     // return $this->debug_log([
                     //     'krsMatkul' => $krsMatkul,
@@ -149,61 +148,74 @@ class KelasKuliahController extends Controller {
                     if (count($kelasKuliah) > 0) {
                         foreach ($kelasKuliah as $index => $item) {
 
-                            $jadwal = isset($item['kelas_kuliah_id']) 
-                                ? JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false)
-                                : null;
+                            if(isset($item['kelas_kuliah_id'])) {
 
-                            $kontrakKuliah = isset($item['kelas_kuliah_id'])
-                                ? KontrakKelasKuliah::getKontrakKelasKuliah($item) 
-                                : null;
-
-                            // get riwayat presensi mahasiswa
-                            $arrPertemuan = isset($item['kelas_kuliah_id'])
-                                ? Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
+                                $jadwal = JadwalView::getJadwalKelasKuliah($item['kelas_kuliah_id'], $mahasiswa['mhs_id'], false);
+    
+                                $kontrakKuliah = KontrakKelasKuliah::getKontrakKelasKuliah($item);
+    
+                                // get riwayat presensi mahasiswa
+                                $arrPertemuan = Pertemuan::where('kelas_kuliah_id', $item['kelas_kuliah_id'])
                                     ->select('pertemuan_id')
                                     ->get()
                                     ->pluck('pertemuan_id')
-                                    ->toArray()
-                                : [];
+                                    ->toArray();
+    
+                                $riwayatPresensi = [];
+    
+                                if ($arrPertemuan) {
+                                    $riwayatPresensi = Presensi::whereIn('pertemuan_id', $arrPertemuan)
+                                        ->where('mhs_id', $mahasiswa['mhs_id'])
+                                        ->select('masuk')
+                                        ->get();
+                                }
+    
+                                $formattedItem = [
+                                    'data_kelas' => [
+                                        'kelas_kuliah_id' => $item['kelas_kuliah_id'],
+                                        'tahun_id' => $item['tahun_id'],
+                                        'jur_id' => $item['jur_id'],
+                                        'mk_id' => $item['mk_id'],
+                                        'join_kelas_kuliah_id' => $item['join_kelas_kuliah_id'],
+                                        'kjoin_kelas' => $item['kjoin_kelas'],
+                                        'kelas_kuliah' => $item['kelas_kuliah'],
+                                        'jns_mhs' => $item['jns_mhs'],
+                                        'sts_kelas' => $item['sts_kelas'],
+                                        'pengajar_id' => $item['pengajar_id'],
+                                        'join_jur' => $item['join_jur'],
+                                    ],
+                                    'dosen' => $item['dosen'],
+                                    'matakuliah' => $item['matakuliah'],
+                                    'riwayat_presensi' => $riwayatPresensi,
+                                    'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
+                                    'kontrak_kuliah' => $kontrakKuliah->last(),
+                                    'minimal_presensi' => [
+                                        'persentase' => $item['tahun_ajaran']['minimal_presensi']
+                                            ? $item['tahun_ajaran']['minimal_presensi']['persentase']
+                                            : 0,
+                                        'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false
+                                    ],
+                                    'kelas_kuliah_id_exist' => true
+                                ];
+    
+                                $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
+                            }else{
 
-                            $riwayatPresensi = [];
+                                $matakuliah = MatKulView::where('mk_id', $item['mk_id'])
+                                    ->select('mk_id', 'kd_mk', 'nm_mk', 'semester', 'sks', 'sts_mk', 'smt')
+                                    ->first();
 
-                            if ($arrPertemuan) {
-                                $riwayatPresensi = Presensi::whereIn('pertemuan_id', $arrPertemuan)
-                                    ->where('mhs_id', $mahasiswa['mhs_id'])
-                                    ->select('masuk')
-                                    ->get();
+                                $formattedItem = [
+                                    'matakuliah' => $matakuliah,
+                                    'riwayat_presensi' => [],
+                                    'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
+                                    'kontrak_kuliah' => null,
+                                    'minimal_presensi' => null,
+                                    'kelas_kuliah_id_exist' => false
+                                ];
+
+                                $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, null);
                             }
-
-                            $formattedItem = [
-                                'data_kelas' => [
-                                    'kelas_kuliah_id' => isset($item['kelas_kuliah_id']) ? $item['kelas_kuliah_id'] : null,
-                                    'tahun_id' => isset($item['kelas_kuliah_id']) ? $item['tahun_id'] : null,
-                                    'jur_id' => isset($item['kelas_kuliah_id']) ? $item['jur_id'] : null,
-                                    'mk_id' => isset($item['kelas_kuliah_id']) ? $item['mk_id'] : null,
-                                    'join_kelas_kuliah_id' => isset($item['kelas_kuliah_id']) ? $item['join_kelas_kuliah_id'] : null,
-                                    'kjoin_kelas' => isset($item['kelas_kuliah_id']) ? $item['kjoin_kelas'] : null,
-                                    'kelas_kuliah' => isset($item['kelas_kuliah_id']) ? $item['kelas_kuliah'] : null,
-                                    'jns_mhs' => isset($item['kelas_kuliah_id']) ? $item['jns_mhs'] : null,
-                                    'sts_kelas' => isset($item['kelas_kuliah_id']) ? $item['sts_kelas'] : null,
-                                    'pengajar_id' => isset($item['kelas_kuliah_id']) ? $item['pengajar_id'] : null,
-                                    'join_jur' => isset($item['kelas_kuliah_id']) ? $item['join_jur'] : null,
-                                ],
-                                'dosen' => isset($item['kelas_kuliah_id']) ? $item['dosen'] : null,
-                                'matakuliah' => isset($item['kelas_kuliah_id']) ? $item['matakuliah'] : [],
-                                'riwayat_presensi' => isset($item['kelas_kuliah_id']) ? $riwayatPresensi : [],
-                                'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
-                                'kontrak_kuliah' => isset($item['kelas_kuliah_id']) ? $kontrakKuliah->last() : null,
-                                'minimal_presensi' => isset($item['kelas_kuliah_id']) ? [
-                                    'persentase' => $item['tahun_ajaran']['minimal_presensi']
-                                        ? $item['tahun_ajaran']['minimal_presensi']['persentase']
-                                        : 0,
-                                    'is_exist' => $item['tahun_ajaran']['minimal_presensi'] ? true : false
-                                ] : null,
-                                'kelas_kuliah_id_exist' => isset($item['kelas_kuliah_id']) ? true : false
-                            ];
-
-                            $kelasKuliah[$index] = self::setKelasKuliahAndJadwalProperties($formattedItem, $jadwal);
                         }
 
                         // urutkan berdasarkan nama hari, Senin, Selasa, ... Minggu, Unknown
