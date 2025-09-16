@@ -263,16 +263,18 @@ class KelasKuliahController extends Controller {
             $objKelasKuliah['data_kelas']['join_jur'] = trim($objKelasKuliah['data_kelas']['join_jur']);
         }
 
-        $objKelasKuliah['jadwal'] = $objJadwal->exists() ? $objJadwal : null;
-
-        if ($objJadwal->exists()) {
-            // format ke waktu lokal
-            $carbonDate = Carbon::parse($objJadwal['tanggal']);
-            $carbonDate->setLocale('id');
-
-            $objKelasKuliah['jadwal']['kd_ruang'] = trim($objJadwal['kd_ruang']);
-            $objKelasKuliah['jadwal']['nm_hari'] = $carbonDate->dayName;
-            $objKelasKuliah['jadwal']['tanggal_lokal'] = $carbonDate->isoFormat('D MMMM Y');
+        $objKelasKuliah['jadwal'] = $objJadwal ? $objJadwal->exists() ? $objJadwal : null : null;
+        
+        if($objJadwal) {
+            if ($objJadwal->exists()) {
+                // format ke waktu lokal
+                $carbonDate = Carbon::parse($objJadwal['tanggal']);
+                $carbonDate->setLocale('id');
+    
+                $objKelasKuliah['jadwal']['kd_ruang'] = trim($objJadwal['kd_ruang']);
+                $objKelasKuliah['jadwal']['nm_hari'] = $carbonDate->dayName;
+                $objKelasKuliah['jadwal']['tanggal_lokal'] = $carbonDate->isoFormat('D MMMM Y');
+            }
         }
 
         $objKelasKuliah['dosen'] = self::trimNamaDanGelarDosen($objKelasKuliah['dosen']);
