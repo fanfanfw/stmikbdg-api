@@ -208,6 +208,20 @@ class KelasKuliahController extends Controller {
                                     ->first();
 
                                 $formattedItem = [
+                                    'data_kelas' => [
+                                        'kelas_kuliah_id' => null,
+                                        'tahun_id' => $lastKRS['tahun_id'],
+                                        'jur_id' => $matakuliah ? $matakuliah['jur_id'] : null,
+                                        'mk_id' => $krsMatkul[$index]['mk_id'],
+                                        'join_kelas_kuliah_id' => null,
+                                        'kjoin_kelas' => null,
+                                        'kelas_kuliah' => null,
+                                        'jns_mhs' => $lastKRS['jns_mhs'],
+                                        'sts_kelas' => null,
+                                        'pengajar_id' => null,
+                                        'join_jur' => null,
+                                    ],
+                                    'dosen' => null,
                                     'matakuliah' => $matakuliah,
                                     'riwayat_presensi' => [],
                                     'riwayat_presensi_maks' => 20, // sementara, untuk menentukan maksimal presensi atau pertemuan kelas,
