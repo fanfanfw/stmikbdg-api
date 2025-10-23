@@ -28,12 +28,13 @@ class ManajemenBiayaController extends Controller
         $mahasiswa = $this->model_mahasiswa->getAllMahasiswa()->whereIn('mhs_id', $data->pluck('mhs_id'))->values();
 
         $data = $data->map(function ($item) use ($mahasiswa) {
-            $data_mahasiswa = $mahasiswa->where('mhs_id', $item->mhs_id)->select(['mhs_id', 'nm_mhs', 'nim', 'masuk_tahun', 'jurusan'])->first();
-            if($data_mahasiswa) {
-                $item['mahasiswa'] = $data_mahasiswa;
-                return $item;
-            }
-        });
+            $item['mahasiswa'] = $mahasiswa->where('mhs_id', $item->mhs_id)->select(['mhs_id', 'nm_mhs', 'nim', 'masuk_tahun', 'jurusan'])->first();
+            return $item;
+        })
+        ->filter(function ($item) {
+            return $item['mahasiswa'] != null;
+        })
+        ->values();
 
         return response()->json([
             'success' => true,
