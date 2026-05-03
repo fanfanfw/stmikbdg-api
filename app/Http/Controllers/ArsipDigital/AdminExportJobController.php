@@ -1,0 +1,88 @@
+<?php
+
+namespace App\Http\Controllers\ArsipDigital;
+
+use App\Exceptions\ErrorHandler;
+use App\Http\Controllers\Controller;
+use App\Services\ArsipDigital\ArsipDigitalStorageService;
+use App\Services\ArsipDigital\ExportJobService;
+use App\Services\ArsipDigital\RoleResolverService;
+use Illuminate\Http\Request;
+
+class AdminExportJobController extends Controller
+{
+    public function index(Request $request, RoleResolverService $roleResolver, ExportJobService $exportJobService)
+    {
+        try {
+            $roleResolver->resolve($request, ['admin']);
+            $filters = $request->validate([
+                'export_type' => ['sometimes', 'in:request,archive_browser,distribution'],
+                'status' => ['sometimes', 'in:queued,processing,completed,failed,expired'],
+            ]);
+
+            return $this->successfulResponseJSON([
+                'export_jobs' => $exportJobService->adminQuery($filters)->get()->toArray(),
+            ]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function store(Request $request, RoleResolverService $roleResolver, ExportJobService $exportJobService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $payload = $request->validate([
+                'export_type' => ['required', 'in:request,archive_browser,distribution'],
+                'filters' => ['required', 'array'],
+                'filters.request_id' => ['required_if:export_type,request', 'integer'],
+                'filters.statuses' => ['sometimes', 'array'],
+                'filters.statuses.*' => ['string', 'in:waiting_verification,approved,rejected,replaced'],
+                'filters.assignment_statuses' => ['sometimes', 'array'],
+                'filters.assignment_statuses.*' => ['string', 'in:not_submitted,waiting_verification,approved,rejected,closed'],
+            ]);
+
+            $exportJob = $exportJobService->create($payload, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['export_job' => $exportJob->toArray()], 'Export job berhasil dibuat.', 201);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function show(Request $request, int $export_job_id, RoleResolverService $roleResolver, ExportJobService $exportJobService)
+    {
+        try {
+            $roleResolver->resolve($request, ['admin']);
+            $exportJob = $exportJobService->findForAdmin($export_job_id);
+
+            return $this->successfulResponseJSON(['export_job' => $exportJob->toArray()]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function download(
+        Request $request,
+        int $export_job_id,
+        RoleResolverService $roleResolver,
+        ExportJobService $exportJobService,
+        ArsipDigitalStorageService $storageService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $exportJob = $exportJobService->findForAdmin($export_job_id);
+            $exportJobService->assertDownloadable($exportJob);
+            $response = $storageService->downloadPrivate(
+                $exportJob->storage_disk,
+                $exportJob->storage_path,
+                'arsip-digital-export-' . $exportJob->export_job_id . '.zip'
+            );
+            $exportJobService->markDownloaded($exportJob, auth()->user(), $role, $request);
+
+            return $response;
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+}
