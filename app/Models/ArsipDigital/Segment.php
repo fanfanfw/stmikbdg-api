@@ -15,4 +15,9 @@ class Segment extends ArsipDigitalModel
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public function members()
+    {
+        return $this->hasMany(SegmentMember::class, 'segment_id', 'segment_id');
+    }
 }
