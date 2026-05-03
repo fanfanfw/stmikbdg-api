@@ -2,11 +2,13 @@
 
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
+use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
 use App\Http\Controllers\ArsipDigital\SegmentController;
+use App\Http\Controllers\ArsipDigital\UserDistributionController;
 use App\Http\Controllers\ArsipDigital\UserRequestController;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +51,19 @@ Route::prefix('/arsip-digital')
         Route::get('/requests/{request_id}', [UserRequestController::class, 'show']);
         Route::post('/request-assignments/{assignment_id}/files/upload', [UserRequestController::class, 'upload']);
         Route::post('/request-assignments/{assignment_id}/files/reuse', [UserRequestController::class, 'reuse']);
+
+        Route::get('/admin/distributions', [AdminDistributionController::class, 'index']);
+        Route::post('/admin/distributions', [AdminDistributionController::class, 'store']);
+        Route::post('/admin/distributions/preview-targets', [AdminDistributionController::class, 'previewTargets']);
+        Route::get('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'show']);
+        Route::put('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'update']);
+        Route::delete('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'destroy']);
+        Route::post('/admin/distributions/{distribution_id}/publish', [AdminDistributionController::class, 'publish']);
+        Route::get('/admin/distributions/{distribution_id}/recipients', [AdminDistributionController::class, 'recipients']);
+        Route::post('/admin/distribution-recipients/{recipient_id}/file', [AdminDistributionController::class, 'uploadRecipientFile']);
+
+        Route::get('/distributions', [UserDistributionController::class, 'index']);
+        Route::get('/distribution-files/{file_id}/download', [UserDistributionController::class, 'download']);
 
         Route::get('/admin/scholarship-types', [ScholarshipController::class, 'types']);
         Route::post('/admin/scholarship-types', [ScholarshipController::class, 'storeType']);
