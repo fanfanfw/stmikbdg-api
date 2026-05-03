@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
+use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
@@ -29,6 +30,7 @@ Route::prefix('/arsip-digital')
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
         Route::post('/files/{file_id}/restore', [ArchiveFileController::class, 'restore']);
+        Route::post('/admin/files/upload-for-user', [AdminRequestAssignmentController::class, 'uploadForUser']);
 
         Route::get('/admin/requests', [AdminRequestController::class, 'index']);
         Route::post('/admin/requests', [AdminRequestController::class, 'store']);
@@ -37,7 +39,11 @@ Route::prefix('/arsip-digital')
         Route::put('/admin/requests/{request_id}', [AdminRequestController::class, 'update']);
         Route::delete('/admin/requests/{request_id}', [AdminRequestController::class, 'destroy']);
         Route::post('/admin/requests/{request_id}/publish', [AdminRequestController::class, 'publish']);
-        Route::get('/admin/requests/{request_id}/progress', [AdminRequestController::class, 'progress']);
+        Route::get('/admin/requests/{request_id}/assignments', [AdminRequestAssignmentController::class, 'assignments']);
+        Route::get('/admin/requests/{request_id}/progress', [AdminRequestAssignmentController::class, 'progress']);
+        Route::post('/admin/request-assignments/{assignment_id}/approve', [AdminRequestAssignmentController::class, 'approve']);
+        Route::post('/admin/request-assignments/{assignment_id}/reject', [AdminRequestAssignmentController::class, 'reject']);
+        Route::get('/admin/request-files/{request_file_id}/download', [AdminRequestAssignmentController::class, 'downloadRequestFile']);
 
         Route::get('/requests', [UserRequestController::class, 'index']);
         Route::get('/requests/{request_id}', [UserRequestController::class, 'show']);
