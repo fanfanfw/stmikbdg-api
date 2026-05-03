@@ -54,3 +54,6 @@ require __DIR__.'/api/ujian.php';
 // ? Additional Routes (Tambahan)
 require __DIR__.'/api/additional.php';
 require __DIR__.'/api/file.php';
+
+// ? Arsip Digital
+require __DIR__.'/api/arsip-digital.php';
