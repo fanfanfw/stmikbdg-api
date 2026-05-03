@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Models\ArsipDigital;
+
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+class ArchiveFile extends ArsipDigitalModel
+{
+    use SoftDeletes;
+
+    protected $table = 'arsip_digital.files';
+    protected $primaryKey = 'file_id';
+    protected $guarded = ['file_id'];
+
+    protected $casts = [
+        'file_size_bytes' => 'integer',
+        'version_number' => 'integer',
+        'is_current' => 'boolean',
+        'metadata' => 'array',
+    ];
+}
