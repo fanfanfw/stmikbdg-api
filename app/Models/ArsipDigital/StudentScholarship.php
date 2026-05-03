@@ -17,4 +17,9 @@ class StudentScholarship extends ArsipDigitalModel
         'start_date' => 'date',
         'end_date' => 'date',
     ];
+
+    public function scholarshipType()
+    {
+        return $this->belongsTo(ScholarshipType::class, 'scholarship_type_id', 'scholarship_type_id');
+    }
 }

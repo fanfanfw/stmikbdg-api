@@ -61,6 +61,11 @@ class ArsipDigitalStorageService
         }, $downloadName ?: basename($path));
     }
 
+    public function deletePrivate(string $disk, string $path): void
+    {
+        Storage::disk($disk)->delete($path);
+    }
+
     public function safeFilename(string $filename): string
     {
         $extension = pathinfo($filename, PATHINFO_EXTENSION);

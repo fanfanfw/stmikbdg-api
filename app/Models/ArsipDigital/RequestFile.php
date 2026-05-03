@@ -17,4 +17,19 @@ class RequestFile extends ArsipDigitalModel
         'is_current' => 'boolean',
         'reviewed_at' => 'datetime',
     ];
+
+    public function file()
+    {
+        return $this->belongsTo(ArchiveFile::class, 'file_id', 'file_id');
+    }
+
+    public function assignment()
+    {
+        return $this->belongsTo(RequestAssignment::class, 'assignment_id', 'assignment_id');
+    }
+
+    public function request()
+    {
+        return $this->belongsTo(ArchiveRequest::class, 'request_id', 'request_id');
+    }
 }

@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArchiveFileService
@@ -18,6 +17,7 @@ class ArchiveFileService
         private readonly ArsipDigitalSettingsService $settings,
         private readonly ArsipDigitalStorageService $storage,
         private readonly TargetResolverService $targetResolver,
+        private readonly ArchiveUploadValidationService $uploadValidation,
     ) {
     }
 
@@ -68,7 +68,11 @@ class ArchiveFileService
         }
 
         $settings = $this->settings->getDefaults();
-        $this->validateUploadedFile($uploadedFile, $settings);
+        $this->uploadValidation->validateUploadedFile(
+            $uploadedFile,
+            (int) $settings['default_max_file_size_mb'],
+            $settings['default_allowed_extensions']
+        );
 
         $category = null;
         if (! empty($payload['category_id'])) {
@@ -211,25 +215,6 @@ class ArchiveFileService
     public function normalizeDisplayFilename(string $filename): string
     {
         return $this->storage->safeFilename($filename);
-    }
-
-    private function validateUploadedFile(UploadedFile $file, array $settings): void
-    {
-        $maxBytes = ((int) $settings['default_max_file_size_mb']) * 1024 * 1024;
-        if ($file->getSize() > $maxBytes) {
-            throw ValidationException::withMessages([
-                'file' => 'Ukuran file melebihi batas ' . $settings['default_max_file_size_mb'] . ' MB.',
-            ]);
-        }
-
-        $allowedExtensions = array_map('strtolower', $settings['default_allowed_extensions']);
-        $extension = strtolower($file->getClientOriginalExtension());
-
-        if (! in_array($extension, $allowedExtensions, true)) {
-            throw ValidationException::withMessages([
-                'file' => 'Ekstensi file tidak diizinkan.',
-            ]);
-        }
     }
 
     private function nextPersonalVersion(int $ownerUserId, ?int $categoryId, string $displayFilename): array

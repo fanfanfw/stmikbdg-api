@@ -25,4 +25,9 @@ class ArchiveRequest extends ArsipDigitalModel
         'published_at' => 'datetime',
         'closed_at' => 'datetime',
     ];
+
+    public function assignments()
+    {
+        return $this->hasMany(RequestAssignment::class, 'request_id', 'request_id');
+    }
 }

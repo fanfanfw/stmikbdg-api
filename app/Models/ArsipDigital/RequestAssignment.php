@@ -19,4 +19,14 @@ class RequestAssignment extends ArsipDigitalModel
         'submitted_at' => 'datetime',
         'verified_at' => 'datetime',
     ];
+
+    public function request()
+    {
+        return $this->belongsTo(ArchiveRequest::class, 'request_id', 'request_id');
+    }
+
+    public function requestFiles()
+    {
+        return $this->hasMany(RequestFile::class, 'assignment_id', 'assignment_id');
+    }
 }
