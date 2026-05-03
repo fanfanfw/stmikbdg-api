@@ -148,9 +148,14 @@ class ExportJobService
 
             return $exportJob->fresh();
         } catch (\Throwable $e) {
+            $this->cleanupFailedObject($exportJob);
+
             $exportJob->fill([
                 'status' => 'failed',
                 'error_message' => $e->getMessage(),
+                'storage_disk' => null,
+                'storage_path' => null,
+                'file_size_bytes' => null,
             ]);
             $exportJob->save();
 
@@ -166,9 +171,14 @@ class ExportJobService
             return;
         }
 
+        $this->cleanupFailedObject($exportJob);
+
         $exportJob->fill([
             'status' => 'failed',
             'error_message' => $e->getMessage(),
+            'storage_disk' => null,
+            'storage_path' => null,
+            'file_size_bytes' => null,
         ]);
         $exportJob->save();
     }
@@ -304,8 +314,19 @@ class ExportJobService
             );
 
             $stream = fopen($zipPath, 'r');
+            $storedPath = null;
             try {
-                Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+                $storedPath = $storagePath;
+                $stored = Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+                if ($stored === false) {
+                    throw new HttpException(500, 'Gagal menyimpan file ZIP export.');
+                }
+            } catch (\Throwable $e) {
+                if ($storedPath) {
+                    Storage::disk($disk)->delete($storedPath);
+                }
+
+                throw $e;
             } finally {
                 if (is_resource($stream)) {
                     fclose($stream);
@@ -356,6 +377,19 @@ class ExportJobService
         }
 
         return $tempFile;
+    }
+
+    private function cleanupFailedObject(ExportJob $exportJob): void
+    {
+        if (! $exportJob->storage_disk || ! $exportJob->storage_path) {
+            return;
+        }
+
+        try {
+            Storage::disk($exportJob->storage_disk)->delete($exportJob->storage_path);
+        } catch (\Throwable) {
+            // Failure cleanup must not hide the original job failure.
+        }
     }
 
     private function uniqueZipEntryName(array &$usedNames, string $filename): string
