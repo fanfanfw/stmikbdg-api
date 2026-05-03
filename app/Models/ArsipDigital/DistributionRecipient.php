@@ -15,4 +15,14 @@ class DistributionRecipient extends ArsipDigitalModel
     protected $casts = [
         'metadata' => 'array',
     ];
+
+    public function distribution()
+    {
+        return $this->belongsTo(Distribution::class, 'distribution_id', 'distribution_id');
+    }
+
+    public function file()
+    {
+        return $this->belongsTo(ArchiveFile::class, 'file_id', 'file_id');
+    }
 }

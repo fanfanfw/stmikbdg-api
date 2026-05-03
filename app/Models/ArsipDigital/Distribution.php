@@ -18,4 +18,9 @@ class Distribution extends ArsipDigitalModel
         'target_segment_ids' => 'array',
         'published_at' => 'datetime',
     ];
+
+    public function recipients()
+    {
+        return $this->hasMany(DistributionRecipient::class, 'distribution_id', 'distribution_id');
+    }
 }
