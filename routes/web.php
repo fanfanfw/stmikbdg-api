@@ -11,6 +11,10 @@ Route::controller(DocsAuthController::class)
         Route::get('/', 'checkToken')->name('check');
         Route::get('/docs/api/logout', 'logout')->name('logout');
     });
+Route::get(
+    'krs/mahasiswa/list-all',
+    [IPcontroller::class, 'getListKRSMahasiswaAll']
+);
 
 Route::controller(DocsController::class)
     ->prefix('/docs/api')
