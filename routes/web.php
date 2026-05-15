@@ -5,6 +5,7 @@ use App\Http\Controllers\Docs\DocsController;
 use App\Http\Controllers\Docs\DocsAuthController;
 use App\Http\Controllers\Docs\DocSuratController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\KRS\IPController;
 
 Route::controller(DocsAuthController::class)
     ->group(function () {
@@ -13,7 +14,7 @@ Route::controller(DocsAuthController::class)
     });
 Route::get(
     'krs/mahasiswa/list-all',
-    [IPcontroller::class, 'getListKRSMahasiswaAll']
+    [IPController::class, 'getListKRSMahasiswaAll']
 );
 
 Route::controller(DocsController::class)
