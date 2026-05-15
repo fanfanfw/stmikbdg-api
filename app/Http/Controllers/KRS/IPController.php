@@ -15,7 +15,6 @@ use App\Models\Users\Dosen;
 
 // ? Models - view
 use App\Models\KRS\MatkulDiselenggarakanView;
-use App\Models\KRS\NilaiAkhirView;
 use App\Models\TahunAjaranView;
 use App\Models\Users\Mahasiswa;
 use App\Models\Users\MahasiswaView;
