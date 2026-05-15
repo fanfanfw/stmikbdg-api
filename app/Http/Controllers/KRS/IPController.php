@@ -8,6 +8,18 @@ use Illuminate\Http\Request;
 
 // ? Models
 use App\Models\KRS\NilaiAkhirView;
+// ? Models - table
+use App\Models\KRS\KRS;
+use App\Models\KRS\KRSMatkul;
+use App\Models\Users\Dosen;
+
+// ? Models - view
+use App\Models\KRS\MatkulDiselenggarakanView;
+use App\Models\KRS\NilaiAkhirView;
+use App\Models\TahunAjaranView;
+use App\Models\Users\Mahasiswa;
+use App\Models\Users\MahasiswaView;
+
 
 class IPController extends Controller
 {
