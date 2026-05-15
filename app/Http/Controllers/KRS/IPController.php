@@ -94,6 +94,43 @@ class IPController extends Controller
             return ErrorHandler::handle($e);
         }
     }
+    //Ini titipan 
+    public function getListKRSMahasiswaAll(Request $request)
+{
+    try {
+
+        $tahunId = $request->query('tahun_id');
+        $semester = $request->query('semester');
+
+        $listMahasiswa = Mahasiswa::with([
+            'krs' => function ($query) use ($tahunId, $semester) {
+
+                if ($tahunId) {
+                    $query->where('tahun_id', $tahunId);
+                }
+
+                if ($semester) {
+                    $query->where('semester', $semester);
+                }
+            }
+        ])->get();
+
+        // hanya yang punya krs
+        $listMahasiswa = $listMahasiswa->filter(function ($item) {
+            return $item->krs->count() > 0;
+        })->values();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'list_krs_mahasiswa' => $listMahasiswa
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return ErrorHandler::handle($e);
+    }
+}
 
     private function getIPBySemester(string $semester, mixed $ipSemester) {
         $ipSemesterArr = $ipSemester->toArray();
