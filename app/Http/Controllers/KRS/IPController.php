@@ -112,31 +112,21 @@ class IPController extends Controller
     try {
 
         $tahunId = $request->query('tahun_id');
-        $semester = $request->query('semester');
 
-        $listMahasiswa = Mahasiswa::with([
-            'krs' => function ($query) use ($tahunId, $semester) {
+        $data = Mahasiswa::with('krs')
+            ->when($tahunId, function ($query) use ($tahunId) {
+                $query->where('tahun_id', $tahunId);
+            })
+            ->get();
 
-                if ($tahunId) {
-                    $query->where('tahun_id', $tahunId);
-                }
-
-                if ($semester) {
-                    $query->where('semester', $semester);
-                }
-            }
-        ])->get();
-
-        // hanya yang punya krs
-        $listMahasiswa = $listMahasiswa->filter(function ($item) {
-            return $item->krs->count() > 0;
+        // hanya mahasiswa yang punya krs
+        $data = $data->filter(function ($item) {
+            return count($item->krs) > 0;
         })->values();
 
         return response()->json([
             'status' => 'success',
-            'data' => [
-                'list_krs_mahasiswa' => $listMahasiswa
-            ]
+            'data' => $data
         ]);
 
     } catch (\Exception $e) {
