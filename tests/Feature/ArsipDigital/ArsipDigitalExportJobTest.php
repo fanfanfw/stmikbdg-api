@@ -78,4 +78,23 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
             'error_message' => 'zip gagal',
         ], 'sqlite');
     }
+
+    public function test_archive_browser_export_job_can_be_created_from_file_filters(): void
+    {
+        Queue::fake();
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/export-jobs', [
+                'export_type' => 'archive_browser',
+                'filters' => [
+                    'owner_role' => 'mahasiswa',
+                    'owner_identifier' => '22010001',
+                    'extension' => 'pdf',
+                    'with_deleted' => false,
+                ],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.export_job.export_type', 'archive_browser')
+            ->assertJsonPath('data.export_job.status', 'queued');
+    }
 }
