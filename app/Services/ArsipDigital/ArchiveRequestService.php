@@ -232,30 +232,7 @@ class ArchiveRequestService
             $request->save();
 
             foreach ($preview['valid_targets'] as $target) {
-                $assignment = RequestAssignment::create([
-                    'request_id' => $request->request_id,
-                    'target_user_id' => $target['target_user_id'],
-                    'target_role' => $target['target_role'],
-                    'identifier' => $target['identifier'],
-                    'name_snapshot' => $target['name_snapshot'],
-                    'angkatan_snapshot' => $target['angkatan_snapshot'],
-                    'prodi_snapshot' => $target['prodi_snapshot'],
-                    'status_snapshot' => $target['status_snapshot'],
-                    'scholarship_snapshot' => $target['scholarship_snapshot'],
-                    'metadata' => $target['metadata'],
-                    'status' => 'not_submitted',
-                ]);
-
-                $this->auditLog->record(
-                    'request_assignment.created',
-                    'request_assignment',
-                    $assignment->assignment_id,
-                    'Assignment request arsip digital dibuat saat publish.',
-                    ['request_id' => $request->request_id, 'identifier' => $assignment->identifier],
-                    $httpRequest,
-                    $actor->id,
-                    $actorRole
-                );
+                $this->createAssignmentFromTarget($request, $target, $actor, $actorRole, $httpRequest, 'request_assignment.created', 'Assignment request arsip digital dibuat saat publish.');
             }
 
             $this->auditLog->record(
@@ -271,6 +248,123 @@ class ArchiveRequestService
 
             return $request->fresh(['assignments']);
         });
+    }
+
+    public function appendTargets(ArchiveRequest $request, array $payload, object $actor, string $actorRole, $httpRequest = null): array
+    {
+        if ($request->status !== 'published') {
+            throw new HttpException(422, 'Target hanya dapat ditambahkan ke request published.');
+        }
+
+        if ($payload['target_role'] !== $request->target_role) {
+            throw new HttpException(422, 'Role target tambahan harus sama dengan role request.');
+        }
+
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($request, $payload, $actor, $actorRole, $httpRequest): array {
+            $preview = $this->previewForPayload($payload);
+            $existingIdentifiers = RequestAssignment::where('request_id', $request->request_id)
+                ->where('target_role', $request->target_role)
+                ->lockForUpdate()
+                ->pluck('identifier')
+                ->map(fn ($identifier): string => trim((string) $identifier))
+                ->flip();
+
+            $created = [];
+            $duplicates = [];
+
+            foreach ($preview['valid_targets'] as $target) {
+                $identifier = trim((string) $target['identifier']);
+
+                if ($existingIdentifiers->has($identifier)) {
+                    $duplicates[] = $target;
+                    continue;
+                }
+
+                $assignment = RequestAssignment::query()->createOrFirst(
+                    [
+                        'request_id' => $request->request_id,
+                        'target_role' => $target['target_role'],
+                        'identifier' => $target['identifier'],
+                    ],
+                    $this->assignmentAttributesFromTarget($target)
+                );
+
+                if ($assignment->wasRecentlyCreated) {
+                    $created[] = $target + ['assignment_id' => $assignment->assignment_id];
+                    $existingIdentifiers->put($identifier, true);
+                    $this->auditAssignmentCreated($assignment, $request, $actor, $actorRole, $httpRequest, 'request_assignment.appended', 'Assignment request arsip digital ditambahkan setelah publish.');
+                    continue;
+                }
+
+                $duplicates[] = $target;
+                $existingIdentifiers->put($identifier, true);
+            }
+
+            $this->auditLog->record(
+                'request.targets_appended',
+                'request',
+                $request->request_id,
+                'Target request arsip digital ditambahkan setelah publish.',
+                [
+                    'created' => count($created),
+                    'skipped_duplicate' => count($duplicates),
+                    'invalid' => $preview['total_invalid'],
+                ],
+                $httpRequest,
+                $actor->id,
+                $actorRole
+            );
+
+            return [
+                'created' => count($created),
+                'skipped_duplicate' => count($duplicates),
+                'invalid' => $preview['total_invalid'],
+                'created_targets' => array_values($created),
+                'duplicate_targets' => array_values($duplicates),
+                'invalid_targets' => $preview['invalid_targets'],
+            ];
+        });
+    }
+
+    private function createAssignmentFromTarget(ArchiveRequest $request, array $target, object $actor, string $actorRole, $httpRequest, string $event, string $message): RequestAssignment
+    {
+        $assignment = RequestAssignment::create([
+            'request_id' => $request->request_id,
+            'target_role' => $target['target_role'],
+            'identifier' => $target['identifier'],
+        ] + $this->assignmentAttributesFromTarget($target));
+
+        $this->auditAssignmentCreated($assignment, $request, $actor, $actorRole, $httpRequest, $event, $message);
+
+        return $assignment;
+    }
+
+    private function assignmentAttributesFromTarget(array $target): array
+    {
+        return [
+            'target_user_id' => $target['target_user_id'],
+            'name_snapshot' => $target['name_snapshot'],
+            'angkatan_snapshot' => $target['angkatan_snapshot'],
+            'prodi_snapshot' => $target['prodi_snapshot'],
+            'status_snapshot' => $target['status_snapshot'],
+            'scholarship_snapshot' => $target['scholarship_snapshot'],
+            'metadata' => $target['metadata'],
+            'status' => 'not_submitted',
+        ];
+    }
+
+    private function auditAssignmentCreated(RequestAssignment $assignment, ArchiveRequest $request, object $actor, string $actorRole, $httpRequest, string $event, string $message): void
+    {
+        $this->auditLog->record(
+            $event,
+            'request_assignment',
+            $assignment->assignment_id,
+            $message,
+            ['request_id' => $request->request_id, 'identifier' => $assignment->identifier],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
     }
 
     public function fileSummary(ArchiveRequest $request): array
