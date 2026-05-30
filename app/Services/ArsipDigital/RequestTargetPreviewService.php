@@ -5,6 +5,7 @@ namespace App\Services\ArsipDigital;
 use App\Models\ArsipDigital\Segment;
 use App\Models\ArsipDigital\SegmentMember;
 use App\Models\ArsipDigital\StudentScholarship;
+use App\Models\Users\DosenView;
 use App\Models\Users\MahasiswaView;
 use App\Models\Users\User;
 use Illuminate\Support\Collection;
@@ -99,7 +100,23 @@ class RequestTargetPreviewService
     private function filterIdentifiers(string $targetRole, array $filters): Collection
     {
         if ($targetRole === 'dosen') {
-            return $this->allIdentifiers('dosen');
+            $query = DosenView::query()->whereNotNull('kd_dosen');
+
+            if (! empty($filters['student_status'])) {
+                $query->whereIn('sts_dosen', (array) $filters['student_status']);
+            }
+
+            $identifiers = $query->pluck('kd_dosen')->map(fn ($value): string => trim((string) $value))->unique()->values();
+
+            if (array_key_exists('has_account', $filters) && $filters['has_account'] === true) {
+                $accountIdentifiers = User::where('kd_user', 'like', 'DSN-%')
+                    ->pluck('kd_user')
+                    ->map(fn (string $kdUser): string => substr($kdUser, 4));
+
+                return $identifiers->intersect($accountIdentifiers)->values();
+            }
+
+            return $identifiers;
         }
 
         $hasScholarshipFilter = ! empty($filters['scholarship_type_ids']) || ! empty($filters['scholarship_status']);
@@ -132,7 +149,17 @@ class RequestTargetPreviewService
             $query->whereIn('sts_mhs', (array) $filters['student_status']);
         }
 
-        return $query->pluck('nim')->unique()->values();
+        $identifiers = $query->pluck('nim')->map(fn ($value): string => trim((string) $value))->unique()->values();
+
+        if (array_key_exists('has_account', $filters) && $filters['has_account'] === true) {
+            $accountIdentifiers = User::where('kd_user', 'like', 'MHS-%')
+                ->pluck('kd_user')
+                ->map(fn (string $kdUser): string => substr($kdUser, 4));
+
+            return $identifiers->intersect($accountIdentifiers)->values();
+        }
+
+        return $identifiers;
     }
 
     private function segmentIdentifiers(string $targetRole, array $segmentIds): Collection
