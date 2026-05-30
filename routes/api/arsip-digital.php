@@ -44,6 +44,9 @@ Route::prefix('/arsip-digital')
         Route::put('/admin/requests/{request_id}', [AdminRequestController::class, 'update']);
         Route::delete('/admin/requests/{request_id}', [AdminRequestController::class, 'destroy']);
         Route::post('/admin/requests/{request_id}/publish', [AdminRequestController::class, 'publish']);
+        Route::post('/admin/requests/{request_id}/close', [AdminRequestController::class, 'close']);
+        Route::post('/admin/requests/{request_id}/reopen', [AdminRequestController::class, 'reopen']);
+        Route::post('/admin/requests/{request_id}/archive', [AdminRequestController::class, 'archive']);
         Route::get('/admin/requests/{request_id}/assignments', [AdminRequestAssignmentController::class, 'assignments']);
         Route::get('/admin/requests/{request_id}/progress', [AdminRequestAssignmentController::class, 'progress']);
         Route::post('/admin/request-assignments/{assignment_id}/approve', [AdminRequestAssignmentController::class, 'approve']);
