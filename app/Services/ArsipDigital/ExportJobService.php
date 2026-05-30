@@ -3,6 +3,7 @@
 namespace App\Services\ArsipDigital;
 
 use App\Jobs\ArsipDigital\GenerateArchiveExportZipJob;
+use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\ArchiveRequest;
 use App\Models\ArsipDigital\ExportJob;
 use App\Models\ArsipDigital\RequestAssignment;
@@ -39,16 +40,20 @@ class ExportJobService
 
     public function create(array $payload, object $actor, string $actorRole, $httpRequest = null): ExportJob
     {
-        if ($payload['export_type'] !== 'request') {
-            throw new HttpException(422, 'Phase 7 hanya mengaktifkan export_type request.');
-        }
+        $exportType = $payload['export_type'];
+        $filters = match ($exportType) {
+            'request' => $this->normalizeRequestFilters($payload['filters'] ?? []),
+            'archive_browser' => $this->normalizeArchiveBrowserFilters($payload['filters'] ?? []),
+            default => throw new HttpException(422, 'Export type belum didukung.'),
+        };
 
-        $filters = $this->normalizeRequestFilters($payload['filters'] ?? []);
-        ArchiveRequest::findOrFail($filters['request_id']);
+        if ($exportType === 'request') {
+            ArchiveRequest::findOrFail($filters['request_id']);
+        }
 
         $exportJob = ExportJob::create([
             'requested_by_user_id' => $actor->id,
-            'export_type' => 'request',
+            'export_type' => $exportType,
             'filters' => $filters,
             'status' => 'queued',
             'expires_at' => now()->addDays(7),
@@ -66,7 +71,6 @@ class ExportJobService
         );
 
         GenerateArchiveExportZipJob::dispatch($exportJob->export_job_id)
-            ->onConnection('database')
             ->onQueue('default');
 
         return $exportJob->fresh();
@@ -129,11 +133,11 @@ class ExportJobService
         $exportJob->save();
 
         try {
-            if ($exportJob->export_type !== 'request') {
-                throw new HttpException(422, 'Export type belum didukung.');
-            }
-
-            $result = $this->generateRequestZip($exportJob);
+            $result = match ($exportJob->export_type) {
+                'request' => $this->generateRequestZip($exportJob),
+                'archive_browser' => $this->generateArchiveBrowserZip($exportJob),
+                default => throw new HttpException(422, 'Export type belum didukung.'),
+            };
 
             $exportJob->fill([
                 'status' => 'completed',
@@ -220,6 +224,27 @@ class ExportJobService
         return $normalized;
     }
 
+    public function normalizeArchiveBrowserFilters(array $filters): array
+    {
+        $normalized = [];
+
+        if (! empty($filters['file_ids'])) {
+            $normalized['file_ids'] = array_values(array_unique(array_map('intval', (array) $filters['file_ids'])));
+        }
+
+        foreach (['owner_role', 'owner_identifier', 'extension'] as $field) {
+            if (! empty($filters[$field])) {
+                $normalized[$field] = strtolower((string) $filters[$field]);
+            }
+        }
+
+        if (array_key_exists('with_deleted', $filters)) {
+            $normalized['with_deleted'] = filter_var($filters['with_deleted'], FILTER_VALIDATE_BOOL);
+        }
+
+        return $normalized;
+    }
+
     public function zipRootName(ArchiveRequest $request): string
     {
         return $this->safeZipSegment($request->title . '-' . $request->request_id);
@@ -301,6 +326,138 @@ class ExportJobService
 
             if (! empty($missing)) {
                 $zip->addFromString($rootName . '/README.txt', "Target belum memiliki file current sesuai filter:\n" . implode("\n", $missing) . "\n");
+            }
+
+            $zip->close();
+            $zipOpen = false;
+
+            $storagePath = sprintf(
+                'arsip-digital/%s/exports/%s/%s.zip',
+                app()->environment(),
+                $exportJob->export_job_id,
+                Str::uuid()
+            );
+
+            $stream = fopen($zipPath, 'r');
+            $storedPath = null;
+            try {
+                $storedPath = $storagePath;
+                $stored = Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+                if ($stored === false) {
+                    throw new HttpException(500, 'Gagal menyimpan file ZIP export.');
+                }
+            } catch (\Throwable $e) {
+                if ($storedPath) {
+                    Storage::disk($disk)->delete($storedPath);
+                }
+
+                throw $e;
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+
+            return [
+                'storage_disk' => $disk,
+                'storage_path' => $storagePath,
+                'file_size_bytes' => filesize($zipPath) ?: null,
+            ];
+        } finally {
+            if ($zipOpen) {
+                $zip->close();
+            }
+
+            foreach ($tempFiles as $tempFile) {
+                if (is_file($tempFile)) {
+                    @unlink($tempFile);
+                }
+            }
+
+            File::deleteDirectory($tempDirectory);
+        }
+    }
+
+    private function generateArchiveBrowserZip(ExportJob $exportJob): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw new HttpException(500, 'PHP extension ZipArchive belum tersedia.');
+        }
+
+        $filters = $this->normalizeArchiveBrowserFilters($exportJob->filters ?? []);
+        $disk = $this->settings->getDefaults()['storage_disk'];
+        $tempDirectory = storage_path('app/arsip-digital/tmp/export-' . $exportJob->export_job_id . '-' . Str::uuid());
+        $zipPath = $tempDirectory . '/export.zip';
+
+        File::ensureDirectoryExists($tempDirectory);
+
+        $zip = new ZipArchive();
+        $zipOpen = false;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new HttpException(500, 'Gagal membuat file ZIP export.');
+        }
+        $zipOpen = true;
+
+        $tempFiles = [];
+
+        try {
+            $rootName = 'arsip-pengguna-' . now()->format('Ymd-His');
+            $zip->addEmptyDir($rootName);
+
+            $query = ArchiveFile::query()
+                ->where('is_current', true)
+                ->orderBy('owner_role')
+                ->orderBy('owner_identifier')
+                ->orderBy('display_filename');
+
+            if (! empty($filters['with_deleted'])) {
+                $query->withTrashed();
+            }
+
+            if (! empty($filters['file_ids'])) {
+                $query->whereIn('file_id', $filters['file_ids']);
+            }
+
+            if (! empty($filters['owner_role'])) {
+                $query->where('owner_role', $filters['owner_role']);
+            }
+
+            if (! empty($filters['owner_identifier'])) {
+                $query->where('owner_identifier', $filters['owner_identifier']);
+            }
+
+            if (! empty($filters['extension'])) {
+                $query->where('extension', strtolower($filters['extension']));
+            }
+
+            $totalFiles = 0;
+            $missing = [];
+            $usedNames = [];
+
+            $query->chunk(100, function ($files) use ($rootName, $zip, &$tempFiles, &$totalFiles, &$missing, &$usedNames): void {
+                foreach ($files as $file) {
+                    $ownerFolder = $this->safeZipSegment($file->owner_role) . '/' . $this->safeZipSegment($file->owner_identifier . ' - ' . ($file->owner_name_snapshot ?: 'Tanpa Nama'));
+                    $entryName = $this->uniqueZipEntryName($usedNames, $ownerFolder . '/' . $file->display_filename);
+
+                    try {
+                        $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                    } catch (\Throwable $e) {
+                        $missing[] = $file->file_id . ' - ' . $file->display_filename . ': ' . $e->getMessage();
+                        continue;
+                    }
+
+                    $tempFiles[] = $localFile;
+                    $zip->addFile($localFile, $rootName . '/' . $entryName);
+                    $totalFiles++;
+                }
+            });
+
+            if ($totalFiles < 1) {
+                throw new HttpException(422, 'Tidak ada file arsip yang cocok untuk diexport.');
+            }
+
+            if (! empty($missing)) {
+                $zip->addFromString($rootName . '/README.txt', "File yang gagal dimasukkan ke ZIP:\n" . implode("\n", $missing) . "\n");
             }
 
             $zip->close();
