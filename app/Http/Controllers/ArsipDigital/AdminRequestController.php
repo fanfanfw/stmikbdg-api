@@ -46,13 +46,24 @@ class AdminRequestController extends Controller
         }
     }
 
-    public function show(Request $request, int $request_id, RoleResolverService $roleResolver)
+    public function show(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
     {
         try {
             $roleResolver->resolve($request, ['admin']);
-            $archiveRequest = ArchiveRequest::with(['assignments.requestFiles.file'])->findOrFail($request_id);
+            $archiveRequest = ArchiveRequest::withCount([
+                    'assignments',
+                    'assignments as submitted_assignments_count' => fn ($query) => $query->whereIn('status', ['waiting_verification', 'approved', 'rejected']),
+                    'assignments as approved_assignments_count' => fn ($query) => $query->where('status', 'approved'),
+                    'assignments as waiting_verification_assignments_count' => fn ($query) => $query->where('status', 'waiting_verification'),
+                ])
+                ->with(['assignments.requestFiles.file'])
+                ->findOrFail($request_id);
 
-            return $this->successfulResponseJSON(['request' => $archiveRequest->toArray()]);
+            return $this->successfulResponseJSON([
+                'request' => $archiveRequest->toArray(),
+                'progress' => $requestService->progress($archiveRequest),
+                'file_summary' => $requestService->fileSummary($archiveRequest),
+            ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
@@ -116,6 +127,45 @@ class AdminRequestController extends Controller
             $archiveRequest = $requestService->publish($archiveRequest, auth()->user(), $role, $request);
 
             return $this->successfulResponseJSON(['request' => $archiveRequest->toArray()], 'Request berhasil dipublish.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function close(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $archiveRequest = ArchiveRequest::findOrFail($request_id);
+            $archiveRequest = $requestService->close($archiveRequest, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['request' => $archiveRequest->toArray()], 'Request berhasil ditutup.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function reopen(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $archiveRequest = ArchiveRequest::findOrFail($request_id);
+            $archiveRequest = $requestService->reopen($archiveRequest, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['request' => $archiveRequest->toArray()], 'Request berhasil dibuka lagi.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function archive(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $archiveRequest = ArchiveRequest::findOrFail($request_id);
+            $archiveRequest = $requestService->archive($archiveRequest, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['request' => $archiveRequest->toArray()], 'Request berhasil diarsipkan.');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

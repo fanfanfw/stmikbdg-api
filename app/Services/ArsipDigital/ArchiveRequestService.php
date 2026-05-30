@@ -113,6 +113,85 @@ class ArchiveRequestService
         $request->delete();
     }
 
+    public function close(ArchiveRequest $request, object $actor, string $actorRole, $httpRequest = null): ArchiveRequest
+    {
+        if ($request->status !== 'published') {
+            throw new HttpException(422, 'Hanya request published yang dapat ditutup.');
+        }
+
+        $request->fill([
+            'status' => 'closed',
+            'closed_at' => now(),
+        ]);
+        $request->save();
+
+        $this->auditLog->record(
+            'request.closed',
+            'request',
+            $request->request_id,
+            'Request arsip digital ditutup manual.',
+            [],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
+
+        return $request->fresh(['assignments']);
+    }
+
+    public function reopen(ArchiveRequest $request, object $actor, string $actorRole, $httpRequest = null): ArchiveRequest
+    {
+        if ($request->status !== 'closed') {
+            throw new HttpException(422, 'Hanya request closed yang dapat dibuka lagi.');
+        }
+
+        $request->fill([
+            'status' => 'published',
+            'closed_at' => null,
+        ]);
+        $request->save();
+
+        $this->auditLog->record(
+            'request.reopened',
+            'request',
+            $request->request_id,
+            'Request arsip digital dibuka lagi.',
+            [],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
+
+        return $request->fresh(['assignments']);
+    }
+
+    public function archive(ArchiveRequest $request, object $actor, string $actorRole, $httpRequest = null): ArchiveRequest
+    {
+        if (! in_array($request->status, ['draft', 'closed'], true)) {
+            throw new HttpException(422, 'Request hanya dapat diarsipkan saat draft atau closed.');
+        }
+
+        $previousStatus = $request->status;
+        $request->fill(['status' => 'archived']);
+        if ($request->closed_at === null) {
+            $request->closed_at = now();
+        }
+        $request->save();
+
+        $this->auditLog->record(
+            'request.archived',
+            'request',
+            $request->request_id,
+            'Request arsip digital diarsipkan.',
+            ['previous_status' => $previousStatus],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
+
+        return $request->fresh(['assignments']);
+    }
+
     public function previewForPayload(array $payload): array
     {
         return $this->targetPreview->preview($payload);
@@ -192,6 +271,23 @@ class ArchiveRequestService
 
             return $request->fresh(['assignments']);
         });
+    }
+
+    public function fileSummary(ArchiveRequest $request): array
+    {
+        $assignments = RequestAssignment::where('request_id', $request->request_id)->with('requestFiles')->get();
+        $currentFiles = $assignments
+            ->flatMap(fn (RequestAssignment $assignment) => $assignment->requestFiles)
+            ->filter(fn ($requestFile): bool => (bool) $requestFile->is_current && $requestFile->deleted_at === null);
+
+        return [
+            'total_current_files' => $currentFiles->count(),
+            'assignments_with_files' => $currentFiles->pluck('assignment_id')->unique()->count(),
+            'waiting_verification_files' => $currentFiles->where('status', 'waiting_verification')->count(),
+            'approved_files' => $currentFiles->where('status', 'approved')->count(),
+            'rejected_files' => $currentFiles->where('status', 'rejected')->count(),
+            'late_files' => $currentFiles->where('is_late', true)->count(),
+        ];
     }
 
     public function progress(ArchiveRequest $request): array
