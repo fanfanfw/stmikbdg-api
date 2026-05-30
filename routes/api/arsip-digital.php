@@ -50,6 +50,8 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/requests/{request_id}/archive', [AdminRequestController::class, 'archive']);
         Route::get('/admin/requests/{request_id}/assignments', [AdminRequestAssignmentController::class, 'assignments']);
         Route::get('/admin/requests/{request_id}/progress', [AdminRequestAssignmentController::class, 'progress']);
+        Route::post('/admin/request-assignments/bulk-approve', [AdminRequestAssignmentController::class, 'bulkApprove']);
+        Route::post('/admin/request-assignments/bulk-reject', [AdminRequestAssignmentController::class, 'bulkReject']);
         Route::post('/admin/request-assignments/{assignment_id}/approve', [AdminRequestAssignmentController::class, 'approve']);
         Route::post('/admin/request-assignments/{assignment_id}/reject', [AdminRequestAssignmentController::class, 'reject']);
         Route::get('/admin/request-files/{request_file_id}/download', [AdminRequestAssignmentController::class, 'downloadRequestFile']);

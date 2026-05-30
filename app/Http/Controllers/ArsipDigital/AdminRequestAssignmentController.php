@@ -100,6 +100,45 @@ class AdminRequestAssignmentController extends Controller
         }
     }
 
+    public function bulkApprove(
+        Request $request,
+        RoleResolverService $roleResolver,
+        AdminRequestMonitoringService $monitoringService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $payload = $request->validate([
+                'assignment_ids' => ['required', 'array', 'min:1'],
+                'assignment_ids.*' => ['integer'],
+            ]);
+            $result = $monitoringService->bulkApprove(array_values(array_unique($payload['assignment_ids'])), auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['result' => $result], 'Bulk approve selesai.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function bulkReject(
+        Request $request,
+        RoleResolverService $roleResolver,
+        AdminRequestMonitoringService $monitoringService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $payload = $request->validate([
+                'assignment_ids' => ['required', 'array', 'min:1'],
+                'assignment_ids.*' => ['integer'],
+                'reason' => ['required', 'string', 'min:1'],
+            ]);
+            $result = $monitoringService->bulkReject(array_values(array_unique($payload['assignment_ids'])), $payload['reason'], auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['result' => $result], 'Bulk reject selesai.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function downloadRequestFile(
         Request $request,
         int $request_file_id,

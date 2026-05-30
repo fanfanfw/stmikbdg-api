@@ -295,6 +295,8 @@ class RequestSubmissionService
             'status' => $status,
             'is_late' => $assignment->is_late || $isLate,
             'submitted_at' => now(),
+            'verified_at' => $status === 'approved' ? now() : null,
+            'verified_by_user_id' => null,
             'reject_reason' => null,
         ]);
         $assignment->save();
