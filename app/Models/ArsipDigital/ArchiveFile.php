@@ -18,4 +18,9 @@ class ArchiveFile extends ArsipDigitalModel
         'is_current' => 'boolean',
         'metadata' => 'array',
     ];
+
+    public function requestFile()
+    {
+        return $this->hasOne(RequestFile::class, 'file_id', 'file_id');
+    }
 }
