@@ -163,6 +163,66 @@ class AdminRequestMonitoringService
         });
     }
 
+    public function bulkApprove(array $assignmentIds, object $actor, string $actorRole, $httpRequest = null): array
+    {
+        $assignments = RequestAssignment::with('requestFiles.file')
+            ->whereIn('assignment_id', $assignmentIds)
+            ->get();
+
+        $updated = [];
+        $skipped = [];
+
+        foreach ($assignments as $assignment) {
+            if ($assignment->status !== 'waiting_verification') {
+                $skipped[] = [
+                    'assignment_id' => $assignment->assignment_id,
+                    'identifier' => $assignment->identifier,
+                    'reason' => 'Status bukan menunggu verifikasi.',
+                ];
+                continue;
+            }
+
+            $updated[] = $this->approve($assignment, $actor, $actorRole, $httpRequest)->toArray();
+        }
+
+        return [
+            'updated' => count($updated),
+            'skipped' => count($skipped),
+            'assignments' => $updated,
+            'skipped_assignments' => $skipped,
+        ];
+    }
+
+    public function bulkReject(array $assignmentIds, string $reason, object $actor, string $actorRole, $httpRequest = null): array
+    {
+        $assignments = RequestAssignment::with('requestFiles.file')
+            ->whereIn('assignment_id', $assignmentIds)
+            ->get();
+
+        $updated = [];
+        $skipped = [];
+
+        foreach ($assignments as $assignment) {
+            if ($assignment->status !== 'waiting_verification') {
+                $skipped[] = [
+                    'assignment_id' => $assignment->assignment_id,
+                    'identifier' => $assignment->identifier,
+                    'reason' => 'Status bukan menunggu verifikasi.',
+                ];
+                continue;
+            }
+
+            $updated[] = $this->reject($assignment, $reason, $actor, $actorRole, $httpRequest)->toArray();
+        }
+
+        return [
+            'updated' => count($updated),
+            'skipped' => count($skipped),
+            'assignments' => $updated,
+            'skipped_assignments' => $skipped,
+        ];
+    }
+
     public function uploadForUser(UploadedFile $uploadedFile, array $payload, object $actor, string $actorRole, $httpRequest = null): array
     {
         $ownerRole = $payload['owner_role'];
