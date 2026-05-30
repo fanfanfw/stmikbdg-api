@@ -5,6 +5,7 @@ use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
+use App\Http\Controllers\ArsipDigital\AdminTargetController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
@@ -36,6 +37,7 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/files/upload-for-user', [AdminRequestAssignmentController::class, 'uploadForUser']);
 
         Route::get('/admin/requests', [AdminRequestController::class, 'index']);
+        Route::get('/admin/targets', [AdminTargetController::class, 'index']);
         Route::post('/admin/requests', [AdminRequestController::class, 'store']);
         Route::post('/admin/requests/preview-targets', [AdminRequestController::class, 'previewTargets']);
         Route::get('/admin/requests/{request_id}', [AdminRequestController::class, 'show']);
