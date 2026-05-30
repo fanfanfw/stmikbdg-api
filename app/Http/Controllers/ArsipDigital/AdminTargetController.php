@@ -52,10 +52,10 @@ class AdminTargetController extends Controller
             ->whereNotNull('nim');
 
         if (! empty($filters['search'])) {
-            $search = '%' . strtoupper($filters['search']) . '%';
+            $search = '%' . $filters['search'] . '%';
             $query->where(function (Builder $query) use ($search): void {
-                $query->where('nim', 'like', $search)
-                    ->orWhere('nm_mhs', 'like', $search);
+                $query->where('nim', 'ilike', $search)
+                    ->orWhere('nm_mhs', 'ilike', $search);
             });
         }
 
@@ -97,10 +97,10 @@ class AdminTargetController extends Controller
             ->whereNotNull('kd_dosen');
 
         if (! empty($filters['search'])) {
-            $search = '%' . strtoupper($filters['search']) . '%';
+            $search = '%' . $filters['search'] . '%';
             $query->where(function (Builder $query) use ($search): void {
-                $query->where('kd_dosen', 'like', $search)
-                    ->orWhere('nm_dosen', 'like', $search);
+                $query->where('kd_dosen', 'ilike', $search)
+                    ->orWhere('nm_dosen', 'ilike', $search);
             });
         }
 
