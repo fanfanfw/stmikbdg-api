@@ -132,6 +132,20 @@ class AdminRequestController extends Controller
         }
     }
 
+    public function appendTargets(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $archiveRequest = ArchiveRequest::findOrFail($request_id);
+            $payload = $this->validatedTargetPayload($request);
+            $summary = $requestService->appendTargets($archiveRequest, $payload, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['summary' => $summary], 'Target berhasil diproses.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function close(Request $request, int $request_id, RoleResolverService $roleResolver, ArchiveRequestService $requestService)
     {
         try {
@@ -205,6 +219,18 @@ class AdminRequestController extends Controller
             'allow_inactive_upload' => ['sometimes', 'boolean'],
             'deadline_at' => ['nullable', 'date'],
             'close_after_deadline' => ['sometimes', 'boolean'],
+        ]);
+    }
+
+    private function validatedTargetPayload(Request $request): array
+    {
+        return $request->validate([
+            'target_role' => ['required', 'in:mahasiswa,dosen'],
+            'scope_type' => ['required', 'in:all,filter,specific,segment'],
+            'target_filters' => ['nullable', 'array'],
+            'target_identifiers' => ['nullable'],
+            'target_segment_ids' => ['nullable', 'array'],
+            'target_segment_ids.*' => ['integer'],
         ]);
     }
 }
