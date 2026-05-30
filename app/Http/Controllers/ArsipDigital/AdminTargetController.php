@@ -80,14 +80,20 @@ class AdminTargetController extends Controller
         return $query->orderByDesc('masuk_tahun')
             ->orderBy('nim')
             ->paginate($filters['per_page'] ?? 25)
-            ->through(fn ($item): array => [
-                'role' => 'mahasiswa',
-                'identifier' => trim((string) $item->nim),
-                'name' => trim((string) $item->nm_mhs),
-                'angkatan' => $item->masuk_tahun,
-                'status' => trim((string) $item->sts_mhs),
-                'has_account' => $accounts->has('MHS-' . trim((string) $item->nim)),
-            ]);
+            ->through(function ($item) use ($accounts): array {
+                $identifier = trim((string) $item->nim);
+                $accountKey = 'MHS-' . $identifier;
+
+                return [
+                    'role' => 'mahasiswa',
+                    'identifier' => $identifier,
+                    'name' => trim((string) $item->nm_mhs),
+                    'angkatan' => $item->masuk_tahun,
+                    'status' => trim((string) $item->sts_mhs),
+                    'has_account' => $accounts->has($accountKey),
+                    'user_id' => $accounts->get($accountKey),
+                ];
+            });
     }
 
     private function dosenTargets(array $filters)
@@ -120,14 +126,20 @@ class AdminTargetController extends Controller
 
         return $query->orderBy('kd_dosen')
             ->paginate($filters['per_page'] ?? 25)
-            ->through(fn ($item): array => [
-                'role' => 'dosen',
-                'identifier' => trim((string) $item->kd_dosen),
-                'name' => trim((string) $item->nm_dosen),
-                'angkatan' => null,
-                'status' => trim((string) $item->sts_dosen),
-                'has_account' => $accounts->has('DSN-' . trim((string) $item->kd_dosen)),
-            ]);
+            ->through(function ($item) use ($accounts): array {
+                $identifier = trim((string) $item->kd_dosen);
+                $accountKey = 'DSN-' . $identifier;
+
+                return [
+                    'role' => 'dosen',
+                    'identifier' => $identifier,
+                    'name' => trim((string) $item->nm_dosen),
+                    'angkatan' => null,
+                    'status' => trim((string) $item->sts_dosen),
+                    'has_account' => $accounts->has($accountKey),
+                    'user_id' => $accounts->get($accountKey),
+                ];
+            });
     }
 
     private function accountMap(string $prefix)

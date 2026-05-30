@@ -30,7 +30,9 @@ class ArchiveFileController extends Controller
 
             $files = $fileService->queryFor(auth()->user(), $role, $filters)->get();
 
-            return $this->successfulResponseJSON(['files' => $files->toArray()]);
+            return $this->successfulResponseJSON([
+                'files' => $files->map(fn ($file): array => $this->filePayload($file))->toArray(),
+            ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
@@ -180,5 +182,39 @@ class ArchiveFileController extends Controller
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
+    }
+
+    private function filePayload($file): array
+    {
+        $payload = $file->toArray();
+        $requestFile = $file->requestFile;
+        $archiveRequest = $requestFile?->request;
+
+        if ($requestFile && $archiveRequest) {
+            $payload['archive_folder'] = [
+                'key' => 'request:' . $archiveRequest->request_id,
+                'type' => 'request',
+                'label' => $archiveRequest->title,
+                'group_label' => 'Permintaan Berkas',
+                'request_id' => $archiveRequest->request_id,
+            ];
+        } elseif ($file->category_id) {
+            $payload['archive_folder'] = [
+                'key' => 'category:' . $file->category_id,
+                'type' => 'category',
+                'label' => 'Kategori #' . $file->category_id,
+                'group_label' => 'Kategori',
+                'category_id' => $file->category_id,
+            ];
+        } else {
+            $payload['archive_folder'] = [
+                'key' => 'root',
+                'type' => 'root',
+                'label' => 'Root',
+                'group_label' => 'Arsip Pribadi',
+            ];
+        }
+
+        return $payload;
     }
 }
