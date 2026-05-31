@@ -61,10 +61,10 @@ class AdminDistributionBulkUploadController extends Controller
     public function confirm(Request $request, int $bulk_upload_job_id, RoleResolverService $roleResolver, DistributionBulkUploadService $service)
     {
         try {
-            $roleResolver->resolve($request, ['admin']);
-            $service->findForAdmin($bulk_upload_job_id);
+            $role = $roleResolver->resolve($request, ['admin']);
+            $job = $service->confirm($bulk_upload_job_id, auth()->user(), $role, $request);
 
-            throw new HttpException(501, 'Konfirmasi bulk upload ZIP belum tersedia pada fase ini.');
+            return $this->successfulResponseJSON(['bulk_upload_job' => $job->toArray()], 'Bulk upload ZIP berhasil dikonfirmasi.');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
