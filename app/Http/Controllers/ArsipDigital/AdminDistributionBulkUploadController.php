@@ -8,7 +8,6 @@ use App\Models\ArsipDigital\Distribution;
 use App\Services\ArsipDigital\DistributionBulkUploadService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminDistributionBulkUploadController extends Controller
 {
@@ -36,6 +35,11 @@ class AdminDistributionBulkUploadController extends Controller
             $role = $roleResolver->resolve($request, ['admin']);
             $request->validate([
                 'zip_file' => ['required', 'file', 'mimes:zip', 'max:102400'],
+            ], [
+                'zip_file.required' => 'File ZIP wajib diunggah.',
+                'zip_file.file' => 'Upload bulk harus berupa file ZIP yang valid.',
+                'zip_file.mimes' => 'File bulk upload harus berformat ZIP (.zip).',
+                'zip_file.max' => 'Ukuran ZIP melebihi batas 100 MB.',
             ]);
             $distribution = Distribution::findOrFail($distribution_id);
             $job = $service->createPreviewJob($distribution, $request->file('zip_file'), auth()->user(), $role, $request);
@@ -73,10 +77,10 @@ class AdminDistributionBulkUploadController extends Controller
     public function cancel(Request $request, int $bulk_upload_job_id, RoleResolverService $roleResolver, DistributionBulkUploadService $service)
     {
         try {
-            $roleResolver->resolve($request, ['admin']);
-            $service->findForAdmin($bulk_upload_job_id);
+            $role = $roleResolver->resolve($request, ['admin']);
+            $job = $service->cancel($bulk_upload_job_id, auth()->user(), $role, $request);
 
-            throw new HttpException(501, 'Pembatalan bulk upload ZIP belum tersedia pada fase ini.');
+            return $this->successfulResponseJSON(['bulk_upload_job' => $job->toArray()], 'Bulk upload ZIP berhasil dibatalkan.');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

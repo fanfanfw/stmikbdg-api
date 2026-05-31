@@ -107,6 +107,22 @@ class DistributionBulkUploadService
         ]);
         $job->save();
 
+        $this->auditLog->record(
+            'distribution_bulk_upload.created',
+            'distribution_bulk_upload_job',
+            $job->bulk_upload_job_id,
+            'Bulk upload ZIP distribution dibuat.',
+            [
+                'distribution_id' => $distribution->distribution_id,
+                'original_filename' => $job->original_filename,
+                'file_size_bytes' => $job->file_size_bytes,
+                'expires_at' => optional($job->expires_at)->toISOString(),
+            ],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
+
         ProcessDistributionBulkUploadZipJob::dispatch($job->bulk_upload_job_id)
             ->onQueue('default');
 
@@ -115,23 +131,25 @@ class DistributionBulkUploadService
 
     public function processPreview(int $jobId): DistributionBulkUploadJob
     {
+        $updated = DistributionBulkUploadJob::where('bulk_upload_job_id', $jobId)
+            ->whereIn('status', ['uploaded', 'failed'])
+            ->update([
+                'status' => 'processing',
+                'error_message' => null,
+                'summary' => null,
+                'processed_at' => null,
+                'updated_at' => now(),
+            ]);
+
         $job = DistributionBulkUploadJob::with('distribution')->findOrFail($jobId);
 
-        if (! in_array($job->status, ['uploaded', 'failed'], true)) {
+        if ($updated !== 1) {
             return $job->fresh(['distribution', 'entries.recipient']);
         }
 
         if (! $job->storage_disk || ! $job->storage_path) {
             throw new HttpException(422, 'File ZIP bulk upload belum tersimpan.');
         }
-
-        $job->fill([
-            'status' => 'processing',
-            'error_message' => null,
-            'summary' => null,
-            'processed_at' => null,
-        ]);
-        $job->save();
 
         $storedEntryPaths = [];
         $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-upload-' . $job->bulk_upload_job_id . '-' . Str::uuid());
@@ -237,6 +255,20 @@ class DistributionBulkUploadService
                 'processed_at' => now(),
             ]);
             $job->save();
+
+            $this->auditLog->record(
+                'distribution_bulk_upload.preview_ready',
+                'distribution_bulk_upload_job',
+                $job->bulk_upload_job_id,
+                'Preview bulk upload ZIP distribution siap ditinjau.',
+                [
+                    'distribution_id' => $job->distribution_id,
+                    'summary' => $summary,
+                ],
+                null,
+                $job->uploaded_by_user_id,
+                'admin'
+            );
 
             return $job->fresh(['distribution', 'entries.recipient']);
         } catch (Throwable $e) {
@@ -418,6 +450,21 @@ class DistributionBulkUploadService
                 ]);
                 $job->save();
 
+                $this->auditLog->record(
+                    'distribution_bulk_upload.confirmed',
+                    'distribution_bulk_upload_job',
+                    $job->bulk_upload_job_id,
+                    'Bulk upload ZIP distribution berhasil dikonfirmasi.',
+                    [
+                        'distribution_id' => $job->distribution_id,
+                        'confirmed' => $confirmed,
+                        'summary' => $summary,
+                    ],
+                    $httpRequest,
+                    $actor->id,
+                    $actorRole
+                );
+
                 return $job;
             });
         } catch (Throwable $e) {
@@ -441,9 +488,43 @@ class DistributionBulkUploadService
 
     public function cancel(int $jobId, object $actor, string $actorRole, $httpRequest = null): DistributionBulkUploadJob
     {
-        $this->findForAdmin($jobId);
+        $job = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($jobId): DistributionBulkUploadJob {
+            $job = DistributionBulkUploadJob::with('distribution')
+                ->where('bulk_upload_job_id', $jobId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        throw new HttpException(501, 'Pembatalan bulk upload ZIP belum tersedia pada fase ini.');
+            if (in_array($job->status, ['confirmed', 'expired', 'cancelled'], true)) {
+                throw new HttpException(422, 'Bulk upload ZIP dengan status ' . $job->status . ' tidak dapat dibatalkan.');
+            }
+
+            if (in_array($job->status, ['processing', 'confirming'], true)) {
+                throw new HttpException(422, 'Bulk upload ZIP sedang diproses dan belum dapat dibatalkan. Tunggu proses selesai atau gagal terlebih dahulu.');
+            }
+
+            $job->fill([
+                'status' => 'cancelled',
+                'error_message' => null,
+            ]);
+            $job->save();
+
+            return $job;
+        });
+
+        $this->cleanupJobTemporaryStorage($job);
+
+        $this->auditLog->record(
+            'distribution_bulk_upload.cancelled',
+            'distribution_bulk_upload_job',
+            $job->bulk_upload_job_id,
+            'Bulk upload ZIP distribution dibatalkan.',
+            ['distribution_id' => $job->distribution_id],
+            $httpRequest,
+            $actor->id,
+            $actorRole
+        );
+
+        return $job->fresh(['distribution', 'entries.recipient']);
     }
 
     public function fail(int $jobId, Throwable $e): void
@@ -454,9 +535,13 @@ class DistributionBulkUploadService
             return;
         }
 
+        if (in_array($job->status, ['confirmed', 'expired', 'cancelled'], true)) {
+            return;
+        }
+
         $job->fill([
             'status' => 'failed',
-            'error_message' => $e->getMessage(),
+            'error_message' => $e->getMessage() ?: 'Proses bulk upload ZIP gagal.',
             'processed_at' => now(),
         ]);
         $job->save();
@@ -464,14 +549,64 @@ class DistributionBulkUploadService
 
     public function cleanupExpired(): int
     {
-        return 0;
+        $count = 0;
+        $expiresAt = now();
+
+        DistributionBulkUploadJob::whereNotNull('expires_at')
+            ->where('expires_at', '<=', $expiresAt)
+            ->whereIn('status', ['uploaded', 'preview_ready', 'failed', 'cancelled'])
+            ->orderBy('bulk_upload_job_id')
+            ->chunkById(100, function ($jobs) use (&$count): void {
+                foreach ($jobs as $job) {
+                    $claimedJob = $this->claimExpiredJobForCleanup((int) $job->bulk_upload_job_id);
+
+                    if (! $claimedJob) {
+                        continue;
+                    }
+
+                    $this->cleanupJobTemporaryStorage($claimedJob);
+                    $count++;
+                }
+            }, 'bulk_upload_job_id');
+
+        return $count;
+    }
+
+    private function claimExpiredJobForCleanup(int $jobId): ?DistributionBulkUploadJob
+    {
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($jobId): ?DistributionBulkUploadJob {
+            $job = DistributionBulkUploadJob::where('bulk_upload_job_id', $jobId)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $job || ! $job->expires_at || $job->expires_at->isFuture()) {
+                return null;
+            }
+
+            if (! in_array($job->status, ['uploaded', 'preview_ready', 'failed', 'cancelled'], true)) {
+                return null;
+            }
+
+            if ($job->status === 'cancelled') {
+                $job->fill(['expires_at' => null]);
+            } else {
+                $job->fill([
+                    'status' => 'expired',
+                    'error_message' => $job->error_message,
+                ]);
+            }
+
+            $job->save();
+
+            return $job;
+        });
     }
 
     private function validateZipUpload(UploadedFile $zipFile): void
     {
         if (strtolower($zipFile->getClientOriginalExtension()) !== 'zip') {
             throw ValidationException::withMessages([
-                'zip_file' => 'File harus berekstensi ZIP.',
+                'zip_file' => 'File bulk upload harus berupa ZIP dengan ekstensi .zip.',
             ]);
         }
 
@@ -490,7 +625,7 @@ class DistributionBulkUploadService
 
         if ($opened !== true) {
             throw ValidationException::withMessages([
-                'zip_file' => 'File ZIP tidak valid atau tidak dapat dibuka.',
+                'zip_file' => 'File ZIP tidak valid, rusak, atau tidak dapat dibuka. Pastikan file adalah arsip .zip yang valid.',
             ]);
         }
 
@@ -934,6 +1069,11 @@ class DistributionBulkUploadService
 
     private function cleanupConfirmedJobTemporaryStorage(DistributionBulkUploadJob $job): void
     {
+        $this->cleanupJobTemporaryStorage($job);
+    }
+
+    private function cleanupJobTemporaryStorage(DistributionBulkUploadJob $job): void
+    {
         $files = [];
 
         if ($job->storage_disk && $job->storage_path) {
@@ -958,7 +1098,7 @@ class DistributionBulkUploadService
             try {
                 Storage::disk($file['disk'])->delete($file['path']);
             } catch (Throwable) {
-                // Best effort cleanup after successful confirm.
+                // Best effort cleanup for temporary bulk upload files.
             }
         }
     }
