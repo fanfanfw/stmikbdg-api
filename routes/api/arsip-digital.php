@@ -3,6 +3,7 @@
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminAuditLogController;
+use App\Http\Controllers\ArsipDigital\AdminDistributionBulkUploadController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
@@ -70,7 +71,12 @@ Route::prefix('/arsip-digital')
         Route::delete('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'destroy']);
         Route::post('/admin/distributions/{distribution_id}/publish', [AdminDistributionController::class, 'publish']);
         Route::get('/admin/distributions/{distribution_id}/recipients', [AdminDistributionController::class, 'recipients']);
+        Route::get('/admin/distributions/{distribution_id}/bulk-upload-jobs', [AdminDistributionBulkUploadController::class, 'index']);
+        Route::post('/admin/distributions/{distribution_id}/bulk-upload-jobs', [AdminDistributionBulkUploadController::class, 'store']);
         Route::post('/admin/distribution-recipients/{recipient_id}/file', [AdminDistributionController::class, 'uploadRecipientFile']);
+        Route::get('/admin/distribution-bulk-upload-jobs/{bulk_upload_job_id}', [AdminDistributionBulkUploadController::class, 'show']);
+        Route::post('/admin/distribution-bulk-upload-jobs/{bulk_upload_job_id}/confirm', [AdminDistributionBulkUploadController::class, 'confirm']);
+        Route::post('/admin/distribution-bulk-upload-jobs/{bulk_upload_job_id}/cancel', [AdminDistributionBulkUploadController::class, 'cancel']);
 
         Route::get('/distributions', [UserDistributionController::class, 'index']);
         Route::get('/distribution-files/{file_id}/download', [UserDistributionController::class, 'download']);
