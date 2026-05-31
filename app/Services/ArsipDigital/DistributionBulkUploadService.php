@@ -3,12 +3,14 @@
 namespace App\Services\ArsipDigital;
 
 use App\Jobs\ArsipDigital\ProcessDistributionBulkUploadZipJob;
+use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Distribution;
 use App\Models\ArsipDigital\DistributionBulkUploadEntry;
 use App\Models\ArsipDigital\DistributionBulkUploadJob;
 use App\Models\ArsipDigital\DistributionRecipient;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -26,6 +28,7 @@ class DistributionBulkUploadService
         private readonly ArsipDigitalSettingsService $settings,
         private readonly ArsipDigitalStorageService $storage,
         private readonly ArchiveUploadValidationService $uploadValidation,
+        private readonly AuditLogService $auditLog,
     ) {
     }
 
@@ -267,9 +270,173 @@ class DistributionBulkUploadService
 
     public function confirm(int $jobId, object $actor, string $actorRole, $httpRequest = null): DistributionBulkUploadJob
     {
-        $this->findForAdmin($jobId);
+        $uploadedFiles = [];
+        $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-confirm-' . $jobId . '-' . Str::uuid());
 
-        throw new HttpException(501, 'Konfirmasi bulk upload ZIP belum tersedia pada fase ini.');
+        try {
+            File::ensureDirectoryExists($tempDirectory);
+
+            $job = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use (
+                $jobId,
+                $actor,
+                $actorRole,
+                $httpRequest,
+                $tempDirectory,
+                &$uploadedFiles
+            ): DistributionBulkUploadJob {
+                $job = DistributionBulkUploadJob::with('distribution')
+                    ->where('bulk_upload_job_id', $jobId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                if ($job->status !== 'preview_ready') {
+                    throw new HttpException(422, 'Bulk upload ZIP hanya dapat dikonfirmasi saat status preview_ready.');
+                }
+
+                if (! $job->distribution || $job->distribution->status !== 'published') {
+                    throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution masih dipublish.');
+                }
+
+                $matchedEntries = DistributionBulkUploadEntry::where('bulk_upload_job_id', $job->bulk_upload_job_id)
+                    ->where('match_status', 'matched')
+                    ->orderBy('bulk_upload_entry_id')
+                    ->lockForUpdate()
+                    ->get();
+
+                if ($matchedEntries->isEmpty()) {
+                    throw new HttpException(422, 'Tidak ada entry matched yang dapat dikonfirmasi.');
+                }
+
+                $job->fill(['status' => 'confirming']);
+                $job->save();
+
+                $confirmed = 0;
+
+                foreach ($matchedEntries as $entry) {
+                    $recipient = DistributionRecipient::with(['distribution', 'file'])
+                        ->where('recipient_id', $entry->recipient_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (! $recipient || $recipient->distribution_id !== $job->distribution_id) {
+                        throw new HttpException(422, 'Recipient matched tidak ditemukan atau bukan bagian dari distribution job.');
+                    }
+
+                    if (! $recipient->distribution || $recipient->distribution->status !== 'published') {
+                        throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution masih dipublish.');
+                    }
+
+                    if (! $entry->temporary_disk || ! $entry->temporary_path) {
+                        throw new HttpException(422, 'File sementara entry tidak tersedia.');
+                    }
+
+                    $storageMetadata = $this->uploadEntryToFinalStorage($entry, $recipient, $tempDirectory);
+                    $uploadedFiles[] = [
+                        'disk' => $storageMetadata['storage_disk'],
+                        'path' => $storageMetadata['storage_path'],
+                    ];
+
+                    $version = $this->nextDistributionVersion($recipient, $entry->display_filename);
+                    $previousFile = $recipient->file;
+
+                    if ($previousFile) {
+                        $previousFile->fill([
+                            'is_current' => false,
+                            'status' => 'replaced',
+                        ]);
+                        $previousFile->save();
+                    }
+
+                    $file = ArchiveFile::create([
+                        'category_id' => null,
+                        'owner_user_id' => $recipient->target_user_id,
+                        'owner_role' => $recipient->target_role,
+                        'owner_identifier' => $recipient->identifier,
+                        'owner_name_snapshot' => $recipient->name_snapshot,
+                        'owner_status_snapshot' => $recipient->status_snapshot,
+                        'uploaded_by_user_id' => $actor->id,
+                        'uploaded_by_role' => $actorRole,
+                        'source_type' => 'distribution',
+                        'original_filename' => $storageMetadata['original_filename'],
+                        'display_filename' => $entry->display_filename,
+                        'storage_disk' => $storageMetadata['storage_disk'],
+                        'storage_path' => $storageMetadata['storage_path'],
+                        'mime_type' => $storageMetadata['mime_type'],
+                        'extension' => $storageMetadata['extension'],
+                        'file_size_bytes' => $storageMetadata['file_size_bytes'],
+                        'checksum_sha256' => $storageMetadata['checksum_sha256'],
+                        'version_group_uuid' => $version['version_group_uuid'],
+                        'version_number' => $version['version_number'],
+                        'is_current' => true,
+                        'status' => 'active',
+                        'metadata' => [
+                            'distribution_id' => $recipient->distribution_id,
+                            'recipient_id' => $recipient->recipient_id,
+                            'bulk_upload_job_id' => $job->bulk_upload_job_id,
+                            'bulk_upload_entry_id' => $entry->bulk_upload_entry_id,
+                        ],
+                    ]);
+
+                    $recipient->fill([
+                        'file_id' => $file->file_id,
+                        'delivery_status' => 'available',
+                    ]);
+                    $recipient->save();
+
+                    $entry->fill([
+                        'match_status' => 'confirmed',
+                        'match_reason' => 'File matched berhasil dikonfirmasi menjadi file distribution.',
+                    ]);
+                    $entry->save();
+
+                    $this->auditLog->record(
+                        'distribution_file.bulk_uploaded',
+                        'distribution_recipient',
+                        $recipient->recipient_id,
+                        'File distribution arsip digital dikonfirmasi dari bulk upload ZIP.',
+                        [
+                            'distribution_id' => $recipient->distribution_id,
+                            'file_id' => $file->file_id,
+                            'bulk_upload_job_id' => $job->bulk_upload_job_id,
+                            'bulk_upload_entry_id' => $entry->bulk_upload_entry_id,
+                        ],
+                        $httpRequest,
+                        $actor->id,
+                        $actorRole
+                    );
+
+                    $confirmed++;
+                }
+
+                $summary = $this->confirmedSummary($job->summary ?? [], $confirmed);
+
+                $job->fill([
+                    'status' => 'confirmed',
+                    'summary' => $summary,
+                    'error_message' => null,
+                    'confirmed_at' => now(),
+                ]);
+                $job->save();
+
+                return $job;
+            });
+        } catch (Throwable $e) {
+            foreach ($uploadedFiles as $uploadedFile) {
+                try {
+                    Storage::disk($uploadedFile['disk'])->delete($uploadedFile['path']);
+                } catch (Throwable) {
+                    // Preserve the original confirm error.
+                }
+            }
+
+            throw $e;
+        } finally {
+            File::deleteDirectory($tempDirectory);
+        }
+
+        $this->cleanupConfirmedJobTemporaryStorage($job);
+
+        return $job->fresh(['distribution', 'entries.recipient']);
     }
 
     public function cancel(int $jobId, object $actor, string $actorRole, $httpRequest = null): DistributionBulkUploadJob
@@ -763,6 +930,114 @@ class DistributionBulkUploadService
                     // Best effort cleanup before reprocessing preview.
                 }
             });
+    }
+
+    private function cleanupConfirmedJobTemporaryStorage(DistributionBulkUploadJob $job): void
+    {
+        $files = [];
+
+        if ($job->storage_disk && $job->storage_path) {
+            $files[] = [
+                'disk' => $job->storage_disk,
+                'path' => $job->storage_path,
+            ];
+        }
+
+        DistributionBulkUploadEntry::where('bulk_upload_job_id', $job->bulk_upload_job_id)
+            ->whereNotNull('temporary_disk')
+            ->whereNotNull('temporary_path')
+            ->get()
+            ->each(function (DistributionBulkUploadEntry $entry) use (&$files): void {
+                $files[] = [
+                    'disk' => $entry->temporary_disk,
+                    'path' => $entry->temporary_path,
+                ];
+            });
+
+        foreach ($files as $file) {
+            try {
+                Storage::disk($file['disk'])->delete($file['path']);
+            } catch (Throwable) {
+                // Best effort cleanup after successful confirm.
+            }
+        }
+    }
+
+    private function uploadEntryToFinalStorage(DistributionBulkUploadEntry $entry, DistributionRecipient $recipient, string $tempDirectory): array
+    {
+        $localPath = $tempDirectory . '/entry-' . $entry->bulk_upload_entry_id . '-' . Str::uuid();
+        $this->copyStorageObjectToLocal($entry->temporary_disk, $entry->temporary_path, $localPath);
+
+        $disk = $this->settings->getDefaults()['storage_disk'];
+        $uuid = (string) Str::uuid();
+        $safeFilename = $this->storage->safeFilename($entry->display_filename);
+        $storagePath = trim(sprintf(
+            'arsip-digital/%s/distributions/%s/%s/%s/%s_%s',
+            app()->environment(),
+            $recipient->distribution_id,
+            $recipient->recipient_id,
+            $uuid,
+            $uuid,
+            $safeFilename
+        ), '/');
+
+        $stream = fopen($localPath, 'r');
+        $stored = false;
+
+        try {
+            $stored = Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+        } finally {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            @unlink($localPath);
+        }
+
+        if ($stored === false) {
+            throw new HttpException(500, 'Gagal menyimpan file distribution hasil bulk upload.');
+        }
+
+        return [
+            'storage_disk' => $disk,
+            'storage_path' => $storagePath,
+            'original_filename' => $entry->original_filename,
+            'display_filename' => $safeFilename,
+            'mime_type' => $entry->mime_type,
+            'extension' => strtolower((string) $entry->extension),
+            'file_size_bytes' => $entry->file_size_bytes,
+            'checksum_sha256' => $entry->checksum_sha256,
+        ];
+    }
+
+    private function nextDistributionVersion(DistributionRecipient $recipient, string $displayFilename): array
+    {
+        $latest = ArchiveFile::withTrashed()
+            ->where('source_type', 'distribution')
+            ->where('display_filename', $displayFilename)
+            ->where('metadata->recipient_id', $recipient->recipient_id)
+            ->orderByDesc('version_number')
+            ->first();
+
+        if (! $latest) {
+            return ['version_group_uuid' => (string) Str::uuid(), 'version_number' => 1];
+        }
+
+        return [
+            'version_group_uuid' => $latest->version_group_uuid,
+            'version_number' => $latest->version_number + 1,
+        ];
+    }
+
+    private function confirmedSummary(array $previewSummary, int $confirmed): array
+    {
+        $totalEntries = (int) ($previewSummary['total_entries'] ?? $confirmed);
+
+        return array_merge($previewSummary, [
+            'confirmed' => $confirmed,
+            'skipped' => max(0, $totalEntries - $confirmed),
+            'failed' => 0,
+        ]);
     }
 
     private function firstValidationMessage(ValidationException $e): string
