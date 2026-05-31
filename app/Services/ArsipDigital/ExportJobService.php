@@ -197,6 +197,14 @@ class ExportJobService
             'request_id' => (int) $filters['request_id'],
         ];
 
+        if (! empty($filters['request_file_ids'])) {
+            $normalized['request_file_ids'] = array_values(array_unique(array_map('intval', (array) $filters['request_file_ids'])));
+        }
+
+        if (! empty($filters['download_filename'])) {
+            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']) . '.zip';
+        }
+
         if (! empty($filters['statuses'])) {
             $statuses = array_values(array_unique(array_map('strval', (array) $filters['statuses'])));
             $allowedStatuses = ['waiting_verification', 'approved', 'rejected', 'replaced'];
@@ -300,6 +308,10 @@ class ExportJobService
 
                     if (! empty($filters['statuses'])) {
                         $requestFileQuery->whereIn('status', $filters['statuses']);
+                    }
+
+                    if (! empty($filters['request_file_ids'])) {
+                        $requestFileQuery->whereIn('request_file_id', $filters['request_file_ids']);
                     }
 
                     $requestFiles = $requestFileQuery->get()
