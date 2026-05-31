@@ -7,6 +7,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 // JWT Exception
@@ -61,9 +62,15 @@ class ErrorHandler
 
     private static function handleQueryException(QueryException $e): JsonResponse
     {
+        Log::error('Database query error', [
+            'message' => $e->getMessage(),
+            'sql' => $e->getSql(),
+            'bindings' => $e->getBindings(),
+        ]);
+
         return response()->json([
             'status' => 'Database Error',
-            'message' => $e->getMessage()
+            'message' => 'Terjadi masalah pada database. Pastikan migrasi sudah dijalankan atau hubungi administrator.'
         ], 500);
     }
 
