@@ -33,13 +33,14 @@ class AdminDistributionBulkUploadController extends Controller
     public function store(Request $request, int $distribution_id, RoleResolverService $roleResolver, DistributionBulkUploadService $service)
     {
         try {
-            $roleResolver->resolve($request, ['admin']);
+            $role = $roleResolver->resolve($request, ['admin']);
             $request->validate([
                 'zip_file' => ['required', 'file', 'mimes:zip', 'max:102400'],
             ]);
-            Distribution::findOrFail($distribution_id);
+            $distribution = Distribution::findOrFail($distribution_id);
+            $job = $service->createPreviewJob($distribution, $request->file('zip_file'), auth()->user(), $role, $request);
 
-            throw new HttpException(501, 'Bulk upload ZIP belum tersedia pada fase ini.');
+            return $this->successfulResponseJSON(['bulk_upload_job' => $job->toArray()], 'Bulk upload ZIP berhasil dibuat.', 201);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
