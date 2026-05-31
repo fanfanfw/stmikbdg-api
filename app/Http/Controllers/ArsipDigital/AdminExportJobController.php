@@ -36,6 +36,8 @@ class AdminExportJobController extends Controller
                 'export_type' => ['required', 'in:request,archive_browser,distribution'],
                 'filters' => ['required', 'array'],
                 'filters.request_id' => ['required_if:export_type,request', 'integer'],
+                'filters.request_file_ids' => ['sometimes', 'array'],
+                'filters.request_file_ids.*' => ['integer'],
                 'filters.file_ids' => ['sometimes', 'array'],
                 'filters.file_ids.*' => ['integer'],
                 'filters.owner_role' => ['sometimes', 'nullable', 'in:mahasiswa,dosen,admin'],
@@ -79,10 +81,11 @@ class AdminExportJobController extends Controller
             $role = $roleResolver->resolve($request, ['admin']);
             $exportJob = $exportJobService->findForAdmin($export_job_id);
             $exportJobService->assertDownloadable($exportJob);
+            $filename = $exportJob->filters['download_filename'] ?? ('arsip-digital-export-' . $exportJob->export_job_id . '.zip');
             $response = $storageService->downloadPrivate(
                 $exportJob->storage_disk,
                 $exportJob->storage_path,
-                'arsip-digital-export-' . $exportJob->export_job_id . '.zip'
+                $filename
             );
             $exportJobService->markDownloaded($exportJob, auth()->user(), $role, $request);
 
