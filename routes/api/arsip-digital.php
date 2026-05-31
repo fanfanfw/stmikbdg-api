@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
+use App\Http\Controllers\ArsipDigital\AdminAuditLogController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
@@ -78,6 +79,8 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/export-jobs', [AdminExportJobController::class, 'store']);
         Route::get('/admin/export-jobs/{export_job_id}', [AdminExportJobController::class, 'show']);
         Route::get('/admin/export-jobs/{export_job_id}/download', [AdminExportJobController::class, 'download']);
+
+        Route::get('/admin/audit-logs', [AdminAuditLogController::class, 'index']);
 
         Route::get('/admin/scholarship-types', [ScholarshipController::class, 'types']);
         Route::post('/admin/scholarship-types', [ScholarshipController::class, 'storeType']);
