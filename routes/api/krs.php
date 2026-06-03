@@ -63,4 +63,10 @@ Route::controller(KRSDosenController::class)
         Route::get('/list', 'getListKRSMahasiswa');
         Route::get('/filter/angkatan', 'getListFilterAngkatan');
         Route::get('/filter/semester', 'getListFilterSemester');
+
+        // ? KHS Mahasiswa - khusus dosen wali
+        // catatan: route static '/khs/list' wajib diletakkan sebelum '/{mhs_id}/khs'
+        // agar segmen 'khs' tidak ditangkap sebagai parameter route.
+        Route::get('/khs/list', 'getListKHSMahasiswa');
+        Route::get('/{mhs_id}/khs', 'getKHSMahasiswa');
     });

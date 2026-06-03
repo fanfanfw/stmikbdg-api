@@ -9,6 +9,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 // ? Models - table
 use App\Models\KRS\KRS;
@@ -286,6 +287,179 @@ class KRSDosenController extends Controller
         }
     }
 
+    public function getListMahasiswaKHS(Request $request) {
+        try {
+            $page = $request->query('page', 1);
+            $perPage = $request->query('per_page', 10);
+            $search = $request->query('search');
+            $status = $request->query('status');
+            $angkatan = $request->query('angkatan');
+            $jnsMhs = $request->query('jns_mhs');
+            $khsFilter = $request->query('khs');
+
+            $query = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->where('sts_mhs', 'A');
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('nim', 'like', '%' . $search . '%')
+                      ->orWhere('nm_mhs', 'like', '%' . $search . '%');
+                });
+            }
+
+            if ($angkatan) {
+                $query->where('angkatan', $angkatan);
+            }
+
+            if ($jnsMhs) {
+                $query->where('jns_mhs', $jnsMhs);
+            }
+
+            $mahasiswaList = $query->orderBy('nim', 'asc')->get();
+
+            $mahasiswaWithKHS = $mahasiswaList->map(function ($mhs) {
+                $nilaiList = NilaiAkhirView::getNilaiAkhirByMhsId($mhs->mhs_id);
+                
+                $hasKhs = $nilaiList->count() > 0;
+                $totalSks = 0;
+                $ipk = 0;
+                $semesterTersedia = [];
+
+                if ($hasKhs) {
+                    $totalMutu = $nilaiList->sum('mutu');
+                    $countTotal = $nilaiList->count();
+                    
+                    $totalSks = $nilaiList->sum(function ($nilai) {
+                        return $nilai->matakuliah->sks ?? 0;
+                    });
+                    
+                    $ipk = $countTotal > 0 ? round($totalMutu / $countTotal, 2) : 0;
+                    
+                    $semesterTersedia = $nilaiList->pluck('matakuliah.semester')
+                        ->filter()
+                        ->unique()
+                        ->sort()
+                        ->values()
+                        ->toArray();
+                }
+
+                return [
+                    'mhs_id' => $mhs->mhs_id,
+                    'nim' => $mhs->nim,
+                    'nama' => $mhs->nm_mhs,
+                    'angkatan' => $mhs->angkatan,
+                    'status_mahasiswa' => $mhs->sts_mhs,
+                    'status_mahasiswa_label' => $this->getStatusMahasiswaLabel($mhs->sts_mhs),
+                    'jenis_mahasiswa' => $mhs->jns_mhs,
+                    'jenis_mahasiswa_label' => $this->getJenisMahasiswaLabel($mhs->jns_mhs),
+                    'has_khs' => $hasKhs,
+                    'total_sks' => $totalSks,
+                    'ipk' => $ipk,
+                    'semester_tersedia' => $semesterTersedia,
+                ];
+            });
+
+            if ($khsFilter === 'ada') {
+                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => $m['has_khs']);
+            } elseif ($khsFilter === 'tidak_ada') {
+                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => !$m['has_khs']);
+            }
+
+            $total = $mahasiswaWithKHS->count();
+            $mahasiswaWithKHS = $mahasiswaWithKHS->forPage($page, $perPage)->values();
+
+            $filterAngkatan = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->where('sts_mhs', 'A')
+                ->select('angkatan')
+                ->distinct()
+                ->orderBy('angkatan', 'desc')
+                ->pluck('angkatan');
+
+            $filterJenisMhsRaw = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->where('sts_mhs', 'A')
+                ->select('jns_mhs')
+                ->distinct()
+                ->pluck('jns_mhs');
+            
+            $filterJenisMhs = $filterJenisMhsRaw->map(function($jns) {
+                return [
+                    'label' => $this->getJenisMahasiswaLabel($jns),
+                    'value' => $jns,
+                ];
+            })->values();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => [
+                    'mahasiswa' => $mahasiswaWithKHS,
+                    'filters' => [
+                        'angkatan' => $filterAngkatan,
+                        'jenis_mahasiswa' => $filterJenisMhs,
+                    ],
+                ],
+                'meta' => [
+                    'current_page' => (int) $page,
+                    'per_page' => (int) $perPage,
+                    'total_items' => $total,
+                    'total_pages' => ceil($total / $perPage),
+                ],
+            ], 200);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function getKHSMahasiswa(Request $request, $mhsId) {
+        try {
+            $this->assertDosenWaliMahasiswa($mhsId);
+
+            $semesterFilter = $request->query('semesters', 'all');
+
+            $mahasiswa = MahasiswaView::where('mhs_id', $mhsId)->first();
+            
+            if (!$mahasiswa) {
+                return response()->json([
+                    'status' => 'fail',
+                    'message' => 'Mahasiswa tidak ditemukan',
+                ], 404);
+            }
+
+            $khsData = $this->buildKHSDataForMahasiswa($mhsId, $semesterFilter);
+
+            $dosenWali = $this->user->nm_dosen ?? null;
+
+            $responseData = [
+                'mahasiswa' => [
+                    'mhs_id' => $mahasiswa->mhs_id,
+                    'nim' => $mahasiswa->nim,
+                    'nama' => $mahasiswa->nm_mhs,
+                    'angkatan' => $mahasiswa->angkatan,
+                    'dosen_wali' => $dosenWali,
+                    'status_mahasiswa' => $mahasiswa->sts_mhs,
+                    'jenis_mahasiswa' => $mahasiswa->jns_mhs,
+                ],
+                'summary' => $khsData['summary'],
+                'semesters' => $khsData['semesters'],
+            ];
+
+            if (isset($khsData['message'])) {
+                $responseData['message'] = $khsData['message'];
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $responseData,
+            ], 200);
+        } catch (HttpException $e) {
+            return response()->json([
+                'status' => 'fail',
+                'message' => $e->getMessage(),
+            ], $e->getStatusCode());
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     private function setKRSData($jurusan, $krs, $krsMatkul, $mhsId) {
         $tempMatkul = [];
 
@@ -350,5 +524,129 @@ class KRSDosenController extends Controller
                 'message' => 'Bukan wali dosen dari mahasiswa',
             ], 403);
         }
+    }
+
+    private function assertDosenWaliMahasiswa($mhsId) {
+        $isDosenWali = $this->isDosenWali($this->user, $mhsId);
+
+        if (!$isDosenWali) {
+            throw new HttpException(403, 'Anda bukan dosen wali dari mahasiswa ini');
+        }
+
+        return true;
+    }
+
+    private function getStatusMahasiswaLabel($sts_mhs) {
+        $labels = [
+            'A' => 'Aktif',
+            'C' => 'Cuti',
+            'L' => 'Lulus',
+            'N' => 'Tidak Aktif',
+        ];
+        return $labels[$sts_mhs] ?? $sts_mhs;
+    }
+
+    private function getJenisMahasiswaLabel($jns_mhs) {
+        $labels = [
+            'R' => 'Reguler',
+            'K' => 'Karyawan',
+            'E' => 'Ekstensi',
+        ];
+        return $labels[$jns_mhs] ?? $jns_mhs;
+    }
+
+    private function buildKHSDataForMahasiswa($mhsId, $semesterFilter) {
+        $nilaiList = NilaiAkhirView::getNilaiAkhirByMhsId($mhsId);
+
+        if ($nilaiList->count() === 0) {
+            return [
+                'summary' => null,
+                'semesters' => [],
+                'message' => 'Mahasiswa belum memiliki data KHS.',
+            ];
+        }
+
+        $semestersToInclude = [];
+        if ($semesterFilter === 'all') {
+            $semestersToInclude = $nilaiList->pluck('matakuliah.semester')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values()
+                ->toArray();
+        } else {
+            $semestersToInclude = array_map('intval', explode(',', $semesterFilter));
+        }
+
+        $filteredNilai = $nilaiList->filter(function ($nilai) use ($semestersToInclude) {
+            return in_array($nilai->matakuliah->semester ?? 0, $semestersToInclude);
+        });
+
+        $totalMutu = $filteredNilai->sum('mutu');
+        $countTotal = $filteredNilai->count();
+        $totalSks = $filteredNilai->sum(function ($nilai) {
+            return $nilai->matakuliah->sks ?? 0;
+        });
+        $ipk = $countTotal > 0 ? round($totalMutu / $countTotal, 2) : 0;
+
+        $countNilaiAll = $filteredNilai->countBy('nilai');
+
+        $groupedBySemester = $filteredNilai->groupBy(function ($nilai) {
+            return $nilai->matakuliah->semester ?? 0;
+        });
+
+        $semestersData = [];
+        foreach ($groupedBySemester as $semester => $nilaiSemester) {
+            $countItem = $nilaiSemester->count();
+            $mutuSemester = $nilaiSemester->sum('mutu');
+            $sksSemester = $nilaiSemester->sum(function ($nilai) {
+                return $nilai->matakuliah->sks ?? 0;
+            });
+            $ipSemester = $countItem > 0 ? round($mutuSemester / $countItem, 2) : 0;
+
+            $countNilai = $nilaiSemester->countBy('nilai');
+
+            $matakuliahData = [];
+            foreach ($nilaiSemester as $nilai) {
+                $matakuliahData[] = [
+                    'mk_id' => $nilai->mk_id,
+                    'kd_mk' => trim($nilai->matakuliah->kd_mk ?? ''),
+                    'nm_mk' => trim($nilai->matakuliah->nm_mk ?? ''),
+                    'sks' => $nilai->matakuliah->sks ?? 0,
+                    'nilai' => $nilai->nilai,
+                    'mutu' => $nilai->mutu,
+                ];
+            }
+
+            $semestersData[] = [
+                'semester' => (int) $semester,
+                'total_sks' => $sksSemester,
+                'total_ip' => $ipSemester,
+                'total_matakuliah' => $countItem,
+                'total_nilai_a' => $countNilai['A'] ?? 0,
+                'total_nilai_b' => $countNilai['B'] ?? 0,
+                'total_nilai_c' => $countNilai['C'] ?? 0,
+                'total_nilai_d' => $countNilai['D'] ?? 0,
+                'total_nilai_e' => $countNilai['E'] ?? 0,
+                'matakuliah' => $matakuliahData,
+            ];
+        }
+
+        usort($semestersData, function ($a, $b) {
+            return $a['semester'] <=> $b['semester'];
+        });
+
+        return [
+            'summary' => [
+                'total_sks' => $totalSks,
+                'total_semua_ip' => $ipk,
+                'total_nilai_a' => $countNilaiAll['A'] ?? 0,
+                'total_nilai_b' => $countNilaiAll['B'] ?? 0,
+                'total_nilai_c' => $countNilaiAll['C'] ?? 0,
+                'total_nilai_d' => $countNilaiAll['D'] ?? 0,
+                'total_nilai_e' => $countNilaiAll['E'] ?? 0,
+            ],
+            'semesters' => $semestersData,
+        ];
     }
 }
