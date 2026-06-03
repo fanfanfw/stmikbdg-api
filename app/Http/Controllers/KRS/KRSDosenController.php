@@ -250,7 +250,6 @@ class KRSDosenController extends Controller
     public function getListFilterAngkatan() {
         try {
             $listMahasiswa = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
-                ->where('sts_mhs', 'A')
                 ->select('angkatan')
                 ->distinct('angkatan')
                 ->orderBy('angkatan', 'DESC')
@@ -289,16 +288,24 @@ class KRSDosenController extends Controller
 
     public function getListMahasiswaKHS(Request $request) {
         try {
-            $page = $request->query('page', 1);
-            $perPage = $request->query('per_page', 10);
+            $page = max((int) $request->query('page', 1), 1);
+            $perPage = min(max((int) $request->query('per_page', 10), 5), 50);
             $search = $request->query('search');
             $status = $request->query('status');
             $angkatan = $request->query('angkatan');
             $jnsMhs = $request->query('jns_mhs');
             $khsFilter = $request->query('khs');
+            $semesterFilter = $request->query('semesters', 'all');
 
-            $query = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
-                ->where('sts_mhs', 'A');
+            $query = MahasiswaView::where('dosen_id', $this->user['dosen_id']);
+
+            if (in_array($status, ['active', 'A'], true)) {
+                $query->where('sts_mhs', 'A');
+            } elseif (in_array($status, ['inactive', 'nonactive', 'nonaktif'], true)) {
+                $query->where('sts_mhs', '!=', 'A');
+            } elseif (filled($status) && $status !== 'all') {
+                $query->where('sts_mhs', $status);
+            }
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -315,7 +322,48 @@ class KRSDosenController extends Controller
                 $query->where('jns_mhs', $jnsMhs);
             }
 
-            $mahasiswaList = $query->orderBy('nim', 'asc')->get();
+            $semesterFilterList = [];
+            if ($semesterFilter && $semesterFilter !== 'all') {
+                $semesterFilterList = collect(explode(',', $semesterFilter))
+                    ->map(fn($semester) => (int) trim($semester))
+                    ->filter(fn($semester) => $semester >= 1)
+                    ->unique()
+                    ->values()
+                    ->toArray();
+
+                if (count($semesterFilterList) > 0) {
+                    $candidateMhsIds = (clone $query)->pluck('mhs_id')->toArray();
+
+                    if (count($candidateMhsIds) < 1) {
+                        $query->whereRaw('1 = 0');
+                    } else {
+                        $mhsIdsWithSemester = NilaiAkhirView::whereIn('mhs_id', $candidateMhsIds)
+                            ->whereHas('matakuliah', function ($matakuliahQuery) use ($semesterFilterList) {
+                                $matakuliahQuery->whereIn('semester', $semesterFilterList);
+                            })
+                            ->select('mhs_id')
+                            ->distinct()
+                            ->pluck('mhs_id')
+                            ->toArray();
+
+                        count($mhsIdsWithSemester) > 0
+                            ? $query->whereIn('mhs_id', $mhsIdsWithSemester)
+                            : $query->whereRaw('1 = 0');
+                    }
+                }
+            }
+
+            $filteredByKhs = in_array($khsFilter, ['ada', '1', 'available', 'tidak_ada', '0', 'empty'], true);
+
+            if ($filteredByKhs) {
+                $mahasiswaList = $query->orderBy('nim', 'asc')->get();
+            } else {
+                $total = (clone $query)->count();
+                $mahasiswaList = $query->orderBy('nim', 'asc')
+                    ->skip(($page - 1) * $perPage)
+                    ->take($perPage)
+                    ->get();
+            }
 
             $mahasiswaWithKHS = $mahasiswaList->map(function ($mhs) {
                 $nilaiList = NilaiAkhirView::getNilaiAkhirByMhsId($mhs->mhs_id);
@@ -347,36 +395,41 @@ class KRSDosenController extends Controller
                     'mhs_id' => $mhs->mhs_id,
                     'nim' => $mhs->nim,
                     'nama' => $mhs->nm_mhs,
+                    'nm_mhs' => $mhs->nm_mhs,
                     'angkatan' => $mhs->angkatan,
+                    'masuk_tahun' => $mhs->angkatan,
                     'status_mahasiswa' => $mhs->sts_mhs,
+                    'sts_mhs' => $mhs->sts_mhs,
                     'status_mahasiswa_label' => $this->getStatusMahasiswaLabel($mhs->sts_mhs),
                     'jenis_mahasiswa' => $mhs->jns_mhs,
+                    'jns_mhs' => $mhs->jns_mhs,
                     'jenis_mahasiswa_label' => $this->getJenisMahasiswaLabel($mhs->jns_mhs),
                     'has_khs' => $hasKhs,
                     'total_sks' => $totalSks,
                     'ipk' => $ipk,
                     'semester_tersedia' => $semesterTersedia,
+                    'semesters_available' => $semesterTersedia,
                 ];
             });
 
-            if ($khsFilter === 'ada') {
+            if ($filteredByKhs && in_array($khsFilter, ['ada', '1', 'available'], true)) {
                 $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => $m['has_khs']);
-            } elseif ($khsFilter === 'tidak_ada') {
+            } elseif ($filteredByKhs && in_array($khsFilter, ['tidak_ada', '0', 'empty'], true)) {
                 $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => !$m['has_khs']);
             }
 
-            $total = $mahasiswaWithKHS->count();
-            $mahasiswaWithKHS = $mahasiswaWithKHS->forPage($page, $perPage)->values();
+            if ($filteredByKhs) {
+                $total = $mahasiswaWithKHS->count();
+                $mahasiswaWithKHS = $mahasiswaWithKHS->forPage($page, $perPage)->values();
+            }
 
             $filterAngkatan = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
-                ->where('sts_mhs', 'A')
                 ->select('angkatan')
                 ->distinct()
                 ->orderBy('angkatan', 'desc')
                 ->pluck('angkatan');
 
             $filterJenisMhsRaw = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
-                ->where('sts_mhs', 'A')
                 ->select('jns_mhs')
                 ->distinct()
                 ->pluck('jns_mhs');
@@ -388,13 +441,41 @@ class KRSDosenController extends Controller
                 ];
             })->values();
 
+            $filterSemesterMhsIds = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
+                ->pluck('mhs_id');
+
+            $filterSemesters = NilaiAkhirView::whereIn('mhs_id', $filterSemesterMhsIds)
+                ->with(['matakuliah' => function ($matakuliahQuery) {
+                    $matakuliahQuery->select('mk_id', 'semester');
+                }])
+                ->get()
+                ->pluck('matakuliah.semester')
+                ->filter()
+                ->unique()
+                ->sort()
+                ->values();
+
             return response()->json([
                 'status' => 'success',
                 'data' => [
                     'mahasiswa' => $mahasiswaWithKHS,
+                    'meta' => [
+                        'current_page' => (int) $page,
+                        'per_page' => (int) $perPage,
+                        'total_items' => $total,
+                        'total' => $total,
+                        'total_pages' => (int) ceil($total / $perPage),
+                        'last_page' => (int) ceil($total / $perPage),
+                    ],
                     'filters' => [
+                        'status' => [
+                            ['label' => 'Aktif', 'value' => 'active'],
+                            ['label' => 'Nonaktif', 'value' => 'inactive'],
+                        ],
                         'angkatan' => $filterAngkatan,
+                        'jenis' => $filterJenisMhs,
                         'jenis_mahasiswa' => $filterJenisMhs,
+                        'semesters' => $filterSemesters,
                     ],
                 ],
                 'meta' => [
@@ -425,6 +506,14 @@ class KRSDosenController extends Controller
             }
 
             $khsData = $this->buildKHSDataForMahasiswa($mhsId, $semesterFilter);
+
+            if (empty($khsData['semesters'])) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => null,
+                    'message' => $khsData['message'] ?? 'Mahasiswa belum memiliki data KHS.',
+                ], 200);
+            }
 
             $dosenWali = $this->user->nm_dosen ?? null;
 
