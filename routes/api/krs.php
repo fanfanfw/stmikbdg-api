@@ -67,6 +67,6 @@ Route::controller(KRSDosenController::class)
         // ? KHS Mahasiswa - khusus dosen wali
         // catatan: route static '/khs/list' wajib diletakkan sebelum '/{mhs_id}/khs'
         // agar segmen 'khs' tidak ditangkap sebagai parameter route.
-        Route::get('/khs/list', 'getListKHSMahasiswa');
+        Route::get('/khs/list', 'getListMahasiswaKHS');
         Route::get('/{mhs_id}/khs', 'getKHSMahasiswa');
     });
