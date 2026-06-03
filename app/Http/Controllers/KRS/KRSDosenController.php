@@ -515,7 +515,10 @@ class KRSDosenController extends Controller
                 ], 200);
             }
 
-            $dosenWali = $this->user->nm_dosen ?? null;
+            $dosenWali = $this->user->nama_dan_gelar
+                ?? $this->user->nama
+                ?? $this->user->nm_dosen
+                ?? null;
 
             $responseData = [
                 'mahasiswa' => [
