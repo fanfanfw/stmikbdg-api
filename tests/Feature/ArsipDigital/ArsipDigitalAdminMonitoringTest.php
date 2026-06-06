@@ -4,7 +4,7 @@ namespace Tests\Feature\ArsipDigital;
 
 class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
 {
-    public function test_admin_monitoring_can_approve_reject_download_and_upload_for_user(): void
+    public function test_admin_monitoring_can_approve_reject_download_and_cannot_upload_for_user(): void
     {
         [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
@@ -40,8 +40,6 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
                 'request_assignment_id' => $assignmentId,
                 'file' => $this->pdfUpload('admin-upload.pdf'),
             ], ['X-Active-Role' => 'admin'])
-            ->assertCreated()
-            ->assertJsonPath('data.request_file.status', 'approved')
-            ->assertJsonPath('data.request_file.submission_type', 'admin_uploaded');
+            ->assertNotFound();
     }
 }

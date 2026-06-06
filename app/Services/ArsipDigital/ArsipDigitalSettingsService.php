@@ -12,6 +12,10 @@ class ArsipDigitalSettingsService
         'default_max_file_size_mb' => 10,
         'default_allowed_extensions' => ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'],
         'storage_disk' => 's3',
+        'personal_quota_mb_by_role' => [
+            'mahasiswa' => 50,
+            'dosen' => 50,
+        ],
     ];
 
     public function getDefaults(): array
@@ -35,4 +39,13 @@ class ArsipDigitalSettingsService
 
         return $value;
     }
+
+    public function personalQuotaMbForRole(string $role): ?int
+    {
+        $settings = $this->getDefaults();
+        $quota = $settings['personal_quota_mb_by_role'][$role] ?? null;
+
+        return $quota === null ? null : (int) $quota;
+    }
 }
+

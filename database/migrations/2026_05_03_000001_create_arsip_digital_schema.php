@@ -297,7 +297,7 @@ SQL);
 INSERT INTO arsip_digital.settings (key, value, description, created_at, updated_at)
 VALUES (
     'archive_defaults',
-    '{"default_max_file_size_mb":10,"default_allowed_extensions":["pdf","jpg","jpeg","png","doc","docx","xls","xlsx"],"storage_disk":"s3"}'::jsonb,
+    '{"default_max_file_size_mb":10,"default_allowed_extensions":["pdf","jpg","jpeg","png","doc","docx","xls","xlsx"],"storage_disk":"s3","personal_quota_mb_by_role":{"mahasiswa":50,"dosen":50}}'::jsonb,
     'Default Arsip Digital V1 settings',
     ?,
     ?
