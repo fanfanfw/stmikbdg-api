@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArchiveFileService
@@ -73,6 +74,7 @@ class ArchiveFileService
             (int) $settings['default_max_file_size_mb'],
             $settings['default_allowed_extensions']
         );
+        $this->assertPersonalQuotaAvailable($user, $role, $uploadedFile);
 
         $category = null;
         if (! empty($payload['category_id'])) {
@@ -176,6 +178,13 @@ class ArchiveFileService
             return $file;
         }
 
+        if ($role !== 'admin' && $file->source_type === 'personal') {
+            $this->storage->deletePrivate($file->storage_disk, $file->storage_path);
+            $file->forceDelete();
+
+            return $file;
+        }
+
         $file->fill([
             'status' => 'deleted',
             'deleted_by_user_id' => $user->id,
@@ -212,9 +221,37 @@ class ArchiveFileService
         return $file;
     }
 
+    public function personalUsageBytes(int $ownerUserId, string $role): int
+    {
+        return (int) ArchiveFile::where('owner_user_id', $ownerUserId)
+            ->where('owner_role', $role)
+            ->where('source_type', 'personal')
+            ->whereNull('deleted_at')
+            ->sum('file_size_bytes');
+    }
+
     public function normalizeDisplayFilename(string $filename): string
     {
         return $this->storage->safeFilename($filename);
+    }
+
+    private function assertPersonalQuotaAvailable(object $user, string $role, UploadedFile $uploadedFile): void
+    {
+        $quotaMb = $this->settings->personalQuotaMbForRole($role);
+        if ($quotaMb === null) {
+            return;
+        }
+
+        $usedBytes = $this->personalUsageBytes($user->id, $role);
+        $quotaBytes = $quotaMb * 1024 * 1024;
+        $uploadBytes = (int) ($uploadedFile->getSize() ?: 0);
+
+        if ($usedBytes + $uploadBytes > $quotaBytes) {
+            $remainingMb = max(0, round(($quotaBytes - $usedBytes) / 1024 / 1024, 2));
+            throw ValidationException::withMessages([
+                'file' => "Kuota penyimpanan arsip pribadi sudah tidak cukup. Sisa kuota: {$remainingMb} MB.",
+            ]);
+        }
     }
 
     private function nextPersonalVersion(int $ownerUserId, ?int $categoryId, string $displayFilename): array

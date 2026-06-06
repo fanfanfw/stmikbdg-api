@@ -143,7 +143,7 @@ class ArchiveFileController extends Controller
                 'file.deleted',
                 'file',
                 $file->file_id,
-                'File arsip digital dihapus secara soft delete.',
+                $role === 'admin' ? 'File arsip digital dihapus secara soft delete.' : 'File arsip pribadi dihapus permanen.',
                 ['reason' => $payload['reason'] ?? null],
                 $request,
                 auth()->user()?->id,

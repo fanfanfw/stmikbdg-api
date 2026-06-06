@@ -4,7 +4,7 @@ namespace Tests\Feature\ArsipDigital;
 
 class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
 {
-    public function test_personal_archive_upload_download_soft_delete_and_admin_restore(): void
+    public function test_personal_archive_upload_download_and_permanent_delete(): void
     {
         $categoryId = $this->actingAsMahasiswa()
             ->postJson('/api/arsip-digital/categories', [
@@ -29,18 +29,15 @@ class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
             ->assertHeader('content-disposition');
 
         $this->actingAsMahasiswa()
-            ->deleteJson('/api/arsip-digital/files/' . $fileId, ['reason' => 'test soft delete'])
+            ->deleteJson('/api/arsip-digital/files/' . $fileId, ['reason' => 'test permanent delete'])
             ->assertOk();
 
-        $this->assertDatabaseHas('arsip_digital.files', [
+        $this->assertDatabaseMissing('arsip_digital.files', [
             'file_id' => $fileId,
-            'status' => 'deleted',
-            'delete_reason' => 'test soft delete',
         ], 'sqlite');
 
         $this->actingAsAdmin()
             ->postJson('/api/arsip-digital/files/' . $fileId . '/restore')
-            ->assertOk()
-            ->assertJsonPath('data.file.status', 'active');
+            ->assertNotFound();
     }
 }

@@ -8,6 +8,10 @@ use App\Models\ArsipDigital\RequestAssignment;
 
 class ArchiveSummaryService
 {
+    public function __construct(private readonly ArsipDigitalSettingsService $settings)
+    {
+    }
+
     public function summaryFor(object $user, string $role): array
     {
         if ($role === 'admin') {
@@ -19,6 +23,16 @@ class ArchiveSummaryService
                 'distribution_files' => DistributionRecipient::whereIn('delivery_status', ['available', 'downloaded'])->count(),
             ];
         }
+
+        $personalUsedBytes = (int) ArchiveFile::where('owner_user_id', $user->id)
+            ->where('owner_role', $role)
+            ->where('source_type', 'personal')
+            ->whereNull('deleted_at')
+            ->sum('file_size_bytes');
+        $settings = $this->settings->getDefaults();
+        $personalQuotaMb = $this->settings->personalQuotaMbForRole($role);
+        $personalQuotaBytes = $personalQuotaMb === null ? null : $personalQuotaMb * 1024 * 1024;
+        $personalRemainingBytes = $personalQuotaBytes === null ? null : max(0, $personalQuotaBytes - $personalUsedBytes);
 
         return [
             'role' => $role,
@@ -38,6 +52,13 @@ class ArchiveSummaryService
                 ->where('target_role', $role)
                 ->whereIn('delivery_status', ['available', 'downloaded'])
                 ->count(),
+            'personal_quota_mb' => $personalQuotaMb,
+            'personal_quota_bytes' => $personalQuotaBytes,
+            'personal_used_bytes' => $personalUsedBytes,
+            'personal_remaining_bytes' => $personalRemainingBytes,
+            'personal_usage_percent' => $personalQuotaBytes ? round(($personalUsedBytes / $personalQuotaBytes) * 100, 2) : null,
+            'default_max_file_size_mb' => $settings['default_max_file_size_mb'],
+            'default_allowed_extensions' => $settings['default_allowed_extensions'],
         ];
     }
 }

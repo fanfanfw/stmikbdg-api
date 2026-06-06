@@ -36,7 +36,6 @@ Route::prefix('/arsip-digital')
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
         Route::post('/files/{file_id}/restore', [ArchiveFileController::class, 'restore']);
-        Route::post('/admin/files/upload-for-user', [AdminRequestAssignmentController::class, 'uploadForUser']);
 
         Route::get('/admin/requests', [AdminRequestController::class, 'index']);
         Route::get('/admin/targets', [AdminTargetController::class, 'index']);
