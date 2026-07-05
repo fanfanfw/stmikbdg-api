@@ -5,6 +5,7 @@ namespace App\Services\ArsipDigital;
 use App\Models\ArsipDigital\Segment;
 use App\Models\ArsipDigital\SegmentMember;
 use App\Models\ArsipDigital\StudentScholarship;
+use App\Models\Users\Dosen;
 use App\Models\Users\DosenView;
 use App\Models\Users\MahasiswaView;
 use App\Models\Users\User;
@@ -13,10 +14,6 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RequestTargetPreviewService
 {
-    public function __construct(private readonly TargetResolverService $targetResolver)
-    {
-    }
-
     public function preview(array $payload): array
     {
         $targetRole = $payload['target_role'];
@@ -33,45 +30,7 @@ class RequestTargetPreviewService
             default => throw new HttpException(422, 'Scope target tidak valid.'),
         };
 
-        $valid = [];
-        $invalid = [];
-        $seen = [];
-
-        foreach ($candidates as $candidate) {
-            $identifier = is_array($candidate) ? ($candidate['identifier'] ?? null) : $candidate;
-            $identifier = trim((string) $identifier);
-
-            if ($identifier === '' || isset($seen[$identifier])) {
-                continue;
-            }
-
-            $seen[$identifier] = true;
-            $resolved = $this->targetResolver->resolve($targetRole, $identifier);
-
-            if (! $resolved['valid']) {
-                $invalid[] = [
-                    'target_role' => $targetRole,
-                    'identifier' => $identifier,
-                    'reason' => $resolved['error'],
-                ];
-
-                continue;
-            }
-
-            $valid[] = [
-                'target_user_id' => $resolved['target_user_id'],
-                'target_role' => $targetRole,
-                'identifier' => $resolved['identifier'],
-                'name_snapshot' => $resolved['name_snapshot'],
-                'angkatan_snapshot' => $resolved['angkatan_snapshot'],
-                'prodi_snapshot' => $resolved['prodi_snapshot'],
-                'status_snapshot' => $resolved['status_snapshot'],
-                'scholarship_snapshot' => $this->scholarshipSnapshot($targetRole, $resolved['identifier']),
-                'metadata' => [
-                    'scope_type' => $scopeType,
-                ],
-            ];
-        }
+        [$valid, $invalid] = $this->resolveCandidates($targetRole, $scopeType, $candidates);
 
         return [
             'target_role' => $targetRole,
@@ -82,6 +41,72 @@ class RequestTargetPreviewService
             'valid_targets' => $valid,
             'invalid_targets' => $invalid,
         ];
+    }
+
+    private function resolveCandidates(string $targetRole, string $scopeType, Collection $candidates): array
+    {
+        $identifiers = $candidates
+            ->map(fn ($candidate): string => trim((string) (is_array($candidate) ? ($candidate['identifier'] ?? '') : $candidate)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($identifiers->isEmpty()) {
+            return [[], []];
+        }
+
+        if ($targetRole === 'mahasiswa') {
+            $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'MHS-' . $identifier))->get()->keyBy('kd_user');
+            $profiles = MahasiswaView::whereIn('nim', $identifiers)->get()->keyBy(fn ($profile): string => trim((string) $profile->nim));
+            $scholarships = $this->scholarshipSnapshots($identifiers);
+            return $this->buildResolvedTargets($identifiers, $targetRole, $scopeType, $accounts, $profiles, $scholarships, 'MHS-', 'Akun user mahasiswa tidak ditemukan.');
+        }
+
+        $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'DSN-' . $identifier))->get()->keyBy('kd_user');
+        $profiles = Dosen::whereIn('kd_dosen', $identifiers)->get()->keyBy(fn ($profile): string => trim((string) $profile->kd_dosen));
+        return $this->buildResolvedTargets($identifiers, $targetRole, $scopeType, $accounts, $profiles, collect(), 'DSN-', 'Akun user dosen tidak ditemukan.');
+    }
+
+    private function buildResolvedTargets(Collection $identifiers, string $targetRole, string $scopeType, Collection $accounts, Collection $profiles, Collection $scholarships, string $accountPrefix, string $missingAccountMessage): array
+    {
+        $valid = [];
+        $invalid = [];
+
+        foreach ($identifiers as $identifier) {
+            $account = $accounts->get($accountPrefix . $identifier);
+
+            if (! $account) {
+                $invalid[] = [
+                    'target_role' => $targetRole,
+                    'identifier' => $identifier,
+                    'reason' => $missingAccountMessage,
+                ];
+                continue;
+            }
+
+            $profile = $profiles->get($identifier);
+            $valid[] = [
+                'target_user_id' => $account->id,
+                'target_role' => $targetRole,
+                'identifier' => $identifier,
+                'name_snapshot' => $targetRole === 'mahasiswa'
+                    ? $this->firstFilled($profile, ['nm_mhs', 'nama'], $account->name ?? null)
+                    : $this->firstFilled($profile, ['nm_dosen', 'nama'], $account->name ?? null),
+                'angkatan_snapshot' => $targetRole === 'mahasiswa' ? $this->firstFilled($profile, ['angkatan', 'masuk_tahun', 'tahun_masuk']) : null,
+                'prodi_snapshot' => $targetRole === 'mahasiswa'
+                    ? $this->firstFilled($profile, ['prodi', 'nm_jur', 'jurusan', 'jurusan.nm_jur'])
+                    : $this->firstFilled($profile, ['prodi', 'homebase', 'kd_jur']),
+                'status_snapshot' => $targetRole === 'mahasiswa'
+                    ? $this->firstFilled($profile, ['sts_mhs', 'status', 'status_mhs'])
+                    : $this->firstFilled($profile, ['status', 'sts_dosen']),
+                'scholarship_snapshot' => $scholarships->get($identifier),
+                'metadata' => [
+                    'scope_type' => $scopeType,
+                ],
+            ];
+        }
+
+        return [$valid, $invalid];
     }
 
     private function allIdentifiers(string $targetRole): Collection
@@ -199,25 +224,36 @@ class RequestTargetPreviewService
         }, $identifiers)));
     }
 
-    private function scholarshipSnapshot(string $targetRole, string $identifier): ?array
+    private function scholarshipSnapshots(Collection $identifiers): Collection
     {
-        if ($targetRole !== 'mahasiswa') {
-            return null;
-        }
-
-        $items = StudentScholarship::with('scholarshipType')
-            ->where('nim', $identifier)
+        return StudentScholarship::with('scholarshipType')
+            ->whereIn('nim', $identifiers)
             ->whereNull('deleted_at')
             ->get()
-            ->map(fn (StudentScholarship $scholarship): array => [
+            ->groupBy('nim')
+            ->map(fn (Collection $items): array => $items->map(fn (StudentScholarship $scholarship): array => [
                 'scholarship_type_id' => $scholarship->scholarship_type_id,
                 'scholarship_name' => $scholarship->scholarshipType?->name,
                 'status' => $scholarship->status,
                 'period_label' => $scholarship->period_label,
-            ])
-            ->values()
-            ->toArray();
-
-        return empty($items) ? null : $items;
+            ])->values()->toArray());
     }
+
+    private function firstFilled(?object $source, array $keys, mixed $fallback = null): mixed
+    {
+        if (! $source) {
+            return $fallback;
+        }
+
+        foreach ($keys as $key) {
+            $value = data_get($source, $key);
+
+            if ($value !== null && $value !== '') {
+                return $value;
+            }
+        }
+
+        return $fallback;
+    }
+
 }

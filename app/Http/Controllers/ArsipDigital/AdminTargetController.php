@@ -67,33 +67,32 @@ class AdminTargetController extends Controller
             $query->where('sts_mhs', strtoupper($filters['status']));
         }
 
-        $accounts = $this->accountMap('MHS-');
-        $accountIdentifiers = $accounts->keys()
-            ->map(fn (string $kdUser): string => substr($kdUser, 4))
-            ->all();
-
         if (array_key_exists('has_account', $filters)) {
+            $accountIdentifiers = $this->accountIdentifiers('MHS-');
             $expected = filter_var($filters['has_account'], FILTER_VALIDATE_BOOL);
             $expected ? $query->whereIn('nim', $accountIdentifiers) : $query->whereNotIn('nim', $accountIdentifiers);
         }
 
-        return $query->orderByDesc('masuk_tahun')
+        $targets = $query->orderByDesc('masuk_tahun')
             ->orderBy('nim')
-            ->paginate($filters['per_page'] ?? 25)
-            ->through(function ($item) use ($accounts): array {
-                $identifier = trim((string) $item->nim);
-                $accountKey = 'MHS-' . $identifier;
+            ->paginate($filters['per_page'] ?? 25);
 
-                return [
-                    'role' => 'mahasiswa',
-                    'identifier' => $identifier,
-                    'name' => trim((string) $item->nm_mhs),
-                    'angkatan' => $item->masuk_tahun,
-                    'status' => trim((string) $item->sts_mhs),
-                    'has_account' => $accounts->has($accountKey),
-                    'user_id' => $accounts->get($accountKey),
-                ];
-            });
+        $accounts = $this->accountMapForIdentifiers('MHS-', collect($targets->items())->pluck('nim'));
+
+        return $targets->through(function ($item) use ($accounts): array {
+            $identifier = trim((string) $item->nim);
+            $accountKey = 'MHS-' . $identifier;
+
+            return [
+                'role' => 'mahasiswa',
+                'identifier' => $identifier,
+                'name' => trim((string) $item->nm_mhs),
+                'angkatan' => $item->masuk_tahun,
+                'status' => trim((string) $item->sts_mhs),
+                'has_account' => $accounts->has($accountKey),
+                'user_id' => $accounts->get($accountKey),
+            ];
+        });
     }
 
     private function dosenTargets(array $filters)
@@ -114,37 +113,44 @@ class AdminTargetController extends Controller
             $query->where('sts_dosen', strtoupper($filters['status']));
         }
 
-        $accounts = $this->accountMap('DSN-');
-        $accountIdentifiers = $accounts->keys()
-            ->map(fn (string $kdUser): string => substr($kdUser, 4))
-            ->all();
-
         if (array_key_exists('has_account', $filters)) {
+            $accountIdentifiers = $this->accountIdentifiers('DSN-');
             $expected = filter_var($filters['has_account'], FILTER_VALIDATE_BOOL);
             $expected ? $query->whereIn('kd_dosen', $accountIdentifiers) : $query->whereNotIn('kd_dosen', $accountIdentifiers);
         }
 
-        return $query->orderBy('kd_dosen')
-            ->paginate($filters['per_page'] ?? 25)
-            ->through(function ($item) use ($accounts): array {
-                $identifier = trim((string) $item->kd_dosen);
-                $accountKey = 'DSN-' . $identifier;
+        $targets = $query->orderBy('kd_dosen')
+            ->paginate($filters['per_page'] ?? 25);
 
-                return [
-                    'role' => 'dosen',
-                    'identifier' => $identifier,
-                    'name' => trim((string) $item->nm_dosen),
-                    'angkatan' => null,
-                    'status' => trim((string) $item->sts_dosen),
-                    'has_account' => $accounts->has($accountKey),
-                    'user_id' => $accounts->get($accountKey),
-                ];
-            });
+        $accounts = $this->accountMapForIdentifiers('DSN-', collect($targets->items())->pluck('kd_dosen'));
+
+        return $targets->through(function ($item) use ($accounts): array {
+            $identifier = trim((string) $item->kd_dosen);
+            $accountKey = 'DSN-' . $identifier;
+
+            return [
+                'role' => 'dosen',
+                'identifier' => $identifier,
+                'name' => trim((string) $item->nm_dosen),
+                'angkatan' => null,
+                'status' => trim((string) $item->sts_dosen),
+                'has_account' => $accounts->has($accountKey),
+                'user_id' => $accounts->get($accountKey),
+            ];
+        });
     }
 
-    private function accountMap(string $prefix)
+    private function accountIdentifiers(string $prefix)
     {
         return User::where('kd_user', 'like', $prefix . '%')
+            ->pluck('kd_user')
+            ->map(fn (string $kdUser): string => substr($kdUser, strlen($prefix)))
+            ->all();
+    }
+
+    private function accountMapForIdentifiers(string $prefix, $identifiers)
+    {
+        return User::whereIn('kd_user', collect($identifiers)->map(fn ($identifier): string => $prefix . trim((string) $identifier)))
             ->pluck('id', 'kd_user');
     }
 }
