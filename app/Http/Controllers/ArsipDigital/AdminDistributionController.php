@@ -131,10 +131,21 @@ class AdminDistributionController extends Controller
                 'identifier' => ['sometimes', 'string', 'max:100'],
                 'angkatan' => ['sometimes', 'string', 'max:20'],
                 'search' => ['sometimes', 'string', 'max:255'],
+                'page' => ['sometimes', 'integer', 'min:1'],
+                'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
 
+            $recipients = $distributionService->recipientQuery($distribution_id, $filters)
+                ->paginate($filters['per_page'] ?? 50);
+
             return $this->successfulResponseJSON([
-                'recipients' => $distributionService->recipientQuery($distribution_id, $filters)->get()->toArray(),
+                'recipients' => $recipients->items(),
+                'meta' => [
+                    'current_page' => $recipients->currentPage(),
+                    'last_page' => $recipients->lastPage(),
+                    'per_page' => $recipients->perPage(),
+                    'total' => $recipients->total(),
+                ],
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);

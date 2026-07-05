@@ -103,7 +103,11 @@ class ArchiveFileController extends Controller
             $file = $fileService->findVisible($file_id, auth()->user(), $role);
 
             if (! $permissionService->canDownloadFile($file, auth()->user(), $role)) {
-                return $this->failedResponseJSON('Tidak memiliki akses download file.', 403);
+                $message = $file->source_type === 'distribution'
+                    ? 'File distribution harus didownload melalui endpoint distribution.'
+                    : 'Tidak memiliki akses download file.';
+
+                return $this->failedResponseJSON($message, 403);
             }
 
             $auditLogService->record(

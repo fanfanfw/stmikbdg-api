@@ -46,12 +46,18 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
     {
         [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
-        $this->actingAsMahasiswa()
+        $requestFileId = $this->actingAsMahasiswa()
             ->post('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/upload', [
                 'file' => $this->pdfUpload('upload-request.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated()
-            ->assertJsonPath('data.request_file.status', 'waiting_verification');
+            ->assertJsonPath('data.request_file.status', 'waiting_verification')
+            ->json('data.request_file.file_id');
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/files/' . $requestFileId)
+            ->assertForbidden()
+            ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
         $this->assertDatabaseHas('arsip_digital.request_assignments', [
             'assignment_id' => $assignmentId,
@@ -67,5 +73,14 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->assertCreated()
             ->assertJsonPath('data.request_file.submission_type', 'reused')
             ->assertJsonPath('data.request_file.request_id', $requestId);
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/files/' . $fileId)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'File sedang dipakai pada request berkas.');
+
+        $this->assertDatabaseHas('arsip_digital.files', [
+            'file_id' => $fileId,
+        ], 'sqlite');
     }
 }

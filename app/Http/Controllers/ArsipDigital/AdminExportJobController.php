@@ -36,8 +36,11 @@ class AdminExportJobController extends Controller
                 'export_type' => ['required', 'in:request,archive_browser,distribution'],
                 'filters' => ['required', 'array'],
                 'filters.request_id' => ['required_if:export_type,request', 'integer'],
+                'filters.distribution_id' => ['required_if:export_type,distribution', 'integer'],
                 'filters.request_file_ids' => ['sometimes', 'array'],
                 'filters.request_file_ids.*' => ['integer'],
+                'filters.recipient_ids' => ['sometimes', 'array'],
+                'filters.recipient_ids.*' => ['integer'],
                 'filters.file_ids' => ['sometimes', 'array'],
                 'filters.file_ids.*' => ['integer'],
                 'filters.owner_role' => ['sometimes', 'nullable', 'in:mahasiswa,dosen,admin'],
@@ -48,6 +51,8 @@ class AdminExportJobController extends Controller
                 'filters.statuses.*' => ['string', 'in:waiting_verification,approved,rejected,replaced'],
                 'filters.assignment_statuses' => ['sometimes', 'array'],
                 'filters.assignment_statuses.*' => ['string', 'in:not_submitted,waiting_verification,approved,rejected,closed'],
+                'filters.delivery_statuses' => ['sometimes', 'array'],
+                'filters.delivery_statuses.*' => ['string', 'in:pending,file_uploaded,available,downloaded'],
             ]);
 
             $exportJob = $exportJobService->create($payload, auth()->user(), $role, $request);

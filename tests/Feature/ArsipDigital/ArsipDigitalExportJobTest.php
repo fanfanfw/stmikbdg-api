@@ -97,4 +97,59 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.export_job.export_type', 'archive_browser')
             ->assertJsonPath('data.export_job.status', 'queued');
     }
+
+    public function test_distribution_export_job_generates_downloadable_zip(): void
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            $this->markTestSkipped('ZipArchive extension is not available.');
+        }
+
+        $distributionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions', [
+                'title' => 'Sertifikat Seminar',
+                'target_role' => 'mahasiswa',
+                'scope_type' => 'specific',
+                'target_identifiers' => ['22010001'],
+            ])
+            ->assertCreated()
+            ->json('data.distribution.distribution_id');
+
+        $recipientId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/publish')
+            ->assertOk()
+            ->json('data.distribution.recipients.0.recipient_id');
+
+        $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/' . $recipientId . '/file', [
+                'file' => $this->pdfUpload('sertifikat.pdf', '%PDF export distribution'),
+            ], ['X-Active-Role' => 'admin'])
+            ->assertCreated();
+
+        $exportJob = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/export-jobs', [
+                'export_type' => 'distribution',
+                'filters' => ['distribution_id' => $distributionId],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.export_job.export_type', 'distribution')
+            ->assertJsonPath('data.export_job.status', 'completed')
+            ->json('data.export_job');
+
+        Storage::disk('s3')->assertExists($exportJob['storage_path']);
+
+        $zip = new \ZipArchive();
+        $zip->open(Storage::disk('s3')->path($exportJob['storage_path']));
+        $names = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $names[] = $zip->getNameIndex($i);
+        }
+        $zip->close();
+
+        $this->assertNotEmpty(array_filter($names, fn (string $name): bool => str_ends_with($name, '/22010001 - Mahasiswa Test/sertifikat.pdf')));
+
+        $this->actingAsAdmin()
+            ->get('/api/arsip-digital/admin/export-jobs/' . $exportJob['export_job_id'] . '/download')
+            ->assertOk()
+            ->assertHeader('content-disposition');
+    }
 }

@@ -5,6 +5,8 @@ namespace App\Services\ArsipDigital;
 use App\Jobs\ArsipDigital\GenerateArchiveExportZipJob;
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\ArchiveRequest;
+use App\Models\ArsipDigital\Distribution;
+use App\Models\ArsipDigital\DistributionRecipient;
 use App\Models\ArsipDigital\ExportJob;
 use App\Models\ArsipDigital\RequestAssignment;
 use App\Models\ArsipDigital\RequestFile;
@@ -44,11 +46,16 @@ class ExportJobService
         $filters = match ($exportType) {
             'request' => $this->normalizeRequestFilters($payload['filters'] ?? []),
             'archive_browser' => $this->normalizeArchiveBrowserFilters($payload['filters'] ?? []),
+            'distribution' => $this->normalizeDistributionFilters($payload['filters'] ?? []),
             default => throw new HttpException(422, 'Export type belum didukung.'),
         };
 
         if ($exportType === 'request') {
             ArchiveRequest::findOrFail($filters['request_id']);
+        }
+
+        if ($exportType === 'distribution') {
+            Distribution::findOrFail($filters['distribution_id']);
         }
 
         $exportJob = ExportJob::create([
@@ -136,6 +143,7 @@ class ExportJobService
             $result = match ($exportJob->export_type) {
                 'request' => $this->generateRequestZip($exportJob),
                 'archive_browser' => $this->generateArchiveBrowserZip($exportJob),
+                'distribution' => $this->generateDistributionZip($exportJob),
                 default => throw new HttpException(422, 'Export type belum didukung.'),
             };
 
@@ -248,6 +256,39 @@ class ExportJobService
 
         if (array_key_exists('with_deleted', $filters)) {
             $normalized['with_deleted'] = filter_var($filters['with_deleted'], FILTER_VALIDATE_BOOL);
+        }
+
+        return $normalized;
+    }
+
+    public function normalizeDistributionFilters(array $filters): array
+    {
+        if (empty($filters['distribution_id'])) {
+            throw new HttpException(422, 'filters.distribution_id wajib diisi untuk export distribution.');
+        }
+
+        $normalized = [
+            'distribution_id' => (int) $filters['distribution_id'],
+        ];
+
+        if (! empty($filters['recipient_ids'])) {
+            $normalized['recipient_ids'] = array_values(array_unique(array_map('intval', (array) $filters['recipient_ids'])));
+        }
+
+        if (! empty($filters['delivery_statuses'])) {
+            $statuses = array_values(array_unique(array_map('strval', (array) $filters['delivery_statuses'])));
+            $allowedStatuses = ['pending', 'file_uploaded', 'available', 'downloaded'];
+            $invalid = array_diff($statuses, $allowedStatuses);
+
+            if (! empty($invalid)) {
+                throw new HttpException(422, 'Filter status delivery distribution tidak valid.');
+            }
+
+            $normalized['delivery_statuses'] = $statuses;
+        }
+
+        if (! empty($filters['download_filename'])) {
+            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']) . '.zip';
         }
 
         return $normalized;
@@ -470,6 +511,126 @@ class ExportJobService
 
             if (! empty($missing)) {
                 $zip->addFromString($rootName . '/README.txt', "File yang gagal dimasukkan ke ZIP:\n" . implode("\n", $missing) . "\n");
+            }
+
+            $zip->close();
+            $zipOpen = false;
+
+            $storagePath = sprintf(
+                'arsip-digital/%s/exports/%s/%s.zip',
+                app()->environment(),
+                $exportJob->export_job_id,
+                Str::uuid()
+            );
+
+            $stream = fopen($zipPath, 'r');
+            $storedPath = null;
+            try {
+                $storedPath = $storagePath;
+                $stored = Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+                if ($stored === false) {
+                    throw new HttpException(500, 'Gagal menyimpan file ZIP export.');
+                }
+            } catch (\Throwable $e) {
+                if ($storedPath) {
+                    Storage::disk($disk)->delete($storedPath);
+                }
+
+                throw $e;
+            } finally {
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }
+
+            return [
+                'storage_disk' => $disk,
+                'storage_path' => $storagePath,
+                'file_size_bytes' => filesize($zipPath) ?: null,
+            ];
+        } finally {
+            if ($zipOpen) {
+                $zip->close();
+            }
+
+            foreach ($tempFiles as $tempFile) {
+                if (is_file($tempFile)) {
+                    @unlink($tempFile);
+                }
+            }
+
+            File::deleteDirectory($tempDirectory);
+        }
+    }
+
+    private function generateDistributionZip(ExportJob $exportJob): array
+    {
+        if (! class_exists(ZipArchive::class)) {
+            throw new HttpException(500, 'PHP extension ZipArchive belum tersedia.');
+        }
+
+        $filters = $this->normalizeDistributionFilters($exportJob->filters ?? []);
+        $distribution = Distribution::findOrFail($filters['distribution_id']);
+        $disk = $this->settings->getDefaults()['storage_disk'];
+        $tempDirectory = storage_path('app/arsip-digital/tmp/export-' . $exportJob->export_job_id . '-' . Str::uuid());
+        $zipPath = $tempDirectory . '/export.zip';
+
+        File::ensureDirectoryExists($tempDirectory);
+
+        $zip = new ZipArchive();
+        $zipOpen = false;
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new HttpException(500, 'Gagal membuat file ZIP export.');
+        }
+        $zipOpen = true;
+
+        $tempFiles = [];
+
+        try {
+            $rootName = $this->safeZipSegment($distribution->title . '-' . $distribution->distribution_id);
+            $zip->addEmptyDir($rootName);
+
+            $query = DistributionRecipient::where('distribution_id', $distribution->distribution_id)
+                ->with('file')
+                ->orderBy('identifier');
+
+            if (! empty($filters['recipient_ids'])) {
+                $query->whereIn('recipient_id', $filters['recipient_ids']);
+            }
+
+            if (! empty($filters['delivery_statuses'])) {
+                $query->whereIn('delivery_status', $filters['delivery_statuses']);
+            }
+
+            $missing = [];
+            $usedNamesByFolder = [];
+
+            $query->chunk(100, function ($recipients) use ($rootName, $zip, &$tempFiles, &$missing, &$usedNamesByFolder): void {
+                foreach ($recipients as $recipient) {
+                    if (! in_array($recipient->delivery_status, ['available', 'downloaded'], true) || ! $recipient->file) {
+                        $missing[] = $recipient->identifier . ' - ' . ($recipient->name_snapshot ?: 'Tanpa Nama') . ' (' . $recipient->delivery_status . ')';
+                        continue;
+                    }
+
+                    $file = $recipient->file;
+                    $folderName = $this->safeZipSegment($recipient->identifier . ' - ' . ($recipient->name_snapshot ?: 'Tanpa Nama'));
+                    $usedNamesByFolder[$folderName] ??= [];
+                    $entryName = $this->uniqueZipEntryName($usedNamesByFolder[$folderName], $file->display_filename);
+
+                    try {
+                        $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                    } catch (\Throwable $e) {
+                        $missing[] = $recipient->identifier . ' - ' . $file->display_filename . ': ' . $e->getMessage();
+                        continue;
+                    }
+
+                    $tempFiles[] = $localFile;
+                    $zip->addFile($localFile, $rootName . '/' . $folderName . '/' . $entryName);
+                }
+            });
+
+            if (! empty($missing)) {
+                $zip->addFromString($rootName . '/README.txt', "Recipient tanpa file export:\n" . implode("\n", $missing) . "\n");
             }
 
             $zip->close();

@@ -37,10 +37,21 @@ class AdminRequestAssignmentController extends Controller
                 'scholarship_status' => ['sometimes', 'string', 'max:50'],
                 'segment_id' => ['sometimes', 'integer'],
                 'search' => ['sometimes', 'string', 'max:255'],
+                'page' => ['sometimes', 'integer', 'min:1'],
+                'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
 
+            $assignments = $monitoringService->assignmentQuery($request_id, $filters)
+                ->paginate($filters['per_page'] ?? 50);
+
             return $this->successfulResponseJSON([
-                'assignments' => $monitoringService->assignmentQuery($request_id, $filters)->get()->toArray(),
+                'assignments' => $assignments->items(),
+                'meta' => [
+                    'current_page' => $assignments->currentPage(),
+                    'last_page' => $assignments->lastPage(),
+                    'per_page' => $assignments->perPage(),
+                    'total' => $assignments->total(),
+                ],
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
