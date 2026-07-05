@@ -32,6 +32,21 @@ class ExportJobServiceTest extends TestCase
         $this->assertSame(['approved'], $filters['assignment_statuses']);
     }
 
+    public function test_normalize_distribution_filters_accepts_valid_filters(): void
+    {
+        $filters = $this->service()->normalizeDistributionFilters([
+            'distribution_id' => '9',
+            'recipient_ids' => ['3', '3', '4'],
+            'delivery_statuses' => ['available', 'downloaded', 'available'],
+            'download_filename' => 'Distribusi/Sertifikat',
+        ]);
+
+        $this->assertSame(9, $filters['distribution_id']);
+        $this->assertSame([3, 4], $filters['recipient_ids']);
+        $this->assertSame(['available', 'downloaded'], $filters['delivery_statuses']);
+        $this->assertSame('Distribusi-Sertifikat.zip', $filters['download_filename']);
+    }
+
     public function test_zip_folder_names_are_sanitized(): void
     {
         $request = new ArchiveRequest();

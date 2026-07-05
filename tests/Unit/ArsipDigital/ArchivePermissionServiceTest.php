@@ -45,11 +45,17 @@ class ArchivePermissionServiceTest extends TestCase
         $file->setRawAttributes([
             'owner_user_id' => 10,
             'owner_role' => 'dosen',
+            'source_type' => 'personal',
         ], true);
 
         $this->assertTrue($service->canDownloadFile($file, (object) ['id' => 10], 'dosen'));
         $this->assertTrue($service->canDownloadFile($file, (object) ['id' => 1], 'admin'));
         $this->assertFalse($service->canDownloadFile($file, (object) ['id' => 11], 'dosen'));
         $this->assertFalse($service->canDownloadFile($file, (object) ['id' => 10], 'mahasiswa'));
+
+        $file->source_type = 'distribution';
+
+        $this->assertFalse($service->canDownloadFile($file, (object) ['id' => 10], 'dosen'));
+        $this->assertTrue($service->canDownloadFile($file, (object) ['id' => 1], 'admin'));
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\ArsipDigital;
 
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Category;
+use App\Models\ArsipDigital\RequestFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -170,12 +171,20 @@ class ArchiveFileService
 
     public function delete(ArchiveFile $file, object $user, string $role, ?string $reason = null): ArchiveFile
     {
-        if (! $this->permissions->canDeleteFile($file, $user, $role)) {
+        if (! $this->permissions->canViewFile($file, $user, $role)) {
             throw new HttpException(403, 'Tidak memiliki akses menghapus file.');
+        }
+
+        if (! $this->permissions->canDeleteFile($file, $user, $role)) {
+            throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
         }
 
         if ($file->trashed()) {
             return $file;
+        }
+
+        if ($file->source_type === 'personal' && RequestFile::where('file_id', $file->file_id)->exists()) {
+            throw new HttpException(409, 'File sedang dipakai pada request berkas.');
         }
 
         if ($role !== 'admin' && $file->source_type === 'personal') {

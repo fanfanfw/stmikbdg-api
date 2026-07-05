@@ -8,9 +8,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArchiveCategoryService
 {
-    public function __construct(private readonly ArchivePermissionService $permissions)
-    {
-    }
+    public function __construct(private readonly ArchivePermissionService $permissions) {}
 
     public function queryFor(object $user, string $role, array $filters = []): Builder
     {
@@ -86,12 +84,8 @@ class ArchiveCategoryService
         }
 
         $parentId = $payload['parent_category_id'] ?? $category->parent_category_id;
-        if ($parentId !== null && (int) $parentId !== (int) $category->category_id) {
-            $this->assertParentAllowed((int) $parentId, $user, $role, $category->category_type);
-        }
-
-        if ($parentId !== null && (int) $parentId === (int) $category->category_id) {
-            throw new HttpException(422, 'Kategori tidak boleh menjadi parent dirinya sendiri.');
+        if ($parentId !== null) {
+            $this->assertParentAllowed((int) $parentId, $user, $role, $category->category_type, (int) $category->category_id);
         }
 
         $category->fill([
@@ -122,7 +116,7 @@ class ArchiveCategoryService
         return $category;
     }
 
-    private function assertParentAllowed(int $parentId, object $user, string $role, string $categoryType): void
+    private function assertParentAllowed(int $parentId, object $user, string $role, string $categoryType, ?int $categoryId = null): void
     {
         $parent = Category::findOrFail($parentId);
 
@@ -132,6 +126,17 @@ class ArchiveCategoryService
 
         if (! $this->permissions->canManageCategory($parent, $user, $role)) {
             throw new HttpException(403, 'Tidak memiliki akses ke parent kategori.');
+        }
+
+        $seen = [];
+        while ($parent !== null) {
+            $parentCategoryId = (int) $parent->category_id;
+            if (($categoryId !== null && $parentCategoryId === $categoryId) || isset($seen[$parentCategoryId])) {
+                throw new HttpException(422, 'Kategori tidak boleh menjadi parent dirinya sendiri atau turunannya.');
+            }
+
+            $seen[$parentCategoryId] = true;
+            $parent = $parent->parent_category_id !== null ? Category::find($parent->parent_category_id) : null;
         }
     }
 }

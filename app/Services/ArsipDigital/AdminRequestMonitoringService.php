@@ -87,6 +87,12 @@ class AdminRequestMonitoringService
 
     public function approve(RequestAssignment $assignment, object $actor, string $actorRole, $httpRequest = null): RequestAssignment
     {
+        $this->ensureWaitingVerification($assignment);
+
+        if (! $this->hasCurrentFile($assignment)) {
+            throw new HttpException(422, 'Assignment belum memiliki file aktif untuk diverifikasi.');
+        }
+
         return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($assignment, $actor, $actorRole, $httpRequest): RequestAssignment {
             RequestFile::where('assignment_id', $assignment->assignment_id)
                 ->where('is_current', true)
@@ -126,6 +132,12 @@ class AdminRequestMonitoringService
     {
         if (trim($reason) === '') {
             throw new HttpException(422, 'Alasan reject wajib diisi.');
+        }
+
+        $this->ensureWaitingVerification($assignment);
+
+        if (! $this->hasCurrentFile($assignment)) {
+            throw new HttpException(422, 'Assignment belum memiliki file aktif untuk diverifikasi.');
         }
 
         return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($assignment, $reason, $actor, $actorRole, $httpRequest): RequestAssignment {
@@ -182,6 +194,15 @@ class AdminRequestMonitoringService
                 continue;
             }
 
+            if (! $this->hasCurrentFile($assignment)) {
+                $skipped[] = [
+                    'assignment_id' => $assignment->assignment_id,
+                    'identifier' => $assignment->identifier,
+                    'reason' => 'Assignment belum memiliki file aktif untuk diverifikasi.',
+                ];
+                continue;
+            }
+
             $updated[] = $this->approve($assignment, $actor, $actorRole, $httpRequest)->toArray();
         }
 
@@ -212,6 +233,15 @@ class AdminRequestMonitoringService
                 continue;
             }
 
+            if (! $this->hasCurrentFile($assignment)) {
+                $skipped[] = [
+                    'assignment_id' => $assignment->assignment_id,
+                    'identifier' => $assignment->identifier,
+                    'reason' => 'Assignment belum memiliki file aktif untuk diverifikasi.',
+                ];
+                continue;
+            }
+
             $updated[] = $this->reject($assignment, $reason, $actor, $actorRole, $httpRequest)->toArray();
         }
 
@@ -221,6 +251,21 @@ class AdminRequestMonitoringService
             'assignments' => $updated,
             'skipped_assignments' => $skipped,
         ];
+    }
+
+    private function ensureWaitingVerification(RequestAssignment $assignment): void
+    {
+        if ($assignment->status !== 'waiting_verification') {
+            throw new HttpException(422, 'Status bukan menunggu verifikasi.');
+        }
+    }
+
+    private function hasCurrentFile(RequestAssignment $assignment): bool
+    {
+        return RequestFile::where('assignment_id', $assignment->assignment_id)
+            ->where('is_current', true)
+            ->whereNull('deleted_at')
+            ->exists();
     }
 
     public function uploadForUser(UploadedFile $uploadedFile, array $payload, object $actor, string $actorRole, $httpRequest = null): array

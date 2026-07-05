@@ -6,12 +6,11 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArsipDigitalStorageService
 {
-    public function __construct(private readonly ArsipDigitalSettingsService $settings)
-    {
-    }
+    public function __construct(private readonly ArsipDigitalSettingsService $settings) {}
 
     public function uploadPrivate(UploadedFile $file, string $sourceType, array $context = [], ?string $disk = null): array
     {
@@ -19,13 +18,17 @@ class ArsipDigitalStorageService
         $uuid = (string) Str::uuid();
         $safeFilename = $this->safeFilename($file->getClientOriginalName());
         $directory = $this->directory($sourceType, $context, $uuid);
-        $storageFilename = $uuid . '_' . $safeFilename;
-        $storagePath = trim($directory . '/' . $storageFilename, '/');
+        $storageFilename = $uuid.'_'.$safeFilename;
+        $storagePath = trim($directory.'/'.$storageFilename, '/');
 
         $stream = fopen($file->getRealPath(), 'r');
 
         try {
-            Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+            $stored = Storage::disk($disk)->put($storagePath, $stream, ['visibility' => 'private']);
+
+            if ($stored === false) {
+                throw new HttpException(500, 'Gagal menyimpan file arsip digital ke storage.');
+            }
         } finally {
             if (is_resource($stream)) {
                 fclose($stream);
@@ -74,7 +77,7 @@ class ArsipDigitalStorageService
         $name = $name !== '' ? $name : 'file';
 
         return $extension !== ''
-            ? $name . '.' . strtolower(Str::of($extension)->ascii()->replaceMatches('/[^A-Za-z0-9]+/', '')->toString())
+            ? $name.'.'.strtolower(Str::of($extension)->ascii()->replaceMatches('/[^A-Za-z0-9]+/', '')->toString())
             : $name;
     }
 

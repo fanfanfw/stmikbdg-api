@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\ArsipDigital;
 
+use Illuminate\Support\Facades\DB;
+
 class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
 {
     public function test_admin_monitoring_can_approve_reject_download_and_cannot_upload_for_user(): void
@@ -25,8 +27,16 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
             ->assertOk()
             ->assertJsonPath('data.assignment.status', 'approved');
 
+        [, $rejectedAssignmentId] = $this->createPublishedRequestForMahasiswa(true);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/' . $rejectedAssignmentId . '/files/upload', [
+                'file' => $this->pdfUpload('monitoring-reject.pdf'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated();
+
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/reject', [
+            ->postJson('/api/arsip-digital/admin/request-assignments/' . $rejectedAssignmentId . '/reject', [
                 'reason' => 'File buram',
             ])
             ->assertOk()
@@ -41,5 +51,122 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
                 'file' => $this->pdfUpload('admin-upload.pdf'),
             ], ['X-Active-Role' => 'admin'])
             ->assertNotFound();
+    }
+
+    public function test_single_approve_and_reject_reject_not_submitted_assignment(): void
+    {
+        [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/approve')
+            ->assertUnprocessable();
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/reject', [
+                'reason' => 'Belum submit',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertSame('not_submitted', DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->value('status'));
+    }
+
+    public function test_single_approve_and_reject_require_current_file(): void
+    {
+        [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+        DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->update(['status' => 'waiting_verification']);
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/approve')
+            ->assertUnprocessable();
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/reject', [
+                'reason' => 'File tidak ada',
+            ])
+            ->assertUnprocessable();
+
+        $this->assertSame('waiting_verification', DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->value('status'));
+    }
+
+    public function test_bulk_approve_skips_assignments_that_single_approve_would_reject(): void
+    {
+        [, $notSubmittedId] = $this->createPublishedRequestForMahasiswa(true);
+        [, $withoutFileId] = $this->createPublishedRequestForMahasiswa(true);
+        [, $withFileId] = $this->createPublishedRequestForMahasiswa(true);
+
+        DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->update(['status' => 'waiting_verification']);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/' . $withFileId . '/files/upload', [
+                'file' => $this->pdfUpload('bulk-approve.pdf'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated();
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/bulk-approve', [
+                'assignment_ids' => [$notSubmittedId, $withoutFileId, $withFileId],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.result.updated', 1)
+            ->assertJsonPath('data.result.skipped', 2);
+
+        $this->assertSame('not_submitted', DB::table('arsip_digital.request_assignments')->where('assignment_id', $notSubmittedId)->value('status'));
+        $this->assertSame('waiting_verification', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->value('status'));
+        $this->assertSame('approved', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withFileId)->value('status'));
+    }
+
+    public function test_bulk_reject_skips_assignments_without_current_file(): void
+    {
+        [, $notSubmittedId] = $this->createPublishedRequestForMahasiswa(true);
+        [, $withoutFileId] = $this->createPublishedRequestForMahasiswa(true);
+        [, $withFileId] = $this->createPublishedRequestForMahasiswa(true);
+
+        DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->update(['status' => 'waiting_verification']);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/' . $withFileId . '/files/upload', [
+                'file' => $this->pdfUpload('bulk-reject.pdf'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated();
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/bulk-reject', [
+                'assignment_ids' => [$notSubmittedId, $withoutFileId, $withFileId],
+                'reason' => 'File salah',
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.result.updated', 1)
+            ->assertJsonPath('data.result.skipped', 2);
+
+        $this->assertSame('not_submitted', DB::table('arsip_digital.request_assignments')->where('assignment_id', $notSubmittedId)->value('status'));
+        $this->assertSame('waiting_verification', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->value('status'));
+        $this->assertSame('rejected', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withFileId)->value('status'));
+    }
+
+    public function test_admin_assignments_are_paginated(): void
+    {
+        [$requestId] = $this->createPublishedRequestForMahasiswa(true);
+
+        foreach (['22010002', '22010003', '22010004'] as $identifier) {
+            DB::table('arsip_digital.request_assignments')->insert([
+                'request_id' => $requestId,
+                'target_user_id' => 2,
+                'target_role' => 'mahasiswa',
+                'identifier' => $identifier,
+                'name_snapshot' => 'Mahasiswa ' . $identifier,
+                'status' => 'not_submitted',
+                'is_late' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/requests/' . $requestId . '/assignments?per_page=2&page=2')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.assignments')
+            ->assertJsonPath('data.meta.current_page', 2)
+            ->assertJsonPath('data.meta.per_page', 2)
+            ->assertJsonPath('data.meta.total', 4);
     }
 }

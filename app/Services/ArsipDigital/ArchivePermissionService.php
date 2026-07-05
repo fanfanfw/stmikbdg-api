@@ -53,11 +53,13 @@ class ArchivePermissionService
 
     public function canDeleteFile(ArchiveFile $file, object $user, string $role): bool
     {
-        return $this->canViewFile($file, $user, $role);
+        return $this->canViewFile($file, $user, $role)
+            && ($role === 'admin' || $file->source_type === 'personal');
     }
 
     public function canDownloadFile(ArchiveFile $file, object $user, string $role): bool
     {
-        return $this->canViewFile($file, $user, $role);
+        return $this->canViewFile($file, $user, $role)
+            && ($role === 'admin' || $file->source_type !== 'distribution');
     }
 }
