@@ -32,6 +32,23 @@ class TargetResolverService
         return $this->resolve($activeRole, $identifier);
     }
 
+    public function resolveByUserId(string $role, int $userId): array
+    {
+        $account = User::find($userId);
+        $prefix = match ($role) {
+            'mahasiswa' => 'MHS-',
+            'dosen' => 'DSN-',
+            'admin' => 'ADM-',
+            default => null,
+        };
+
+        if (! $account || $prefix === null || ! str_starts_with((string) $account->kd_user, $prefix)) {
+            return $this->invalid($role, (string) $userId, 'Akun user target tidak ditemukan.');
+        }
+
+        return $this->resolve($role, substr((string) $account->kd_user, strlen($prefix)));
+    }
+
     private function resolveMahasiswa(string $nim): array
     {
         $account = User::where('kd_user', 'MHS-' . $nim)->first();

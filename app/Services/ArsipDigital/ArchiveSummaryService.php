@@ -26,7 +26,7 @@ class ArchiveSummaryService
 
         $personalUsedBytes = (int) ArchiveFile::where('owner_user_id', $user->id)
             ->where('owner_role', $role)
-            ->where('source_type', 'personal')
+            ->whereIn('source_type', ['personal', 'admin_upload'])
             ->whereNull('deleted_at')
             ->sum('file_size_bytes');
         $settings = $this->settings->getDefaults();

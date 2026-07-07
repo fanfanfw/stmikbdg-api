@@ -2,8 +2,64 @@
 
 namespace Tests\Feature\ArsipDigital;
 
+use Illuminate\Support\Facades\DB;
+
 class ArsipDigitalCategoryTest extends ArsipDigitalFeatureTestCase
 {
+    public function test_admin_can_create_personal_category_for_target_and_only_target_sees_it(): void
+    {
+        $categoryId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/categories', [
+                'category_type' => 'personal',
+                'owner_role' => 'mahasiswa',
+                'owner_user_id' => 2,
+                'name' => 'Kategori Target',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.category.owner_user_id', 2)
+            ->assertJsonPath('data.category.owner_role', 'mahasiswa')
+            ->assertJsonPath('data.category.created_by_user_id', 1)
+            ->assertJsonPath('data.category.created_by_role', 'admin')
+            ->json('data.category.category_id');
+
+        $this->assertDatabaseHas('arsip_digital.categories', [
+            'category_id' => $categoryId,
+            'owner_user_id' => 2,
+            'owner_role' => 'mahasiswa',
+            'created_by_user_id' => 1,
+            'created_by_role' => 'admin',
+        ]);
+        $this->assertDatabaseHas('arsip_digital.audit_logs', [
+            'actor_user_id' => 1,
+            'actor_role' => 'admin',
+            'action' => 'category.created',
+            'entity_type' => 'category',
+            'entity_id' => (string) $categoryId,
+        ]);
+        $this->assertSame('personal', json_decode(DB::table('arsip_digital.audit_logs')->where('entity_id', (string) $categoryId)->value('metadata'), true)['category_type']);
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/categories')
+            ->assertOk()
+            ->assertJsonPath('data.categories.0.category_id', $categoryId);
+
+        $this->actingAsDosen()
+            ->getJson('/api/arsip-digital/categories')
+            ->assertOk()
+            ->assertJsonMissing(['category_id' => $categoryId]);
+    }
+
+    public function test_admin_cannot_create_personal_category_without_owner_target(): void
+    {
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/categories', [
+                'category_type' => 'personal',
+                'owner_role' => 'mahasiswa',
+                'name' => 'Kategori Tanpa Target',
+            ])
+            ->assertUnprocessable();
+    }
+
     public function test_update_category_rejects_descendant_parent_cycle(): void
     {
         $rootId = $this->actingAsMahasiswa()

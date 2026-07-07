@@ -183,8 +183,16 @@ class ArchiveFileService
             return $file;
         }
 
-        if ($file->source_type === 'personal' && RequestFile::where('file_id', $file->file_id)->exists()) {
-            throw new HttpException(409, 'File sedang dipakai pada request berkas.');
+        if (RequestFile::where('file_id', $file->file_id)->exists()) {
+            if ($file->source_type === 'personal') {
+                throw new HttpException(409, 'File sedang dipakai pada request berkas.');
+            }
+
+            throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
+        }
+
+        if ($file->source_type === 'distribution') {
+            throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
         }
 
         if ($role !== 'admin' && $file->source_type === 'personal') {
@@ -234,7 +242,7 @@ class ArchiveFileService
     {
         return (int) ArchiveFile::where('owner_user_id', $ownerUserId)
             ->where('owner_role', $role)
-            ->where('source_type', 'personal')
+            ->whereIn('source_type', ['personal', 'admin_upload'])
             ->whereNull('deleted_at')
             ->sum('file_size_bytes');
     }
