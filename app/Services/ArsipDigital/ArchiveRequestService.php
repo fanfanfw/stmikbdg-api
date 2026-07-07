@@ -13,6 +13,7 @@ class ArchiveRequestService
     public function __construct(
         private readonly RequestTargetPreviewService $targetPreview,
         private readonly AuditLogService $auditLog,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -231,9 +232,12 @@ class ArchiveRequestService
             ]);
             $request->save();
 
+            $assignments = [];
             foreach ($preview['valid_targets'] as $target) {
-                $this->createAssignmentFromTarget($request, $target, $actor, $actorRole, $httpRequest, 'request_assignment.created', 'Assignment request arsip digital dibuat saat publish.');
+                $assignments[] = $this->createAssignmentFromTarget($request, $target, $actor, $actorRole, $httpRequest, 'request_assignment.created', 'Assignment request arsip digital dibuat saat publish.');
             }
+
+            $this->notifyAssignments($assignments, $request, 'request_published');
 
             $this->auditLog->record(
                 'request.published',
@@ -270,6 +274,7 @@ class ArchiveRequestService
                 ->flip();
 
             $created = [];
+            $createdAssignments = [];
             $duplicates = [];
 
             foreach ($preview['valid_targets'] as $target) {
@@ -291,6 +296,7 @@ class ArchiveRequestService
 
                 if ($assignment->wasRecentlyCreated) {
                     $created[] = $target + ['assignment_id' => $assignment->assignment_id];
+                    $createdAssignments[] = $assignment;
                     $existingIdentifiers->put($identifier, true);
                     $this->auditAssignmentCreated($assignment, $request, $actor, $actorRole, $httpRequest, 'request_assignment.appended', 'Assignment request arsip digital ditambahkan setelah publish.');
                     continue;
@@ -299,6 +305,8 @@ class ArchiveRequestService
                 $duplicates[] = $target;
                 $existingIdentifiers->put($identifier, true);
             }
+
+            $this->notifyAssignments($createdAssignments, $request, 'request_target_added');
 
             $this->auditLog->record(
                 'request.targets_appended',
@@ -365,6 +373,17 @@ class ArchiveRequestService
             $actor->id,
             $actorRole
         );
+    }
+
+    private function notifyAssignments(array $assignments, ArchiveRequest $request, string $type): void
+    {
+        $this->notifications->sendToManyUsers($assignments, [
+            'type' => $type,
+            'title' => $request->title,
+            'message' => $request->description,
+            'entity_type' => 'request',
+            'entity_id' => $request->request_id,
+        ]);
     }
 
     public function fileSummary(ArchiveRequest $request): array

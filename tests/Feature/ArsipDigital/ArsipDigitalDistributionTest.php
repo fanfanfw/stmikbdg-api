@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\ArsipDigital;
 
+use Illuminate\Support\Facades\DB;
+
 class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
 {
     public function test_distribution_create_preview_publish_upload_recipient_and_user_download(): void
@@ -58,6 +60,17 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             'recipient_id' => $recipientId,
             'delivery_status' => 'available',
         ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'recipient_user_id' => 2,
+            'recipient_role' => 'mahasiswa',
+            'type' => 'distribution_file_available',
+            'entity_type' => 'distribution_recipient',
+            'entity_id' => $recipientId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'recipient_user_id' => 3,
+            'type' => 'distribution_file_available',
+        ], 'sqlite');
 
         $this->actingAsMahasiswa()
             ->get('/api/arsip-digital/distribution-files/' . $fileId . '/download')
@@ -67,6 +80,133 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
             'recipient_id' => $recipientId,
             'delivery_status' => 'downloaded',
+        ], 'sqlite');
+    }
+
+    public function test_bulk_confirm_notifies_only_matched_saved_recipients(): void
+    {
+        DB::table('users')->insert([
+            'id' => 4,
+            'kd_user' => 'MHS-22010002',
+            'name' => 'Mahasiswa Dua',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('vmahasiswa')->insert([
+            'nim' => '22010002',
+            'nm_mhs' => 'Mahasiswa Dua',
+            'angkatan' => '2022',
+            'prodi' => 'TI',
+            'sts_mhs' => 'aktif',
+        ]);
+
+        $distributionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions', [
+                'title' => 'Distribusi bulk',
+                'target_role' => 'mahasiswa',
+                'scope_type' => 'specific',
+                'target_identifiers' => ['22010001', '22010002'],
+            ])
+            ->assertCreated()
+            ->json('data.distribution.distribution_id');
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/publish')
+            ->assertOk();
+
+        $recipientId = DB::table('arsip_digital.distribution_recipients')
+            ->where('distribution_id', $distributionId)
+            ->where('identifier', '22010001')
+            ->value('recipient_id');
+        $otherRecipientId = DB::table('arsip_digital.distribution_recipients')
+            ->where('distribution_id', $distributionId)
+            ->where('identifier', '22010002')
+            ->value('recipient_id');
+
+        \Illuminate\Support\Facades\Storage::disk('s3')->put('tmp/bulk/22010001.pdf', '%PDF-1.4 bulk');
+        $jobId = DB::table('arsip_digital.distribution_bulk_upload_jobs')->insertGetId([
+            'distribution_id' => $distributionId,
+            'uploaded_by_user_id' => 1,
+            'status' => 'preview_ready',
+            'original_filename' => 'bulk.zip',
+            'summary' => json_encode(['total_entries' => 4, 'matched' => 1, 'unmatched' => 1, 'duplicate' => 1, 'invalid' => 1]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        foreach ([
+            [
+                'bulk_upload_job_id' => $jobId,
+                'recipient_id' => $recipientId,
+                'identifier' => '22010001',
+                'entry_path' => '22010001.pdf',
+                'original_filename' => '22010001.pdf',
+                'display_filename' => '22010001.pdf',
+                'temporary_disk' => 's3',
+                'temporary_path' => 'tmp/bulk/22010001.pdf',
+                'mime_type' => 'application/pdf',
+                'extension' => 'pdf',
+                'file_size_bytes' => 13,
+                'checksum_sha256' => hash('sha256', '%PDF-1.4 bulk'),
+                'match_status' => 'matched',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'bulk_upload_job_id' => $jobId,
+                'entry_path' => 'unmatched.pdf',
+                'original_filename' => 'unmatched.pdf',
+                'display_filename' => 'unmatched.pdf',
+                'match_status' => 'unmatched',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'bulk_upload_job_id' => $jobId,
+                'recipient_id' => $otherRecipientId,
+                'identifier' => '22010002',
+                'entry_path' => 'duplicate.pdf',
+                'original_filename' => 'duplicate.pdf',
+                'display_filename' => 'duplicate.pdf',
+                'match_status' => 'duplicate',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'bulk_upload_job_id' => $jobId,
+                'entry_path' => 'invalid.exe',
+                'original_filename' => 'invalid.exe',
+                'display_filename' => 'invalid.exe',
+                'match_status' => 'invalid',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ] as $entry) {
+            DB::table('arsip_digital.distribution_bulk_upload_entries')->insert($entry);
+        }
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distribution-bulk-upload-jobs/' . $jobId . '/confirm')
+            ->assertOk();
+
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'recipient_user_id' => 2,
+            'recipient_role' => 'mahasiswa',
+            'type' => 'distribution_file_available',
+            'entity_type' => 'distribution',
+            'entity_id' => $distributionId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'recipient_user_id' => 4,
+            'type' => 'distribution_file_available',
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
+            'recipient_id' => $recipientId,
+            'delivery_status' => 'available',
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
+            'recipient_id' => $otherRecipientId,
+            'delivery_status' => 'pending',
+            'file_id' => null,
         ], 'sqlite');
     }
 

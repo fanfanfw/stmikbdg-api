@@ -18,6 +18,7 @@ class RequestSubmissionService
         private readonly RequestStatusWorkflowService $workflow,
         private readonly AuditLogService $auditLog,
         private readonly ArchiveUploadValidationService $uploadValidation,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -109,6 +110,8 @@ class RequestSubmissionService
                     $role
                 );
 
+                $this->notifyAdmins($requestFile, $assignment, 'request_file_submitted', 'diupload', $isLate);
+
                 return $requestFile->fresh('file');
             });
         } catch (\Throwable $e) {
@@ -176,6 +179,8 @@ class RequestSubmissionService
                 $user->id,
                 $role
             );
+
+            $this->notifyAdmins($requestFile, $assignment, 'request_file_reused', 'dipakai ulang', $isLate);
 
             return $requestFile->fresh('file');
         });
@@ -287,6 +292,25 @@ class RequestSubmissionService
             'version_group_uuid' => $latest->version_group_uuid,
             'version_number' => $latest->version_number + 1,
         ];
+    }
+
+    private function notifyAdmins(RequestFile $requestFile, RequestAssignment $assignment, string $type, string $verb, bool $isLate): void
+    {
+        $request = $assignment->request;
+        $this->notifications->sendToAdmins([
+            'type' => $type,
+            'title' => $request->requires_verification ? 'File request menunggu verifikasi' : 'File request sudah ' . $verb,
+            'message' => trim($assignment->name_snapshot . ' ' . $verb . ' file untuk request ' . $request->title . '.'),
+            'entity_type' => 'request_file',
+            'entity_id' => $requestFile->request_file_id,
+            'data' => [
+                'request_id' => $request->request_id,
+                'assignment_id' => $assignment->assignment_id,
+                'request_file_id' => $requestFile->request_file_id,
+                'identifier' => $assignment->identifier,
+                'is_late' => $isLate,
+            ],
+        ]);
     }
 
     private function updateAssignmentAfterSubmission(RequestAssignment $assignment, string $status, bool $isLate): void
