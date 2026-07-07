@@ -6,7 +6,7 @@ use Illuminate\Support\Facades\DB;
 
 class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
 {
-    public function test_admin_monitoring_can_approve_reject_download_and_cannot_upload_for_user(): void
+    public function test_admin_monitoring_can_approve_reject_download_and_upload_for_user(): void
     {
         [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
@@ -68,7 +68,7 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
                 'request_assignment_id' => $assignmentId,
                 'file' => $this->pdfUpload('admin-upload.pdf'),
             ], ['X-Active-Role' => 'admin'])
-            ->assertNotFound();
+            ->assertCreated();
     }
 
     public function test_single_approve_and_reject_reject_not_submitted_assignment(): void

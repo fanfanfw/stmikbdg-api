@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AdminRequestMonitoringService
@@ -337,6 +338,7 @@ class AdminRequestMonitoringService
         $maxFileSizeMb = $request?->max_file_size_mb ?: $settings['default_max_file_size_mb'];
         $allowedExtensions = $request?->allowed_extensions ?: $settings['default_allowed_extensions'];
         $this->uploadValidation->validateUploadedFile($uploadedFile, (int) $maxFileSizeMb, $allowedExtensions);
+        $this->assertPersonalQuotaAvailable((int) $resolved['target_user_id'], $ownerRole, $uploadedFile);
 
         $displayFilename = $this->storage->safeFilename($payload['display_filename'] ?? $uploadedFile->getClientOriginalName());
         $isLate = $request ? $this->workflow->isLate($request) : false;
@@ -456,6 +458,29 @@ class AdminRequestMonitoringService
             }
 
             throw $e;
+        }
+    }
+
+    private function assertPersonalQuotaAvailable(int $ownerUserId, string $role, UploadedFile $uploadedFile): void
+    {
+        $quotaMb = $this->settings->personalQuotaMbForRole($role);
+        if ($quotaMb === null) {
+            return;
+        }
+
+        $usedBytes = (int) ArchiveFile::where('owner_user_id', $ownerUserId)
+            ->where('owner_role', $role)
+            ->whereIn('source_type', ['personal', 'admin_upload'])
+            ->whereNull('deleted_at')
+            ->sum('file_size_bytes');
+        $quotaBytes = $quotaMb * 1024 * 1024;
+        $uploadBytes = (int) ($uploadedFile->getSize() ?: 0);
+
+        if ($usedBytes + $uploadBytes > $quotaBytes) {
+            $remainingMb = max(0, round(($quotaBytes - $usedBytes) / 1024 / 1024, 2));
+            throw ValidationException::withMessages([
+                'file' => "Kuota penyimpanan arsip pribadi sudah tidak cukup. Sisa kuota: {$remainingMb} MB.",
+            ]);
         }
     }
 

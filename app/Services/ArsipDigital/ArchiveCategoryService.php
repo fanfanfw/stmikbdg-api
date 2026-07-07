@@ -8,7 +8,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArchiveCategoryService
 {
-    public function __construct(private readonly ArchivePermissionService $permissions) {}
+    public function __construct(
+        private readonly ArchivePermissionService $permissions,
+        private readonly TargetResolverService $targetResolver
+    ) {}
 
     public function queryFor(object $user, string $role, array $filters = []): Builder
     {
@@ -54,8 +57,13 @@ class ArchiveCategoryService
             throw new HttpException(403, 'Mahasiswa/dosen hanya dapat membuat kategori personal.');
         }
 
-        if ($role === 'admin' && $categoryType !== 'official') {
-            throw new HttpException(422, 'Admin Phase 2 hanya dapat membuat kategori official.');
+        $ownerUserId = $categoryType === 'personal' ? $user->id : null;
+        $ownerRole = $categoryType === 'personal' ? $role : null;
+
+        if ($role === 'admin' && $categoryType === 'personal') {
+            $resolved = $this->resolvePersonalOwner($payload);
+            $ownerUserId = $resolved['target_user_id'];
+            $ownerRole = $resolved['role'];
         }
 
         $parentId = $payload['parent_category_id'] ?? null;
@@ -64,8 +72,8 @@ class ArchiveCategoryService
         }
 
         return Category::create([
-            'owner_user_id' => $categoryType === 'personal' ? $user->id : null,
-            'owner_role' => $categoryType === 'personal' ? $role : null,
+            'owner_user_id' => $ownerUserId,
+            'owner_role' => $ownerRole,
             'category_type' => $categoryType,
             'name' => $payload['name'],
             'description' => $payload['description'] ?? null,
@@ -114,6 +122,32 @@ class ArchiveCategoryService
         $category->restore();
 
         return $category;
+    }
+
+    private function resolvePersonalOwner(array $payload): array
+    {
+        $ownerRole = $payload['owner_role'] ?? null;
+        if (! in_array($ownerRole, ['mahasiswa', 'dosen'], true)) {
+            throw new HttpException(422, 'Owner kategori personal wajib mahasiswa atau dosen.');
+        }
+
+        if (! empty($payload['owner_identifier'])) {
+            $resolved = $this->targetResolver->resolve($ownerRole, $payload['owner_identifier']);
+        } elseif (! empty($payload['owner_user_id'])) {
+            $resolved = $this->targetResolver->resolveByUserId($ownerRole, (int) $payload['owner_user_id']);
+        } else {
+            throw new HttpException(422, 'Owner kategori personal wajib diisi.');
+        }
+
+        if (! $resolved['valid']) {
+            throw new HttpException(422, $resolved['error']);
+        }
+
+        if (! empty($payload['owner_user_id']) && (int) $payload['owner_user_id'] !== (int) $resolved['target_user_id']) {
+            throw new HttpException(422, 'Owner user tidak sesuai dengan identifier.');
+        }
+
+        return $resolved;
     }
 
     private function assertParentAllowed(int $parentId, object $user, string $role, string $categoryType, ?int $categoryId = null): void

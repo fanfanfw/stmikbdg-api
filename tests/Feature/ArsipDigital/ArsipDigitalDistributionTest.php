@@ -51,6 +51,11 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertForbidden()
             ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
+        $this->actingAsAdmin()
+            ->deleteJson('/api/arsip-digital/files/' . $fileId)
+            ->assertForbidden()
+            ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
+
         $this->actingAsMahasiswa()
             ->get('/api/arsip-digital/files/' . $fileId . '/download')
             ->assertForbidden()

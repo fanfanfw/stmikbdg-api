@@ -47,6 +47,9 @@ class CategoryController extends Controller
                 'description' => ['nullable', 'string'],
                 'visibility' => ['sometimes', 'in:private,admin_visible,official'],
                 'parent_category_id' => ['nullable', 'integer'],
+                'owner_role' => ['sometimes', 'in:mahasiswa,dosen'],
+                'owner_identifier' => ['sometimes', 'string', 'max:100'],
+                'owner_user_id' => ['sometimes', 'integer'],
             ]);
 
             $category = $categoryService->create($payload, auth()->user(), $role);
