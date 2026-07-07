@@ -10,6 +10,7 @@ use App\Http\Controllers\ArsipDigital\AdminRequestController;
 use App\Http\Controllers\ArsipDigital\AdminTargetController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
+use App\Http\Controllers\ArsipDigital\NotificationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
 use App\Http\Controllers\ArsipDigital\SegmentController;
 use App\Http\Controllers\ArsipDigital\UserDistributionController;
@@ -20,6 +21,11 @@ Route::prefix('/arsip-digital')
     ->middleware('auth.jwt')
     ->group(function () {
         Route::get('/me/archive-summary', [FoundationController::class, 'archiveSummary']);
+
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::post('/notifications/{notification_id}/read', [NotificationController::class, 'markRead']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
         Route::get('/admin/settings', [FoundationController::class, 'settings']);
         Route::put('/admin/settings', [FoundationController::class, 'updateSettings']);

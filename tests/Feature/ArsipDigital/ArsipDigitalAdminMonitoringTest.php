@@ -27,6 +27,14 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
             ->assertOk()
             ->assertJsonPath('data.assignment.status', 'approved');
 
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'recipient_user_id' => 2,
+            'recipient_role' => 'mahasiswa',
+            'type' => 'request_file_approved',
+            'entity_type' => 'request_assignment',
+            'entity_id' => $assignmentId,
+        ], 'sqlite');
+
         [, $rejectedAssignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
         $this->actingAsMahasiswa()
@@ -42,6 +50,16 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
             ->assertOk()
             ->assertJsonPath('data.assignment.status', 'rejected')
             ->assertJsonPath('data.assignment.reject_reason', 'File buram');
+
+        $rejectNotification = DB::table('arsip_digital.notifications')
+            ->where('type', 'request_file_rejected')
+            ->where('entity_id', $rejectedAssignmentId)
+            ->first();
+        $this->assertNotNull($rejectNotification);
+        $this->assertSame(2, $rejectNotification->recipient_user_id);
+        $this->assertSame('mahasiswa', $rejectNotification->recipient_role);
+        $this->assertStringContainsString('File buram', $rejectNotification->message);
+        $this->assertSame('File buram', json_decode($rejectNotification->data, true)['reason']);
 
         $this->actingAsAdmin()
             ->post('/api/arsip-digital/admin/files/upload-for-user', [
@@ -113,6 +131,19 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         $this->assertSame('not_submitted', DB::table('arsip_digital.request_assignments')->where('assignment_id', $notSubmittedId)->value('status'));
         $this->assertSame('waiting_verification', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->value('status'));
         $this->assertSame('approved', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withFileId)->value('status'));
+        $this->assertSame(1, DB::table('arsip_digital.notifications')->where('type', 'request_file_approved')->count());
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'type' => 'request_file_approved',
+            'entity_id' => $withFileId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'type' => 'request_file_approved',
+            'entity_id' => $notSubmittedId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'type' => 'request_file_approved',
+            'entity_id' => $withoutFileId,
+        ], 'sqlite');
     }
 
     public function test_bulk_reject_skips_assignments_without_current_file(): void
@@ -141,6 +172,19 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         $this->assertSame('not_submitted', DB::table('arsip_digital.request_assignments')->where('assignment_id', $notSubmittedId)->value('status'));
         $this->assertSame('waiting_verification', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->value('status'));
         $this->assertSame('rejected', DB::table('arsip_digital.request_assignments')->where('assignment_id', $withFileId)->value('status'));
+        $this->assertSame(1, DB::table('arsip_digital.notifications')->where('type', 'request_file_rejected')->count());
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'type' => 'request_file_rejected',
+            'entity_id' => $withFileId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'type' => 'request_file_rejected',
+            'entity_id' => $notSubmittedId,
+        ], 'sqlite');
+        $this->assertDatabaseMissing('arsip_digital.notifications', [
+            'type' => 'request_file_rejected',
+            'entity_id' => $withoutFileId,
+        ], 'sqlite');
     }
 
     public function test_admin_assignments_are_paginated(): void

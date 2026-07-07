@@ -29,6 +29,7 @@ class DistributionBulkUploadService
         private readonly ArsipDigitalStorageService $storage,
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly AuditLogService $auditLog,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -343,6 +344,7 @@ class DistributionBulkUploadService
                 $job->save();
 
                 $confirmed = 0;
+                $notificationRecipients = [];
 
                 foreach ($matchedEntries as $entry) {
                     $recipient = DistributionRecipient::with(['distribution', 'file'])
@@ -414,6 +416,10 @@ class DistributionBulkUploadService
                         'delivery_status' => 'available',
                     ]);
                     $recipient->save();
+                    $notificationRecipients[] = [
+                        'target_user_id' => $recipient->target_user_id,
+                        'target_role' => $recipient->target_role,
+                    ];
 
                     $entry->fill([
                         'match_status' => 'confirmed',
@@ -439,6 +445,18 @@ class DistributionBulkUploadService
 
                     $confirmed++;
                 }
+
+                $this->notifications->sendToManyUsers($notificationRecipients, [
+                    'type' => 'distribution_file_available',
+                    'title' => 'File distribution tersedia',
+                    'message' => 'File untuk distribution ' . $job->distribution->title . ' sudah tersedia.',
+                    'entity_type' => 'distribution',
+                    'entity_id' => $job->distribution_id,
+                    'data' => [
+                        'distribution_id' => $job->distribution_id,
+                        'bulk_upload_job_id' => $job->bulk_upload_job_id,
+                    ],
+                ]);
 
                 $summary = $this->confirmedSummary($job->summary ?? [], $confirmed);
 

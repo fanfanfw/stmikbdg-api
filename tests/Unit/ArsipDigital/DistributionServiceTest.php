@@ -8,6 +8,7 @@ use App\Services\ArsipDigital\ArsipDigitalSettingsService;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
 use App\Services\ArsipDigital\AuditLogService;
 use App\Services\ArsipDigital\DistributionService;
+use App\Services\ArsipDigital\NotificationService;
 use App\Services\ArsipDigital\RequestTargetPreviewService;
 use App\Services\ArsipDigital\TargetResolverService;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -74,6 +75,7 @@ class DistributionServiceTest extends TestCase
             new ArsipDigitalStorageService($settings),
             new ArchiveUploadValidationService(),
             new AuditLogService(),
+            new NotificationService(),
         );
     }
 }

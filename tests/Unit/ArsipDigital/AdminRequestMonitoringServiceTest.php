@@ -8,6 +8,7 @@ use App\Services\ArsipDigital\ArchiveUploadValidationService;
 use App\Services\ArsipDigital\ArsipDigitalSettingsService;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
 use App\Services\ArsipDigital\AuditLogService;
+use App\Services\ArsipDigital\NotificationService;
 use App\Services\ArsipDigital\RequestStatusWorkflowService;
 use App\Services\ArsipDigital\TargetResolverService;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -27,6 +28,7 @@ class AdminRequestMonitoringServiceTest extends TestCase
             new TargetResolverService(),
             new RequestStatusWorkflowService(),
             new AuditLogService(),
+            new NotificationService(),
         );
 
         $assignment = new RequestAssignment();

@@ -22,6 +22,7 @@ class AdminRequestMonitoringService
         private readonly TargetResolverService $targetResolver,
         private readonly RequestStatusWorkflowService $workflow,
         private readonly AuditLogService $auditLog,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -124,6 +125,8 @@ class AdminRequestMonitoringService
                 $actorRole
             );
 
+            $this->notifyAssignmentResult($assignment, 'request_file_approved');
+
             return $assignment->fresh('requestFiles.file');
         });
     }
@@ -170,6 +173,8 @@ class AdminRequestMonitoringService
                 $actor->id,
                 $actorRole
             );
+
+            $this->notifyAssignmentResult($assignment, 'request_file_rejected', $reason);
 
             return $assignment->fresh('requestFiles.file');
         });
@@ -266,6 +271,35 @@ class AdminRequestMonitoringService
             ->where('is_current', true)
             ->whereNull('deleted_at')
             ->exists();
+    }
+
+    private function notifyAssignmentResult(RequestAssignment $assignment, string $type, ?string $reason = null): void
+    {
+        $request = $assignment->request ?: $assignment->request()->first();
+        $requestTitle = $request?->title ?? 'arsip digital';
+        $requestFileId = RequestFile::where('assignment_id', $assignment->assignment_id)
+            ->where('is_current', true)
+            ->whereNull('deleted_at')
+            ->orderByDesc('request_file_id')
+            ->value('request_file_id');
+        $shortReason = $reason === null ? null : Str::limit(trim($reason), 120);
+        $approved = $type === 'request_file_approved';
+
+        $this->notifications->sendToUser(
+            (int) $assignment->target_user_id,
+            $assignment->target_role,
+            $type,
+            $approved ? 'File request disetujui' : 'File request ditolak',
+            $approved ? 'File untuk request ' . $requestTitle . ' disetujui.' : 'File untuk request ' . $requestTitle . ' ditolak: ' . $shortReason,
+            'request_assignment',
+            $assignment->assignment_id,
+            [
+                'request_id' => $assignment->request_id,
+                'assignment_id' => $assignment->assignment_id,
+                'request_file_id' => $requestFileId,
+                'reason' => $shortReason,
+            ]
+        );
     }
 
     public function uploadForUser(UploadedFile $uploadedFile, array $payload, object $actor, string $actorRole, $httpRequest = null): array

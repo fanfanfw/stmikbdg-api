@@ -19,6 +19,7 @@ class DistributionService
         private readonly ArsipDigitalStorageService $storage,
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly AuditLogService $auditLog,
+        private readonly NotificationService $notifications,
     ) {
     }
 
@@ -309,6 +310,21 @@ class DistributionService
                     'delivery_status' => 'available',
                 ]);
                 $recipient->save();
+
+                $this->notifications->sendToUser(
+                    (int) $recipient->target_user_id,
+                    $recipient->target_role,
+                    'distribution_file_available',
+                    'File distribution tersedia',
+                    'File untuk distribution ' . $recipient->distribution->title . ' sudah tersedia.',
+                    'distribution_recipient',
+                    $recipient->recipient_id,
+                    [
+                        'distribution_id' => $recipient->distribution_id,
+                        'recipient_id' => $recipient->recipient_id,
+                        'file_id' => $file->file_id,
+                    ]
+                );
 
                 $this->auditLog->record(
                     'distribution_file.uploaded',
