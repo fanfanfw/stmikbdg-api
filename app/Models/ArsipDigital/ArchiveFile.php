@@ -23,4 +23,9 @@ class ArchiveFile extends ArsipDigitalModel
     {
         return $this->hasOne(RequestFile::class, 'file_id', 'file_id');
     }
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_id', 'category_id');
+    }
 }
