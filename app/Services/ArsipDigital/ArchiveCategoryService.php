@@ -2,6 +2,7 @@
 
 namespace App\Services\ArsipDigital;
 
+use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Category;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -111,6 +112,10 @@ class ArchiveCategoryService
     {
         if (! $this->permissions->canManageCategory($category, $user, $role)) {
             throw new HttpException(403, 'Tidak memiliki akses menghapus kategori.');
+        }
+
+        if (ArchiveFile::where('category_id', $category->category_id)->whereNull('deleted_at')->exists()) {
+            throw new HttpException(422, 'Kategori masih berisi file. Kosongkan kategori terlebih dahulu.');
         }
 
         $category->delete();
