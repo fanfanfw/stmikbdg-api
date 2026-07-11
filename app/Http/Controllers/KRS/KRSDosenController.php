@@ -526,6 +526,7 @@ class KRSDosenController extends Controller
                     'nim' => $mahasiswa->nim,
                     'nama' => $mahasiswa->nm_mhs,
                     'angkatan' => $mahasiswa->angkatan,
+                    'prodi' => trim($mahasiswa->nama_jurusan ?? ''),
                     'dosen_wali' => $dosenWali,
                     'status_mahasiswa' => $mahasiswa->sts_mhs,
                     'jenis_mahasiswa' => $mahasiswa->jns_mhs,
