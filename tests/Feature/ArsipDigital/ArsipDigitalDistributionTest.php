@@ -48,7 +48,8 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         $this->actingAsMahasiswa()
             ->getJson('/api/arsip-digital/distributions')
             ->assertOk()
-            ->assertJsonPath('data.distributions.0.recipients.0.file_id', $fileId);
+            ->assertJsonPath('data.distributions.0.recipients.0.file_id', $fileId)
+            ->assertJsonPath('data.distributions.0.files.0.file_id', $fileId);
 
         $this->actingAsMahasiswa()
             ->deleteJson('/api/arsip-digital/files/'.$fileId)
@@ -149,6 +150,15 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/withdraw', ['reason' => 'File perlu diperbaiki'])
             ->assertOk()
             ->assertJsonPath('data.distribution.status', 'closed');
+        $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
+            'recipient_id' => $recipientId,
+            'delivery_status' => 'revoked',
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.files', [
+            'file_id' => $fileId,
+            'status' => 'revoked',
+            'is_current' => false,
+        ], 'sqlite');
         $this->assertDatabaseHas('arsip_digital.notifications', [
             'recipient_user_id' => 2,
             'recipient_role' => 'mahasiswa',
@@ -163,7 +173,24 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertCreated()
             ->assertJsonPath('data.distribution.status', 'draft')
             ->json('data.distribution.distribution_id');
-        $this->assertSame(1, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $correctionId)->count());
+        $originalRecipient = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $distributionId)->first();
+        DB::table('arsip_digital.distribution_recipients')->insert([
+            'distribution_id' => $correctionId,
+            'target_user_id' => $originalRecipient->target_user_id,
+            'target_role' => $originalRecipient->target_role,
+            'identifier' => $originalRecipient->identifier,
+            'name_snapshot' => $originalRecipient->name_snapshot,
+            'delivery_status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertSame(2, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $correctionId)->count());
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/'.$correctionId.'/publish')
+            ->assertOk()
+            ->assertJsonPath('data.distribution.recipients_count', 1);
+        $this->assertSame(1, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $correctionId)->whereNull('deleted_at')->count());
         $this->assertDatabaseHas('arsip_digital.distributions', [
             'distribution_id' => $correctionId,
             'original_distribution_id' => $distributionId,
@@ -299,6 +326,14 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             'delivery_status' => 'pending',
             'file_id' => null,
         ], 'sqlite');
+    }
+
+    public function test_bulk_upload_for_deleted_distribution_returns_safe_not_found_message(): void
+    {
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/distributions/999999/bulk-upload-jobs')
+            ->assertNotFound()
+            ->assertJsonPath('message', 'Data tidak ditemukan atau sudah dihapus.');
     }
 
     public function test_admin_distribution_recipients_are_paginated(): void

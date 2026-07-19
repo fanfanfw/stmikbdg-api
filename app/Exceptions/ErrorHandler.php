@@ -3,16 +3,15 @@
 namespace App\Exceptions;
 
 use Exception;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
-
 // JWT Exception
-use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
+use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class ErrorHandler
 {
@@ -20,15 +19,15 @@ class ErrorHandler
     {
         if ($e instanceof ValidationException) {
             return self::handleValidationException($e);
-        } else if ($e instanceof QueryException) {
+        } elseif ($e instanceof QueryException) {
             return self::handleQueryException($e);
-        } else if ($e instanceof ModelNotFoundException) {
+        } elseif ($e instanceof ModelNotFoundException) {
             return self::handleModelNotFoundException($e);
-        } else if ($e instanceof HttpException) {
+        } elseif ($e instanceof HttpException) {
             return self::handleHttpException($e);
-        } else if($e instanceof TokenInvalidException) {
+        } elseif ($e instanceof TokenInvalidException) {
             return self::handleTokenInvalidException($e);
-        } else if ($e instanceof TokenExpiredException) {
+        } elseif ($e instanceof TokenExpiredException) {
             return self::handleTokenExpiredException($e);
         } else {
             return self::handleGenericException($e, $isToken);
@@ -56,7 +55,7 @@ class ErrorHandler
         return response()->json([
             'status' => 'Validation Failed',
             'message' => $e->getMessage(),
-            'errors' => $e->validator->errors()
+            'errors' => $e->validator->errors(),
         ], 422);
     }
 
@@ -70,15 +69,15 @@ class ErrorHandler
 
         return response()->json([
             'status' => 'Database Error',
-            'message' => 'Terjadi masalah pada database. Pastikan migrasi sudah dijalankan atau hubungi administrator.'
+            'message' => 'Terjadi masalah pada database. Pastikan migrasi sudah dijalankan atau hubungi administrator.',
         ], 500);
     }
 
     private static function handleModelNotFoundException(ModelNotFoundException $e): JsonResponse
     {
         return response()->json([
-            'status' => 'Model Not Found',
-            'message' => $e->getMessage()
+            'status' => 'Not Found',
+            'message' => 'Data tidak ditemukan atau sudah dihapus.',
         ], 404);
     }
 
@@ -101,7 +100,7 @@ class ErrorHandler
 
         return response()->json([
             'status' => 'Internal Server Error',
-            'message' => $e->getMessage()
+            'message' => $e->getMessage(),
         ], 500);
     }
 }
