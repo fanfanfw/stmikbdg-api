@@ -19,9 +19,15 @@ class UserRequestController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
 
-            return $this->successfulResponseJSON([
-                'requests' => $requestService->userQuery(auth()->user(), $role)->get()->toArray(),
-            ]);
+            $requests = $requestService->userQuery(auth()->user(), $role)->get();
+            $requests->each(fn (ArchiveRequest $archiveRequest) => $archiveRequest->assignments->each(
+                fn (RequestAssignment $assignment) => $assignment->setAttribute(
+                    'files_count',
+                    $assignment->requestFiles->where('is_current', true)->count()
+                )
+            ));
+
+            return $this->successfulResponseJSON(['requests' => $requests->toArray()]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
