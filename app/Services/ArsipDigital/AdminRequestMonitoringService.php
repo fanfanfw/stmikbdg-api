@@ -24,8 +24,7 @@ class AdminRequestMonitoringService
         private readonly RequestStatusWorkflowService $workflow,
         private readonly AuditLogService $auditLog,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function assignmentQuery(int $requestId, array $filters = []): Builder
     {
@@ -53,7 +52,7 @@ class AdminRequestMonitoringService
         }
 
         if (! empty($filters['search'])) {
-            $search = '%' . strtolower($filters['search']) . '%';
+            $search = '%'.strtolower($filters['search']).'%';
             $query->where(function (Builder $query) use ($search): void {
                 $query->whereRaw('LOWER(identifier) LIKE ?', [$search])
                     ->orWhereRaw('LOWER(name_snapshot) LIKE ?', [$search]);
@@ -73,7 +72,7 @@ class AdminRequestMonitoringService
         }
 
         if (! empty($filters['scholarship'])) {
-            $search = '%' . strtolower($filters['scholarship']) . '%';
+            $search = '%'.strtolower($filters['scholarship']).'%';
             $query->whereRaw('LOWER(COALESCE(scholarship_snapshot::text, \'\')) LIKE ?', [$search]);
         }
 
@@ -197,6 +196,7 @@ class AdminRequestMonitoringService
                     'identifier' => $assignment->identifier,
                     'reason' => 'Status bukan menunggu verifikasi.',
                 ];
+
                 continue;
             }
 
@@ -206,6 +206,7 @@ class AdminRequestMonitoringService
                     'identifier' => $assignment->identifier,
                     'reason' => 'Assignment belum memiliki file aktif untuk diverifikasi.',
                 ];
+
                 continue;
             }
 
@@ -236,6 +237,7 @@ class AdminRequestMonitoringService
                     'identifier' => $assignment->identifier,
                     'reason' => 'Status bukan menunggu verifikasi.',
                 ];
+
                 continue;
             }
 
@@ -245,6 +247,7 @@ class AdminRequestMonitoringService
                     'identifier' => $assignment->identifier,
                     'reason' => 'Assignment belum memiliki file aktif untuk diverifikasi.',
                 ];
+
                 continue;
             }
 
@@ -291,7 +294,7 @@ class AdminRequestMonitoringService
             $assignment->target_role,
             $type,
             $approved ? 'File request disetujui' : 'File request ditolak',
-            $approved ? 'File untuk request ' . $requestTitle . ' disetujui.' : 'File untuk request ' . $requestTitle . ' ditolak: ' . $shortReason,
+            $approved ? 'File untuk request '.$requestTitle.' disetujui.' : 'File untuk request '.$requestTitle.' ditolak: '.$shortReason,
             'request_assignment',
             $assignment->assignment_id,
             [
@@ -369,18 +372,60 @@ class AdminRequestMonitoringService
                 $status,
                 $isLate,
                 $payload,
+                $uploadedFile,
                 $httpRequest
             ): array {
-                $version = $assignment
-                    ? $this->nextRequestVersion($assignment, $displayFilename)
-                    : ['version_group_uuid' => (string) Str::uuid(), 'version_number' => 1];
+                DB::connection(config('myconfig.database.first_connection'))
+                    ->table('users')
+                    ->where('id', $resolved['target_user_id'])
+                    ->lockForUpdate()
+                    ->first();
+                $this->assertPersonalQuotaAvailable((int) $resolved['target_user_id'], $ownerRole, $uploadedFile);
+
+                $lockedCategory = null;
+                if ($category) {
+                    $lockedCategory = Category::where('category_id', $category->category_id)->lockForUpdate()->first();
+                    if (
+                        ! $lockedCategory
+                        || $lockedCategory->category_type !== 'personal'
+                        || $lockedCategory->owner_user_id !== $resolved['target_user_id']
+                        || $lockedCategory->owner_role !== $ownerRole
+                    ) {
+                        throw new HttpException(422, 'Kategori tidak sesuai dengan owner file.');
+                    }
+                }
 
                 if ($assignment) {
+                    $version = $this->nextRequestVersion($assignment, $displayFilename);
                     $this->replaceCurrentRequestFileByName($assignment, $displayFilename, true);
+                } else {
+                    $latest = ArchiveFile::withTrashed()
+                        ->where('owner_user_id', $resolved['target_user_id'])
+                        ->where('owner_role', $ownerRole)
+                        ->whereIn('source_type', ['personal', 'admin_upload'])
+                        ->where('display_filename', $displayFilename)
+                        ->when($lockedCategory, fn ($query) => $query->where('category_id', $lockedCategory->category_id), fn ($query) => $query->whereNull('category_id'))
+                        ->orderByDesc('version_number')
+                        ->lockForUpdate()
+                        ->first();
+                    $version = $latest
+                        ? ['version_group_uuid' => $latest->version_group_uuid, 'version_number' => $latest->version_number + 1]
+                        : ['version_group_uuid' => (string) Str::uuid(), 'version_number' => 1];
+
+                    $currentQuery = ArchiveFile::where('owner_user_id', $resolved['target_user_id'])
+                        ->where('owner_role', $ownerRole)
+                        ->whereIn('source_type', ['personal', 'admin_upload'])
+                        ->where('display_filename', $displayFilename)
+                        ->where('is_current', true)
+                        ->whereNull('deleted_at');
+                    $lockedCategory
+                        ? $currentQuery->where('category_id', $lockedCategory->category_id)
+                        : $currentQuery->whereNull('category_id');
+                    $currentQuery->update(['is_current' => false, 'status' => 'replaced', 'updated_at' => now()]);
                 }
 
                 $file = ArchiveFile::create([
-                    'category_id' => $category?->category_id,
+                    'category_id' => $lockedCategory?->category_id,
                     'owner_user_id' => $resolved['target_user_id'],
                     'owner_role' => $ownerRole,
                     'owner_identifier' => $resolved['identifier'],
@@ -388,7 +433,7 @@ class AdminRequestMonitoringService
                     'owner_status_snapshot' => $resolved['status_snapshot'],
                     'uploaded_by_user_id' => $actor->id,
                     'uploaded_by_role' => $actorRole,
-                    'source_type' => 'admin_upload',
+                    'source_type' => $assignment ? 'request' : 'admin_upload',
                     'original_filename' => $storageMetadata['original_filename'],
                     'display_filename' => $displayFilename,
                     'storage_disk' => $storageMetadata['storage_disk'],
@@ -449,7 +494,7 @@ class AdminRequestMonitoringService
                     'file' => $file->fresh(),
                     'request_file' => $requestFile?->fresh('file'),
                 ];
-            });
+            }, 3);
         } catch (\Throwable $e) {
             try {
                 $this->storage->deletePrivate($storageMetadata['storage_disk'], $storageMetadata['storage_path']);

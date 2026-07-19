@@ -159,6 +159,14 @@ class RequestSubmissionService
             $status,
             $httpRequest
         ): RequestFile {
+            DB::connection(config('myconfig.database.first_connection'))
+                ->table('users')
+                ->where('id', $user->id)
+                ->lockForUpdate()
+                ->first();
+            $lockedFile = ArchiveFile::where('file_id', $file->file_id)->lockForUpdate()->firstOrFail();
+            $this->assertReusableFile($assignment, $lockedFile, $request);
+
             $this->assertMaxFiles($assignment, (int) $request->max_files, $displayFilename, $replacedRequestFile);
             if ($replacedRequestFile) {
                 $this->replaceRequestFile($replacedRequestFile);
@@ -169,7 +177,7 @@ class RequestSubmissionService
             $requestFile = RequestFile::create([
                 'request_id' => $request->request_id,
                 'assignment_id' => $assignment->assignment_id,
-                'file_id' => $file->file_id,
+                'file_id' => $lockedFile->file_id,
                 'submission_type' => 'reused',
                 'status' => $status,
                 'is_late' => $isLate,
@@ -194,7 +202,7 @@ class RequestSubmissionService
             $this->notifyAdmins($requestFile, $assignment, 'request_file_reused', 'dipakai ulang', $isLate);
 
             return $requestFile->fresh('file');
-        });
+        }, 3);
     }
 
     private function assertAssignmentOwner(RequestAssignment $assignment, object $user, string $role): void

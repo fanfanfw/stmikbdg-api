@@ -1,13 +1,13 @@
 <?php
 
-use App\Http\Controllers\ArsipDigital\ArchiveFileController;
-use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminAuditLogController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionBulkUploadController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
+use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
 use App\Http\Controllers\ArsipDigital\AdminTargetController;
+use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
@@ -38,6 +38,7 @@ Route::prefix('/arsip-digital')
 
         Route::get('/files', [ArchiveFileController::class, 'index']);
         Route::post('/files', [ArchiveFileController::class, 'store']);
+        Route::post('/files/move', [ArchiveFileController::class, 'move']);
         Route::get('/files/{file_id}', [ArchiveFileController::class, 'show']);
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
