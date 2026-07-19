@@ -19,8 +19,7 @@ class RequestSubmissionService
         private readonly AuditLogService $auditLog,
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function upload(RequestAssignment $assignment, UploadedFile $uploadedFile, array $payload, object $user, string $role, $httpRequest = null): RequestFile
     {
@@ -30,7 +29,8 @@ class RequestSubmissionService
         $this->validateUploadFile($uploadedFile, $request);
 
         $displayFilename = $this->storage->safeFilename($payload['display_filename'] ?? $uploadedFile->getClientOriginalName());
-        $this->assertMaxFiles($assignment, (int) $request->max_files, $displayFilename);
+        $replacedRequestFile = $this->resolveReplacement($assignment, $payload['replace_request_file_id'] ?? null);
+        $this->assertMaxFiles($assignment, (int) $request->max_files, $displayFilename, $replacedRequestFile);
 
         $storageMetadata = $this->storage->uploadPrivate($uploadedFile, 'request', [
             'request_id' => $request->request_id,
@@ -50,10 +50,15 @@ class RequestSubmissionService
                 $isLate,
                 $status,
                 $payload,
+                $replacedRequestFile,
                 $httpRequest
             ): RequestFile {
-                $version = $this->nextRequestVersion($assignment, $displayFilename);
-                $this->replaceCurrentRequestFileByName($assignment, $displayFilename, true);
+                $version = $this->nextRequestVersion($assignment, $displayFilename, $replacedRequestFile);
+                if ($replacedRequestFile) {
+                    $this->replaceRequestFile($replacedRequestFile);
+                } else {
+                    $this->replaceCurrentRequestFileByName($assignment, $displayFilename, true);
+                }
 
                 $file = ArchiveFile::create([
                     'category_id' => null,
@@ -125,7 +130,7 @@ class RequestSubmissionService
         }
     }
 
-    public function reuse(RequestAssignment $assignment, ArchiveFile $file, object $user, string $role, $httpRequest = null): RequestFile
+    public function reuse(RequestAssignment $assignment, ArchiveFile $file, array $payload, object $user, string $role, $httpRequest = null): RequestFile
     {
         $request = $assignment->request;
         $this->assertAssignmentOwner($assignment, $user, $role);
@@ -138,6 +143,7 @@ class RequestSubmissionService
         $this->assertReusableFile($assignment, $file, $request);
 
         $displayFilename = $file->display_filename;
+        $replacedRequestFile = $this->resolveReplacement($assignment, $payload['replace_request_file_id'] ?? null);
         $isLate = $this->workflow->isLate($request);
         $status = $this->workflow->submissionStatus($request);
 
@@ -148,12 +154,17 @@ class RequestSubmissionService
             $user,
             $role,
             $displayFilename,
+            $replacedRequestFile,
             $isLate,
             $status,
             $httpRequest
         ): RequestFile {
-            $this->assertMaxFiles($assignment, (int) $request->max_files, $displayFilename);
-            $this->replaceCurrentRequestFileByName($assignment, $displayFilename, false);
+            $this->assertMaxFiles($assignment, (int) $request->max_files, $displayFilename, $replacedRequestFile);
+            if ($replacedRequestFile) {
+                $this->replaceRequestFile($replacedRequestFile);
+            } else {
+                $this->replaceCurrentRequestFileByName($assignment, $displayFilename, false);
+            }
 
             $requestFile = RequestFile::create([
                 'request_id' => $request->request_id,
@@ -192,8 +203,8 @@ class RequestSubmissionService
             throw new HttpException(403, 'Tidak memiliki akses ke assignment request ini.');
         }
 
-        if ($assignment->status === 'closed') {
-            throw new HttpException(422, 'Assignment request sudah ditutup.');
+        if (! in_array($assignment->status, ['not_submitted', 'waiting_verification', 'rejected'], true)) {
+            throw new HttpException(422, 'File assignment tidak dapat diubah pada status saat ini.');
         }
     }
 
@@ -229,8 +240,32 @@ class RequestSubmissionService
         );
     }
 
-    private function assertMaxFiles(RequestAssignment $assignment, int $maxFiles, string $displayFilename): void
+    private function resolveReplacement(RequestAssignment $assignment, mixed $requestFileId): ?RequestFile
     {
+        if ($requestFileId === null) {
+            return null;
+        }
+
+        $requestFile = RequestFile::where('request_file_id', $requestFileId)
+            ->where('assignment_id', $assignment->assignment_id)
+            ->where('is_current', true)
+            ->whereNull('deleted_at')
+            ->with('file')
+            ->first();
+
+        if (! $requestFile) {
+            throw new HttpException(422, 'File yang akan diganti tidak valid.');
+        }
+
+        return $requestFile;
+    }
+
+    private function assertMaxFiles(RequestAssignment $assignment, int $maxFiles, string $displayFilename, ?RequestFile $replacedRequestFile = null): void
+    {
+        if ($replacedRequestFile) {
+            return;
+        }
+
         $currentFiles = RequestFile::where('assignment_id', $assignment->assignment_id)
             ->where('is_current', true)
             ->whereNull('deleted_at')
@@ -241,6 +276,23 @@ class RequestSubmissionService
 
         if (! $sameNameExists && $currentFiles->count() >= $maxFiles) {
             throw new HttpException(422, 'Jumlah file request sudah mencapai batas maksimal.');
+        }
+    }
+
+    private function replaceRequestFile(RequestFile $requestFile): void
+    {
+        $requestFile->fill([
+            'is_current' => false,
+            'status' => 'replaced',
+        ]);
+        $requestFile->save();
+
+        if ($requestFile->file?->source_type === 'request') {
+            $requestFile->file->fill([
+                'is_current' => false,
+                'status' => 'replaced',
+            ]);
+            $requestFile->file->save();
         }
     }
 
@@ -270,16 +322,20 @@ class RequestSubmissionService
         }
     }
 
-    private function nextRequestVersion(RequestAssignment $assignment, string $displayFilename): array
+    private function nextRequestVersion(RequestAssignment $assignment, string $displayFilename, ?RequestFile $replacedRequestFile = null): array
     {
-        $latest = RequestFile::where('assignment_id', $assignment->assignment_id)
-            ->whereHas('file', fn ($query) => $query->where('display_filename', $displayFilename))
-            ->with('file')
-            ->get()
-            ->pluck('file')
-            ->filter()
-            ->sortByDesc('version_number')
-            ->first();
+        $latest = $replacedRequestFile?->file?->source_type === 'request' ? $replacedRequestFile->file : null;
+
+        if (! $latest && ! $replacedRequestFile) {
+            $latest = RequestFile::where('assignment_id', $assignment->assignment_id)
+                ->whereHas('file', fn ($query) => $query->where('display_filename', $displayFilename))
+                ->with('file')
+                ->get()
+                ->pluck('file')
+                ->filter()
+                ->sortByDesc('version_number')
+                ->first();
+        }
 
         if (! $latest) {
             return [
@@ -299,8 +355,8 @@ class RequestSubmissionService
         $request = $assignment->request;
         $this->notifications->sendToAdmins([
             'type' => $type,
-            'title' => $request->requires_verification ? 'File request menunggu verifikasi' : 'File request sudah ' . $verb,
-            'message' => trim($assignment->name_snapshot . ' ' . $verb . ' file untuk request ' . $request->title . '.'),
+            'title' => $request->requires_verification ? 'File request menunggu verifikasi' : 'File request sudah '.$verb,
+            'message' => trim($assignment->name_snapshot.' '.$verb.' file untuk request '.$request->title.'.'),
             'entity_type' => 'request_file',
             'entity_id' => $requestFile->request_file_id,
             'data' => [
