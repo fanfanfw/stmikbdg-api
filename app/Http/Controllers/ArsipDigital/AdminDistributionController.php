@@ -132,6 +132,31 @@ class AdminDistributionController extends Controller
         }
     }
 
+    public function withdraw(Request $request, int $distribution_id, RoleResolverService $roleResolver, DistributionService $distributionService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $reason = $request->validate(['reason' => ['required', 'string', 'max:2000']])['reason'];
+            $distribution = $distributionService->withdraw(Distribution::findOrFail($distribution_id), $reason, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['distribution' => $distribution->toArray()], 'Distribution berhasil ditarik.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function createCorrection(Request $request, int $distribution_id, RoleResolverService $roleResolver, DistributionService $distributionService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $distribution = $distributionService->createCorrection(Distribution::findOrFail($distribution_id), auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['distribution' => $distribution->toArray()], 'Correction berhasil dibuat.', 201);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function recipients(Request $request, int $distribution_id, RoleResolverService $roleResolver, DistributionService $distributionService)
     {
         try {

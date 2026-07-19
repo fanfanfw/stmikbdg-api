@@ -9,7 +9,9 @@ class Distribution extends ArsipDigitalModel
     use SoftDeletes;
 
     protected $table = 'arsip_digital.distributions';
+
     protected $primaryKey = 'distribution_id';
+
     protected $guarded = ['distribution_id'];
 
     protected $casts = [
@@ -17,7 +19,18 @@ class Distribution extends ArsipDigitalModel
         'target_identifiers' => 'array',
         'target_segment_ids' => 'array',
         'published_at' => 'datetime',
+        'withdrawn_at' => 'datetime',
     ];
+
+    public function originalDistribution()
+    {
+        return $this->belongsTo(self::class, 'original_distribution_id', 'distribution_id');
+    }
+
+    public function corrections()
+    {
+        return $this->hasMany(self::class, 'original_distribution_id', 'distribution_id');
+    }
 
     public function recipients()
     {

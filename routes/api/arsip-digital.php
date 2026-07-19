@@ -78,6 +78,8 @@ Route::prefix('/arsip-digital')
         Route::put('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'update']);
         Route::delete('/admin/distributions/{distribution_id}', [AdminDistributionController::class, 'destroy']);
         Route::post('/admin/distributions/{distribution_id}/publish', [AdminDistributionController::class, 'publish']);
+        Route::post('/admin/distributions/{distribution_id}/withdraw', [AdminDistributionController::class, 'withdraw']);
+        Route::post('/admin/distributions/{distribution_id}/corrections', [AdminDistributionController::class, 'createCorrection']);
         Route::get('/admin/distributions/{distribution_id}/recipients', [AdminDistributionController::class, 'recipients']);
         Route::get('/admin/distributions/{distribution_id}/bulk-upload-jobs', [AdminDistributionBulkUploadController::class, 'index']);
         Route::post('/admin/distributions/{distribution_id}/bulk-upload-jobs', [AdminDistributionBulkUploadController::class, 'store']);
