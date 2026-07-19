@@ -22,6 +22,7 @@ use ZipArchive;
 class DistributionBulkUploadService
 {
     private const MAX_ZIP_SIZE_MB = 100;
+
     private const MAX_ZIP_ENTRIES = 1000;
 
     public function __construct(
@@ -30,8 +31,7 @@ class DistributionBulkUploadService
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly AuditLogService $auditLog,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function adminQuery(array $filters = []): Builder
     {
@@ -50,8 +50,8 @@ class DistributionBulkUploadService
 
     public function createPreviewJob(Distribution $distribution, UploadedFile $zipFile, object $actor, string $actorRole, $httpRequest = null): DistributionBulkUploadJob
     {
-        if ($distribution->status !== 'published') {
-            throw new HttpException(422, 'Bulk upload ZIP hanya dapat dibuat untuk distribution yang sudah dipublish.');
+        if (! in_array($distribution->status, ['draft', 'published'], true)) {
+            throw new HttpException(422, 'Bulk upload ZIP hanya dapat dibuat untuk distribution draft atau published.');
         }
 
         if (! DistributionRecipient::where('distribution_id', $distribution->distribution_id)->exists()) {
@@ -153,8 +153,8 @@ class DistributionBulkUploadService
         }
 
         $storedEntryPaths = [];
-        $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-upload-' . $job->bulk_upload_job_id . '-' . Str::uuid());
-        $zipPath = $tempDirectory . '/source.zip';
+        $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-upload-'.$job->bulk_upload_job_id.'-'.Str::uuid());
+        $zipPath = $tempDirectory.'/source.zip';
 
         try {
             $this->cleanupEntryFiles($job);
@@ -178,7 +178,7 @@ class DistributionBulkUploadService
             $allowedExtensions = $settings['default_allowed_extensions'];
             $disk = $settings['storage_disk'];
 
-            $zip = new ZipArchive();
+            $zip = new ZipArchive;
             $zipOpen = false;
 
             if ($zip->open($zipPath) !== true) {
@@ -191,7 +191,7 @@ class DistributionBulkUploadService
                 $zip->close();
                 $zipOpen = false;
 
-                throw new HttpException(422, 'Jumlah entry ZIP melebihi batas ' . self::MAX_ZIP_ENTRIES . ' file.');
+                throw new HttpException(422, 'Jumlah entry ZIP melebihi batas '.self::MAX_ZIP_ENTRIES.' file.');
             }
 
             $entryPayloads = [];
@@ -219,7 +219,7 @@ class DistributionBulkUploadService
                         $zip->close();
                         $zipOpen = false;
 
-                        throw new HttpException(422, 'Total ukuran file hasil ekstraksi ZIP melebihi batas ' . self::MAX_ZIP_SIZE_MB . ' MB.');
+                        throw new HttpException(422, 'Total ukuran file hasil ekstraksi ZIP melebihi batas '.self::MAX_ZIP_SIZE_MB.' MB.');
                     }
 
                     $entryPayloads[] = $this->previewZipEntry(
@@ -304,7 +304,7 @@ class DistributionBulkUploadService
     public function confirm(int $jobId, object $actor, string $actorRole, $httpRequest = null): DistributionBulkUploadJob
     {
         $uploadedFiles = [];
-        $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-confirm-' . $jobId . '-' . Str::uuid());
+        $tempDirectory = storage_path('app/arsip-digital/tmp/distribution-bulk-confirm-'.$jobId.'-'.Str::uuid());
 
         try {
             File::ensureDirectoryExists($tempDirectory);
@@ -326,8 +326,13 @@ class DistributionBulkUploadService
                     throw new HttpException(422, 'Bulk upload ZIP hanya dapat dikonfirmasi saat status preview_ready.');
                 }
 
-                if (! $job->distribution || $job->distribution->status !== 'published') {
-                    throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution masih dipublish.');
+                $distribution = Distribution::whereKey($job->distribution_id)->lockForUpdate()->firstOrFail();
+                $job->setRelation('distribution', $distribution);
+                if (! in_array($distribution->status, ['draft', 'published'], true)) {
+                    throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution draft atau published.');
+                }
+                if ($distribution->status === 'published' && DistributionRecipient::where('distribution_id', $distribution->distribution_id)->where('download_count', '>', 0)->lockForUpdate()->first()) {
+                    throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
                 }
 
                 $matchedEntries = DistributionBulkUploadEntry::where('bulk_upload_job_id', $job->bulk_upload_job_id)
@@ -356,8 +361,12 @@ class DistributionBulkUploadService
                         throw new HttpException(422, 'Recipient matched tidak ditemukan atau bukan bagian dari distribution job.');
                     }
 
-                    if (! $recipient->distribution || $recipient->distribution->status !== 'published') {
-                        throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution masih dipublish.');
+                    if (! $recipient->distribution || ! in_array($recipient->distribution->status, ['draft', 'published'], true)) {
+                        throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution draft atau published.');
+                    }
+
+                    if ($recipient->distribution->status === 'published' && $recipient->download_count > 0) {
+                        throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
                     }
 
                     if (! $entry->temporary_disk || ! $entry->temporary_path) {
@@ -446,17 +455,19 @@ class DistributionBulkUploadService
                     $confirmed++;
                 }
 
-                $this->notifications->sendToManyUsers($notificationRecipients, [
-                    'type' => 'distribution_file_available',
-                    'title' => 'File distribution tersedia',
-                    'message' => 'File untuk distribution ' . $job->distribution->title . ' sudah tersedia.',
-                    'entity_type' => 'distribution',
-                    'entity_id' => $job->distribution_id,
-                    'data' => [
-                        'distribution_id' => $job->distribution_id,
-                        'bulk_upload_job_id' => $job->bulk_upload_job_id,
-                    ],
-                ]);
+                if ($job->distribution->status === 'published') {
+                    $this->notifications->sendToManyUsers($notificationRecipients, [
+                        'type' => 'distribution_file_available',
+                        'title' => 'File distribution tersedia',
+                        'message' => 'File untuk distribution '.$job->distribution->title.' sudah tersedia.',
+                        'entity_type' => 'distribution',
+                        'entity_id' => $job->distribution_id,
+                        'data' => [
+                            'distribution_id' => $job->distribution_id,
+                            'bulk_upload_job_id' => $job->bulk_upload_job_id,
+                        ],
+                    ]);
+                }
 
                 $summary = $this->confirmedSummary($job->summary ?? [], $confirmed);
 
@@ -513,7 +524,7 @@ class DistributionBulkUploadService
                 ->firstOrFail();
 
             if (in_array($job->status, ['confirmed', 'expired', 'cancelled'], true)) {
-                throw new HttpException(422, 'Bulk upload ZIP dengan status ' . $job->status . ' tidak dapat dibatalkan.');
+                throw new HttpException(422, 'Bulk upload ZIP dengan status '.$job->status.' tidak dapat dibatalkan.');
             }
 
             if (in_array($job->status, ['processing', 'confirming'], true)) {
@@ -630,7 +641,7 @@ class DistributionBulkUploadService
 
         if ($zipFile->getSize() > (self::MAX_ZIP_SIZE_MB * 1024 * 1024)) {
             throw ValidationException::withMessages([
-                'zip_file' => 'Ukuran ZIP melebihi batas ' . self::MAX_ZIP_SIZE_MB . ' MB.',
+                'zip_file' => 'Ukuran ZIP melebihi batas '.self::MAX_ZIP_SIZE_MB.' MB.',
             ]);
         }
 
@@ -638,7 +649,7 @@ class DistributionBulkUploadService
             throw new HttpException(500, 'PHP extension ZipArchive belum tersedia.');
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $opened = $zip->open($zipFile->getRealPath());
 
         if ($opened !== true) {
@@ -700,7 +711,7 @@ class DistributionBulkUploadService
             ]);
         }
 
-        $localEntryPath = $tempDirectory . '/entry-' . $index . '-' . Str::uuid();
+        $localEntryPath = $tempDirectory.'/entry-'.$index.'-'.Str::uuid();
         $entryStream = $zip->getStream($entryPath);
 
         if ($entryStream === false) {
@@ -1123,7 +1134,7 @@ class DistributionBulkUploadService
 
     private function uploadEntryToFinalStorage(DistributionBulkUploadEntry $entry, DistributionRecipient $recipient, string $tempDirectory): array
     {
-        $localPath = $tempDirectory . '/entry-' . $entry->bulk_upload_entry_id . '-' . Str::uuid();
+        $localPath = $tempDirectory.'/entry-'.$entry->bulk_upload_entry_id.'-'.Str::uuid();
         $this->copyStorageObjectToLocal($entry->temporary_disk, $entry->temporary_path, $localPath);
 
         $disk = $this->settings->getDefaults()['storage_disk'];

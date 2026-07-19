@@ -89,6 +89,88 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
             'recipient_id' => $recipientId,
             'delivery_status' => 'downloaded',
+            'download_count' => 1,
+        ], 'sqlite');
+    }
+
+    public function test_published_distribution_can_replace_before_download_but_not_after_download(): void
+    {
+        $distributionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions', [
+                'title' => 'Lifecycle replace',
+                'target_role' => 'mahasiswa',
+                'scope_type' => 'specific',
+                'target_identifiers' => ['22010001'],
+            ])
+            ->assertCreated()
+            ->json('data.distribution.distribution_id');
+
+        $this->actingAsAdmin()->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')->assertOk();
+        $recipientId = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $distributionId)->value('recipient_id');
+
+        $firstFileId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', ['file' => $this->pdfUpload('first.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.recipient.file_id');
+
+        $secondFileId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', ['file' => $this->pdfUpload('second.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.recipient.file_id');
+
+        $this->assertNotSame($firstFileId, $secondFileId);
+        $this->actingAsMahasiswa()->get('/api/arsip-digital/distribution-files/'.$secondFileId.'/download')->assertOk();
+        $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', ['file' => $this->pdfUpload('third.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'File distribution tidak dapat diganti setelah ada download.');
+    }
+
+    public function test_withdraw_blocks_download_and_correction_copies_recipients(): void
+    {
+        $distributionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions', [
+                'title' => 'Lifecycle withdraw',
+                'target_role' => 'mahasiswa',
+                'scope_type' => 'specific',
+                'target_identifiers' => ['22010001'],
+            ])
+            ->assertCreated()
+            ->json('data.distribution.distribution_id');
+
+        $this->actingAsAdmin()->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')->assertOk();
+        $recipientId = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $distributionId)->value('recipient_id');
+        $fileId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', ['file' => $this->pdfUpload('withdraw.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.recipient.file_id');
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/withdraw', ['reason' => 'File perlu diperbaiki'])
+            ->assertOk()
+            ->assertJsonPath('data.distribution.status', 'closed');
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'recipient_user_id' => 2,
+            'recipient_role' => 'mahasiswa',
+            'type' => 'distribution_withdrawn',
+            'entity_id' => $distributionId,
+        ], 'sqlite');
+        $this->actingAsMahasiswa()->get('/api/arsip-digital/distribution-files/'.$fileId.'/download')->assertStatus(410);
+        $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions')->assertJsonMissing(['distribution_id' => $distributionId]);
+
+        $correctionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/corrections')
+            ->assertCreated()
+            ->assertJsonPath('data.distribution.status', 'draft')
+            ->json('data.distribution.distribution_id');
+        $this->assertSame(1, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $correctionId)->count());
+        $this->assertDatabaseHas('arsip_digital.distributions', [
+            'distribution_id' => $correctionId,
+            'original_distribution_id' => $distributionId,
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.audit_logs', [
+            'action' => 'distribution.correction_created',
+            'entity_id' => $correctionId,
         ], 'sqlite');
     }
 

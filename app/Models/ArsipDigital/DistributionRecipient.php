@@ -9,11 +9,16 @@ class DistributionRecipient extends ArsipDigitalModel
     use SoftDeletes;
 
     protected $table = 'arsip_digital.distribution_recipients';
+
     protected $primaryKey = 'recipient_id';
+
     protected $guarded = ['recipient_id'];
 
     protected $casts = [
         'metadata' => 'array',
+        'download_count' => 'integer',
+        'first_downloaded_at' => 'datetime',
+        'last_downloaded_at' => 'datetime',
     ];
 
     public function distribution()

@@ -49,7 +49,7 @@ class DistributionService
 
     public function userQuery(object $user, string $role): Builder
     {
-        return Distribution::whereIn('status', ['published', 'closed'])
+        return Distribution::where('status', 'published')
             ->whereHas('recipients', function (Builder $query) use ($user, $role): void {
                 $query->where('target_user_id', $user->id)
                     ->where('target_role', $role)
@@ -142,21 +142,23 @@ class DistributionService
 
     public function publish(Distribution $distribution, object $actor, string $actorRole, $httpRequest = null): Distribution
     {
-        if ($distribution->status !== 'draft') {
-            throw new HttpException(422, 'Hanya distribution draft yang dapat dipublish.');
-        }
+        $preview = $distribution->original_distribution_id ? null : $this->previewForDistribution($distribution);
 
-        $preview = $this->previewForDistribution($distribution);
-
-        if ($preview['total_invalid'] > 0) {
+        if ($preview && $preview['total_invalid'] > 0) {
             throw new HttpException(422, 'Distribution tidak dapat dipublish karena masih memiliki target invalid.');
         }
 
-        if ($preview['total_valid'] < 1) {
+        if ($preview && $preview['total_valid'] < 1) {
             throw new HttpException(422, 'Distribution tidak dapat dipublish tanpa target valid.');
         }
 
         return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($distribution, $preview, $actor, $actorRole, $httpRequest): Distribution {
+            $distribution = Distribution::whereKey($distribution->distribution_id)->lockForUpdate()->firstOrFail();
+
+            if ($distribution->status !== 'draft') {
+                throw new HttpException(422, 'Hanya distribution draft yang dapat dipublish.');
+            }
+
             $distribution->fill([
                 'status' => 'published',
                 'published_at' => now(),
@@ -164,37 +166,119 @@ class DistributionService
             $distribution->save();
 
             $now = now();
-            collect($preview['valid_targets'])->map(fn (array $target): array => [
-                'distribution_id' => $distribution->distribution_id,
-                'target_user_id' => $target['target_user_id'],
-                'target_role' => $target['target_role'],
-                'identifier' => $target['identifier'],
-                'name_snapshot' => $target['name_snapshot'],
-                'angkatan_snapshot' => $target['angkatan_snapshot'],
-                'prodi_snapshot' => $target['prodi_snapshot'],
-                'status_snapshot' => $target['status_snapshot'],
-                'metadata' => json_encode([
-                    'scope_type' => $distribution->scope_type,
-                    'scholarship_snapshot' => $target['scholarship_snapshot'] ?? null,
-                    'target_metadata' => $target['metadata'] ?? null,
-                ]),
-                'delivery_status' => 'pending',
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])->chunk(50)->each(fn ($recipients) => DistributionRecipient::insert($recipients->all()));
+            if ($preview) {
+                collect($preview['valid_targets'])->unique(fn (array $target) => $target['target_role'].'|'.$target['identifier'])->map(fn (array $target): array => [
+                    'distribution_id' => $distribution->distribution_id,
+                    'target_user_id' => $target['target_user_id'],
+                    'target_role' => $target['target_role'],
+                    'identifier' => $target['identifier'],
+                    'name_snapshot' => $target['name_snapshot'],
+                    'angkatan_snapshot' => $target['angkatan_snapshot'],
+                    'prodi_snapshot' => $target['prodi_snapshot'],
+                    'status_snapshot' => $target['status_snapshot'],
+                    'metadata' => json_encode([
+                        'scope_type' => $distribution->scope_type,
+                        'scholarship_snapshot' => $target['scholarship_snapshot'] ?? null,
+                        'target_metadata' => $target['metadata'] ?? null,
+                    ]),
+                    'delivery_status' => 'pending',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->chunk(50)->each(fn ($recipients) => DistributionRecipient::insertOrIgnore($recipients->all()));
+            }
+
+            $recipientCount = DistributionRecipient::where('distribution_id', $distribution->distribution_id)->count();
+            if ($recipientCount < 1) {
+                throw new HttpException(422, 'Distribution tidak dapat dipublish tanpa target valid.');
+            }
 
             $this->auditLog->record(
                 'distribution.published',
                 'distribution',
                 $distribution->distribution_id,
                 'Distribution arsip digital dipublish.',
-                ['total_recipients' => $preview['total_valid']],
+                ['total_recipients' => $recipientCount],
                 $httpRequest,
                 $actor->id,
                 $actorRole
             );
 
             return $distribution->fresh()->loadCount('recipients');
+        });
+    }
+
+    public function withdraw(Distribution $distribution, string $reason, object $actor, string $actorRole, $httpRequest = null): Distribution
+    {
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($distribution, $reason, $actor, $actorRole, $httpRequest): Distribution {
+            $distribution = Distribution::whereKey($distribution->distribution_id)->lockForUpdate()->firstOrFail();
+            if ($distribution->status !== 'published') {
+                throw new HttpException(422, 'Hanya distribution published yang dapat ditarik.');
+            }
+
+            $distribution->update([
+                'status' => 'closed',
+                'withdrawn_at' => now(),
+                'withdrawn_by_user_id' => $actor->id,
+                'withdrawal_reason' => $reason,
+            ]);
+            $recipients = DistributionRecipient::where('distribution_id', $distribution->distribution_id)->get();
+            $this->notifications->sendToManyUsers($recipients->map(fn ($recipient) => [
+                'target_user_id' => $recipient->target_user_id,
+                'target_role' => $recipient->target_role,
+            ])->all(), [
+                'type' => 'distribution_withdrawn',
+                'title' => 'Distribution ditarik',
+                'message' => $distribution->title.' telah ditarik: '.$reason,
+                'entity_type' => 'distribution',
+                'entity_id' => $distribution->distribution_id,
+                'data' => ['distribution_id' => $distribution->distribution_id, 'reason' => $reason],
+            ]);
+            $this->auditLog->record('distribution.withdrawn', 'distribution', $distribution->distribution_id, 'Distribution arsip digital ditarik.', ['reason' => $reason], $httpRequest, $actor->id, $actorRole);
+
+            return $distribution->fresh();
+        });
+    }
+
+    public function createCorrection(Distribution $original, object $actor, string $actorRole, $httpRequest = null): Distribution
+    {
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($original, $actor, $actorRole, $httpRequest): Distribution {
+            $original = Distribution::whereKey($original->distribution_id)->lockForUpdate()->firstOrFail();
+            if (! in_array($original->status, ['published', 'closed'], true)) {
+                throw new HttpException(422, 'Correction hanya dapat dibuat dari distribution published atau closed.');
+            }
+
+            $correction = Distribution::create([
+                'original_distribution_id' => $original->distribution_id,
+                'title' => $original->title,
+                'description' => $original->description,
+                'target_role' => $original->target_role,
+                'scope_type' => $original->scope_type,
+                'target_filters' => $original->target_filters,
+                'target_identifiers' => $original->target_identifiers,
+                'target_segment_ids' => $original->target_segment_ids,
+                'status' => 'draft',
+                'created_by_user_id' => $actor->id,
+            ]);
+            $now = now();
+            DistributionRecipient::where('distribution_id', $original->distribution_id)->orderBy('recipient_id')->get()->each(function ($recipient) use ($correction, $now): void {
+                DistributionRecipient::create([
+                    'distribution_id' => $correction->distribution_id,
+                    'target_user_id' => $recipient->target_user_id,
+                    'target_role' => $recipient->target_role,
+                    'identifier' => $recipient->identifier,
+                    'name_snapshot' => $recipient->name_snapshot,
+                    'angkatan_snapshot' => $recipient->angkatan_snapshot,
+                    'prodi_snapshot' => $recipient->prodi_snapshot,
+                    'status_snapshot' => $recipient->status_snapshot,
+                    'metadata' => $recipient->metadata,
+                    'delivery_status' => 'pending',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+            });
+            $this->auditLog->record('distribution.correction_created', 'distribution', $correction->distribution_id, 'Correction distribution arsip digital dibuat.', ['original_distribution_id' => $original->distribution_id], $httpRequest, $actor->id, $actorRole);
+
+            return $correction->loadCount('recipients');
         });
     }
 
@@ -234,8 +318,8 @@ class DistributionService
     {
         $recipient->loadMissing('distribution', 'file');
 
-        if (! $recipient->distribution || $recipient->distribution->status !== 'published') {
-            throw new HttpException(422, 'File distribution hanya dapat diupload setelah distribution dipublish.');
+        if (! $recipient->distribution || ! in_array($recipient->distribution->status, ['draft', 'published'], true)) {
+            throw new HttpException(422, 'File distribution hanya dapat diupload saat distribution draft atau published.');
         }
 
         $settings = $this->settings->getDefaults();
@@ -262,6 +346,15 @@ class DistributionService
                 $payload,
                 $httpRequest
             ): DistributionRecipient {
+                $distribution = Distribution::whereKey($recipient->distribution_id)->lockForUpdate()->firstOrFail();
+                $recipient = DistributionRecipient::with('file')->whereKey($recipient->recipient_id)->lockForUpdate()->firstOrFail();
+                if (! in_array($distribution->status, ['draft', 'published'], true)) {
+                    throw new HttpException(422, 'File distribution hanya dapat diupload saat distribution draft atau published.');
+                }
+                if ($distribution->status === 'published' && DistributionRecipient::where('distribution_id', $distribution->distribution_id)->where('download_count', '>', 0)->lockForUpdate()->first()) {
+                    throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
+                }
+                $recipient->setRelation('distribution', $distribution);
                 $version = $this->nextDistributionVersion($recipient, $displayFilename);
                 $previousFile = $recipient->file;
 
@@ -308,20 +401,22 @@ class DistributionService
                 ]);
                 $recipient->save();
 
-                $this->notifications->sendToUser(
-                    (int) $recipient->target_user_id,
-                    $recipient->target_role,
-                    'distribution_file_available',
-                    'File distribution tersedia',
-                    'File untuk distribution '.$recipient->distribution->title.' sudah tersedia.',
-                    'distribution_recipient',
-                    $recipient->recipient_id,
-                    [
-                        'distribution_id' => $recipient->distribution_id,
-                        'recipient_id' => $recipient->recipient_id,
-                        'file_id' => $file->file_id,
-                    ]
-                );
+                if ($recipient->distribution->status === 'published') {
+                    $this->notifications->sendToUser(
+                        (int) $recipient->target_user_id,
+                        $recipient->target_role,
+                        'distribution_file_available',
+                        'File distribution tersedia',
+                        'File untuk distribution '.$recipient->distribution->title.' sudah tersedia.',
+                        'distribution_recipient',
+                        $recipient->recipient_id,
+                        [
+                            'distribution_id' => $recipient->distribution_id,
+                            'recipient_id' => $recipient->recipient_id,
+                            'file_id' => $file->file_id,
+                        ]
+                    );
+                }
 
                 $this->auditLog->record(
                     'distribution_file.uploaded',
@@ -352,9 +447,15 @@ class DistributionService
         $recipient = DistributionRecipient::where('file_id', $fileId)
             ->where('target_user_id', $user->id)
             ->where('target_role', $role)
-            ->whereIn('delivery_status', ['available', 'downloaded'])
             ->with(['distribution', 'file'])
-            ->firstOrFail();
+            ->first();
+
+        if ($recipient?->distribution?->status === 'closed') {
+            throw new HttpException(410, 'Distribution sudah ditarik.');
+        }
+        if (! $recipient) {
+            throw new HttpException(404, 'File distribution belum tersedia.');
+        }
 
         $this->assertRecipientVisibleToUser($recipient, $user, $role);
 
@@ -374,10 +475,26 @@ class DistributionService
 
     public function markDownloaded(DistributionRecipient $recipient, object $actor, string $actorRole, $httpRequest = null): DistributionRecipient
     {
-        if ($recipient->delivery_status !== 'downloaded') {
-            $recipient->fill(['delivery_status' => 'downloaded']);
-            $recipient->save();
-        }
+        $recipient = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($recipient): DistributionRecipient {
+            $distribution = Distribution::whereKey($recipient->distribution_id)->lockForUpdate()->firstOrFail();
+            $recipient = DistributionRecipient::with('file')->whereKey($recipient->recipient_id)->lockForUpdate()->firstOrFail();
+            $recipient->setRelation('distribution', $distribution);
+            if ($distribution->status === 'closed') {
+                throw new HttpException(410, 'Distribution sudah ditarik.');
+            }
+            if ($distribution->status !== 'published') {
+                throw new HttpException(404, 'File distribution belum tersedia.');
+            }
+            $now = now();
+            $recipient->increment('download_count');
+            $recipient->update([
+                'delivery_status' => 'downloaded',
+                'first_downloaded_at' => $recipient->first_downloaded_at ?: $now,
+                'last_downloaded_at' => $now,
+            ]);
+
+            return $recipient;
+        });
 
         $this->auditLog->record(
             'distribution_file.downloaded',

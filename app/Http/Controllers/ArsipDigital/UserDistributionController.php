@@ -34,11 +34,10 @@ class UserDistributionController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
             $recipient = $distributionService->findDownloadableRecipientByFile($file_id, auth()->user(), $role);
+            $recipient = $distributionService->markDownloaded($recipient, auth()->user(), $role, $request);
             $file = $recipient->file;
-            $response = $storageService->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
-            $distributionService->markDownloaded($recipient, auth()->user(), $role, $request);
 
-            return $response;
+            return $storageService->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
