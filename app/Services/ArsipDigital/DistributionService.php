@@ -159,6 +159,15 @@ class DistributionService
                 throw new HttpException(422, 'Hanya distribution draft yang dapat dipublish.');
             }
 
+            $duplicateRecipients = DistributionRecipient::where('distribution_id', $distribution->distribution_id)
+                ->orderBy('recipient_id')
+                ->get()
+                ->groupBy(fn ($recipient) => $recipient->target_role.'|'.$recipient->identifier)
+                ->flatMap(fn ($recipients) => $recipients->slice(1));
+            foreach ($duplicateRecipients as $duplicateRecipient) {
+                $duplicateRecipient->delete();
+            }
+
             $distribution->fill([
                 'status' => 'published',
                 'published_at' => now(),
@@ -221,7 +230,19 @@ class DistributionService
                 'withdrawn_by_user_id' => $actor->id,
                 'withdrawal_reason' => $reason,
             ]);
-            $recipients = DistributionRecipient::where('distribution_id', $distribution->distribution_id)->get();
+            $recipients = DistributionRecipient::where('distribution_id', $distribution->distribution_id)
+                ->orderBy('recipient_id')
+                ->lockForUpdate()
+                ->get();
+            DistributionRecipient::whereIn('recipient_id', $recipients->pluck('recipient_id'))->update([
+                'delivery_status' => 'revoked',
+                'updated_at' => now(),
+            ]);
+            ArchiveFile::whereIn('file_id', $recipients->pluck('file_id')->filter()->unique())->update([
+                'status' => 'revoked',
+                'is_current' => false,
+                'updated_at' => now(),
+            ]);
             $this->notifications->sendToManyUsers($recipients->map(fn ($recipient) => [
                 'target_user_id' => $recipient->target_user_id,
                 'target_role' => $recipient->target_role,
@@ -260,7 +281,7 @@ class DistributionService
                 'created_by_user_id' => $actor->id,
             ]);
             $now = now();
-            DistributionRecipient::where('distribution_id', $original->distribution_id)->orderBy('recipient_id')->get()->each(function ($recipient) use ($correction, $now): void {
+            DistributionRecipient::where('distribution_id', $original->distribution_id)->orderBy('recipient_id')->get()->unique(fn ($recipient) => $recipient->target_role.'|'.$recipient->identifier)->each(function ($recipient) use ($correction, $now): void {
                 DistributionRecipient::create([
                     'distribution_id' => $correction->distribution_id,
                     'target_user_id' => $recipient->target_user_id,

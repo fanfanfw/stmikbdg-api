@@ -14,10 +14,7 @@ return new class extends Migration
     {
         $connection = $this->connection();
         if ($connection->getDriverName() === 'sqlite') {
-            $duplicates = $connection->select('SELECT distribution_id, target_role, identifier FROM distribution_recipients WHERE deleted_at IS NULL GROUP BY distribution_id, target_role, identifier HAVING COUNT(*) > 1 LIMIT 1');
-            if ($duplicates) {
-                throw new RuntimeException('Duplicate live distribution recipients found. Resolve duplicates before migration.');
-            }
+            $connection->statement('UPDATE distribution_recipients SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE recipient_id IN (SELECT recipient_id FROM (SELECT recipient_id, ROW_NUMBER() OVER (PARTITION BY distribution_id, target_role, identifier ORDER BY recipient_id) AS duplicate_number FROM distribution_recipients WHERE deleted_at IS NULL) duplicates WHERE duplicate_number > 1)');
             $connection->statement('ALTER TABLE distributions ADD COLUMN original_distribution_id integer');
             $connection->statement('ALTER TABLE distributions ADD COLUMN withdrawn_at datetime');
             $connection->statement('ALTER TABLE distributions ADD COLUMN withdrawn_by_user_id integer');
@@ -52,17 +49,21 @@ CREATE INDEX IF NOT EXISTS distributions_original_distribution_idx
     ON arsip_digital.distributions (original_distribution_id);
 CREATE INDEX IF NOT EXISTS distribution_recipients_distribution_download_count_idx
     ON arsip_digital.distribution_recipients (distribution_id, download_count);
-DO $$ BEGIN
-    IF EXISTS (
-        SELECT 1
-        FROM arsip_digital.distribution_recipients
-        WHERE deleted_at IS NULL
-        GROUP BY distribution_id, target_role, identifier
-        HAVING COUNT(*) > 1
-    ) THEN
-        RAISE EXCEPTION 'Duplicate live distribution recipients found. Resolve duplicates before migration.';
-    END IF;
-END $$;
+WITH duplicates AS (
+    SELECT recipient_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY distribution_id, target_role, identifier
+               ORDER BY recipient_id
+           ) AS duplicate_number
+    FROM arsip_digital.distribution_recipients
+    WHERE deleted_at IS NULL
+)
+UPDATE arsip_digital.distribution_recipients AS recipients
+SET deleted_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+FROM duplicates
+WHERE recipients.recipient_id = duplicates.recipient_id
+  AND duplicates.duplicate_number > 1;
 CREATE UNIQUE INDEX IF NOT EXISTS distribution_recipients_unique_live_idx
     ON arsip_digital.distribution_recipients (distribution_id, target_role, identifier)
     WHERE deleted_at IS NULL;

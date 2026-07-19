@@ -16,9 +16,13 @@ class UserDistributionController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
 
-            return $this->successfulResponseJSON([
-                'distributions' => $distributionService->userQuery(auth()->user(), $role)->get()->toArray(),
-            ]);
+            $distributions = $distributionService->userQuery(auth()->user(), $role)->get();
+            $distributions->each(fn ($distribution) => $distribution->setAttribute(
+                'files',
+                $distribution->recipients->pluck('file')->filter()->values()->all()
+            ));
+
+            return $this->successfulResponseJSON(['distributions' => $distributions->toArray()]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
