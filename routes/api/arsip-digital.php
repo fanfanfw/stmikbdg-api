@@ -40,6 +40,7 @@ Route::prefix('/arsip-digital')
         Route::post('/files', [ArchiveFileController::class, 'store']);
         Route::post('/files/move', [ArchiveFileController::class, 'move']);
         Route::get('/files/{file_id}', [ArchiveFileController::class, 'show']);
+        Route::get('/files/{file_id}/versions', [ArchiveFileController::class, 'versions']);
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
         Route::post('/files/{file_id}/restore', [ArchiveFileController::class, 'restore']);

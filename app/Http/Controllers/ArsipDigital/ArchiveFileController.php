@@ -122,6 +122,18 @@ class ArchiveFileController extends Controller
         }
     }
 
+    public function versions(Request $request, int $file_id, RoleResolverService $roleResolver, ArchiveFileService $fileService)
+    {
+        try {
+            $role = $roleResolver->resolve($request);
+            $versions = $fileService->versionsFor($file_id, auth()->user(), $role);
+
+            return $this->successfulResponseJSON(['versions' => $versions->toArray()]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function download(
         Request $request,
         int $file_id,

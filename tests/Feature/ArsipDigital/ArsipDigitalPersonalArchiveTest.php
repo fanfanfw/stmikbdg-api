@@ -376,6 +376,155 @@ class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('message', 'Hanya file arsip pribadi aktif yang dapat dipindahkan.');
     }
 
+    public function test_main_file_list_hides_history_and_version_endpoint_returns_it(): void
+    {
+        $firstVersionId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/files/upload-for-user', [
+                'owner_role' => 'mahasiswa',
+                'owner_identifier' => '22010001',
+                'file' => $this->pdfUpload('history.pdf', '%PDF admin version'),
+            ], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.file.file_id');
+
+        $currentVersionId = $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/files', [
+                'file' => $this->pdfUpload('history.pdf', '%PDF personal version'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated()
+            ->assertJsonPath('data.file.version_number', 2)
+            ->json('data.file.file_id');
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/files')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.files')
+            ->assertJsonPath('data.files.0.file_id', $currentVersionId)
+            ->assertJsonPath('data.files.0.status', 'active');
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/files?with_deleted=1')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.files')
+            ->assertJsonPath('data.files.0.file_id', $currentVersionId);
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/files/'.$currentVersionId.'/versions')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.versions')
+            ->assertJsonPath('data.versions.0.file_id', $currentVersionId)
+            ->assertJsonPath('data.versions.0.version_number', 2)
+            ->assertJsonPath('data.versions.1.file_id', $firstVersionId)
+            ->assertJsonPath('data.versions.1.source_type', 'admin_upload')
+            ->assertJsonPath('data.versions.1.status', 'replaced');
+
+        $this->actingAsDosen()
+            ->getJson('/api/arsip-digital/files/'.$currentVersionId.'/versions')
+            ->assertForbidden();
+    }
+
+    public function test_replaced_versions_consume_quota_and_owner_can_delete_unreferenced_history(): void
+    {
+        $firstVersionId = $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/files', [
+                'file' => $this->pdfUpload('quota-history.pdf', '%PDF version one'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated()
+            ->json('data.file.file_id');
+        $firstSize = (int) DB::table('arsip_digital.files')->where('file_id', $firstVersionId)->value('file_size_bytes');
+
+        $currentVersionId = $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/files', [
+                'file' => $this->pdfUpload('quota-history.pdf', '%PDF version two'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated()
+            ->json('data.file.file_id');
+        $currentSize = (int) DB::table('arsip_digital.files')->where('file_id', $currentVersionId)->value('file_size_bytes');
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/me/archive-summary')
+            ->assertOk()
+            ->assertJsonPath('data.personal_used_bytes', $firstSize + $currentSize);
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/files/'.$firstVersionId, ['reason' => 'hapus riwayat'])
+            ->assertOk();
+
+        $this->assertDatabaseMissing('arsip_digital.files', ['file_id' => $firstVersionId], 'sqlite');
+        Storage::disk('s3')->assertMissing('arsip-digital/test/'.$firstVersionId);
+        $this->assertDatabaseHas('arsip_digital.files', [
+            'file_id' => $currentVersionId,
+            'status' => 'active',
+            'is_current' => true,
+        ], 'sqlite');
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/me/archive-summary')
+            ->assertOk()
+            ->assertJsonPath('data.personal_used_bytes', $currentSize);
+    }
+
+    public function test_workflow_references_block_historical_version_deletion(): void
+    {
+        $requestFileId = $this->createActiveArchiveFileForMahasiswa('request-reference.pdf');
+        DB::table('arsip_digital.files')->where('file_id', $requestFileId)->update([
+            'status' => 'replaced',
+            'is_current' => false,
+        ]);
+        [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+        DB::table('arsip_digital.request_files')->insert([
+            'request_id' => $requestId,
+            'assignment_id' => $assignmentId,
+            'file_id' => $requestFileId,
+            'submission_type' => 'reused',
+            'status' => 'replaced',
+            'is_late' => false,
+            'is_current' => false,
+            'created_by_user_id' => 2,
+            'created_by_role' => 'mahasiswa',
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => now(),
+        ]);
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/files/'.$requestFileId)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'File sedang dipakai pada request berkas.');
+
+        $distributionFileId = $this->createActiveArchiveFileForMahasiswa('distribution-reference.pdf');
+        DB::table('arsip_digital.files')->where('file_id', $distributionFileId)->update([
+            'status' => 'replaced',
+            'is_current' => false,
+        ]);
+        $distributionId = DB::table('arsip_digital.distributions')->insertGetId([
+            'title' => 'Referensi',
+            'target_role' => 'mahasiswa',
+            'scope_type' => 'specific',
+            'status' => 'published',
+            'created_by_user_id' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('arsip_digital.distribution_recipients')->insert([
+            'distribution_id' => $distributionId,
+            'target_user_id' => 2,
+            'target_role' => 'mahasiswa',
+            'identifier' => '22010001',
+            'name_snapshot' => 'Mahasiswa Test',
+            'file_id' => $distributionFileId,
+            'delivery_status' => 'available',
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => now(),
+        ]);
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/files/'.$distributionFileId)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'File sedang dipakai pada distribusi berkas.');
+    }
+
     public function test_personal_archive_upload_download_and_permanent_delete(): void
     {
         $categoryId = $this->actingAsMahasiswa()

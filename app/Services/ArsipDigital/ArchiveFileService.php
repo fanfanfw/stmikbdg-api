@@ -4,6 +4,7 @@ namespace App\Services\ArsipDigital;
 
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Category;
+use App\Models\ArsipDigital\DistributionRecipient;
 use App\Models\ArsipDigital\RequestFile;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
@@ -57,6 +58,8 @@ class ArchiveFileService
 
         if (array_key_exists('is_current', $filters) && $filters['is_current'] !== null) {
             $query->where('is_current', filter_var($filters['is_current'], FILTER_VALIDATE_BOOL));
+        } elseif ($role !== 'admin' || empty($filters['with_deleted'])) {
+            $query->where('is_current', true)->where('status', 'active');
         }
 
         return $query->orderByDesc('created_at')->orderByDesc('file_id');
@@ -270,6 +273,23 @@ class ArchiveFileService
             ->first();
     }
 
+    public function versionsFor(int $fileId, object $user, string $role)
+    {
+        $anchor = $this->findVisible($fileId, $user, $role);
+
+        if (! in_array($anchor->source_type, ['personal', 'admin_upload'], true)) {
+            throw new HttpException(422, 'Riwayat versi hanya tersedia untuk file arsip pribadi.');
+        }
+
+        return ArchiveFile::where('version_group_uuid', $anchor->version_group_uuid)
+            ->where('owner_user_id', $anchor->owner_user_id)
+            ->where('owner_role', $anchor->owner_role)
+            ->whereIn('source_type', ['personal', 'admin_upload'])
+            ->orderByDesc('version_number')
+            ->orderByDesc('file_id')
+            ->get();
+    }
+
     public function findVisible(int $fileId, object $user, string $role, bool $withTrashed = false): ArchiveFile
     {
         $query = ArchiveFile::query();
@@ -303,19 +323,19 @@ class ArchiveFileService
                 throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
             }
 
-            if (RequestFile::where('file_id', $lockedFile->file_id)->lockForUpdate()->first()) {
-                if ($lockedFile->source_type === 'personal') {
-                    throw new HttpException(409, 'File sedang dipakai pada request berkas.');
-                }
-
+            if (! in_array($lockedFile->source_type, ['personal', 'admin_upload'], true)) {
                 throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
             }
 
-            if ($lockedFile->source_type === 'distribution') {
-                throw new HttpException(403, 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
+            if (RequestFile::withTrashed()->where('file_id', $lockedFile->file_id)->lockForUpdate()->first()) {
+                throw new HttpException(409, 'File sedang dipakai pada request berkas.');
             }
 
-            if ($role !== 'admin' && $lockedFile->source_type === 'personal') {
+            if (DistributionRecipient::withTrashed()->where('file_id', $lockedFile->file_id)->lockForUpdate()->first()) {
+                throw new HttpException(409, 'File sedang dipakai pada distribusi berkas.');
+            }
+
+            if ($role !== 'admin' && in_array($lockedFile->source_type, ['personal', 'admin_upload'], true)) {
                 $storage = [$lockedFile->storage_disk, $lockedFile->storage_path];
                 $lockedFile->forceDelete();
 
