@@ -77,6 +77,39 @@ class ArchiveFileController extends Controller
         }
     }
 
+    public function move(
+        Request $request,
+        RoleResolverService $roleResolver,
+        ArchiveFileService $fileService,
+        AuditLogService $auditLogService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
+            $payload = $request->validate([
+                'file_ids' => ['required', 'array', 'min:1', 'max:100'],
+                'file_ids.*' => ['required', 'integer', 'distinct'],
+                'category_id' => ['nullable', 'integer'],
+            ]);
+
+            $result = $fileService->move($payload['file_ids'], $payload['category_id'] ?? null, auth()->user(), $role);
+
+            $auditLogService->record(
+                'file.moved',
+                'file_batch',
+                null,
+                'File arsip pribadi dipindahkan.',
+                $result,
+                $request,
+                auth()->user()?->id,
+                $role
+            );
+
+            return $this->successfulResponseJSON(['move' => $result], 'File berhasil dipindahkan.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function show(Request $request, int $file_id, RoleResolverService $roleResolver, ArchiveFileService $fileService)
     {
         try {
@@ -196,7 +229,7 @@ class ArchiveFileController extends Controller
 
         if ($requestFile && $archiveRequest) {
             $payload['archive_folder'] = [
-                'key' => 'request:' . $archiveRequest->request_id,
+                'key' => 'request:'.$archiveRequest->request_id,
                 'type' => 'request',
                 'label' => $archiveRequest->title,
                 'group_label' => 'Permintaan Berkas',
@@ -204,9 +237,9 @@ class ArchiveFileController extends Controller
             ];
         } elseif ($file->category_id) {
             $payload['archive_folder'] = [
-                'key' => 'category:' . $file->category_id,
+                'key' => 'category:'.$file->category_id,
                 'type' => 'category',
-                'label' => 'Kategori #' . $file->category_id,
+                'label' => 'Kategori #'.$file->category_id,
                 'group_label' => 'Kategori',
                 'category_id' => $file->category_id,
             ];

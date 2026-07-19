@@ -5,6 +5,7 @@ namespace App\Services\ArsipDigital;
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Category;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ArchiveCategoryService
@@ -88,37 +89,49 @@ class ArchiveCategoryService
 
     public function update(Category $category, array $payload, object $user, string $role): Category
     {
-        if (! $this->permissions->canManageCategory($category, $user, $role)) {
-            throw new HttpException(403, 'Tidak memiliki akses mengubah kategori.');
-        }
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($category, $payload, $user, $role): Category {
+            $lockedCategory = Category::where('category_id', $category->category_id)->lockForUpdate()->firstOrFail();
 
-        $parentId = $payload['parent_category_id'] ?? $category->parent_category_id;
-        if ($parentId !== null) {
-            $this->assertParentAllowed((int) $parentId, $user, $role, $category->category_type, (int) $category->category_id);
-        }
+            if (! $this->permissions->canManageCategory($lockedCategory, $user, $role)) {
+                throw new HttpException(403, 'Tidak memiliki akses mengubah kategori.');
+            }
 
-        $category->fill([
-            'name' => $payload['name'] ?? $category->name,
-            'description' => array_key_exists('description', $payload) ? $payload['description'] : $category->description,
-            'visibility' => $payload['visibility'] ?? $category->visibility,
-            'parent_category_id' => $parentId,
-        ]);
-        $category->save();
+            $parentId = $payload['parent_category_id'] ?? $lockedCategory->parent_category_id;
+            if ($parentId !== null) {
+                $this->assertParentAllowed((int) $parentId, $user, $role, $lockedCategory->category_type, (int) $lockedCategory->category_id);
+            }
 
-        return $category;
+            $lockedCategory->fill([
+                'name' => $payload['name'] ?? $lockedCategory->name,
+                'description' => array_key_exists('description', $payload) ? $payload['description'] : $lockedCategory->description,
+                'visibility' => $payload['visibility'] ?? $lockedCategory->visibility,
+                'parent_category_id' => $parentId,
+            ]);
+            $lockedCategory->save();
+
+            return $lockedCategory;
+        }, 3);
     }
 
     public function delete(Category $category, object $user, string $role): void
     {
-        if (! $this->permissions->canManageCategory($category, $user, $role)) {
-            throw new HttpException(403, 'Tidak memiliki akses menghapus kategori.');
-        }
+        DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($category, $user, $role): void {
+            $lockedCategory = Category::where('category_id', $category->category_id)->lockForUpdate()->firstOrFail();
 
-        if (ArchiveFile::where('category_id', $category->category_id)->whereNull('deleted_at')->exists()) {
-            throw new HttpException(422, 'Kategori masih berisi file. Kosongkan kategori terlebih dahulu.');
-        }
+            if (! $this->permissions->canManageCategory($lockedCategory, $user, $role)) {
+                throw new HttpException(403, 'Tidak memiliki akses menghapus kategori.');
+            }
 
-        $category->delete();
+            if (ArchiveFile::where('category_id', $lockedCategory->category_id)->whereNull('deleted_at')->lockForUpdate()->exists()) {
+                throw new HttpException(422, 'Kategori masih berisi file. Kosongkan kategori terlebih dahulu.');
+            }
+
+            if (Category::where('parent_category_id', $lockedCategory->category_id)->lockForUpdate()->exists()) {
+                throw new HttpException(422, 'Kategori masih memiliki subkategori.');
+            }
+
+            $lockedCategory->delete();
+        }, 3);
     }
 
     public function restore(int $categoryId): Category
