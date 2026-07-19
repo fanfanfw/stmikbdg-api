@@ -14,8 +14,7 @@ class ArchiveRequestService
         private readonly RequestTargetPreviewService $targetPreview,
         private readonly AuditLogService $auditLog,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function adminQuery(array $filters = []): Builder
     {
@@ -282,6 +281,7 @@ class ArchiveRequestService
 
                 if ($existingIdentifiers->has($identifier)) {
                     $duplicates[] = $target;
+
                     continue;
                 }
 
@@ -299,6 +299,7 @@ class ArchiveRequestService
                     $createdAssignments[] = $assignment;
                     $existingIdentifiers->put($identifier, true);
                     $this->auditAssignmentCreated($assignment, $request, $actor, $actorRole, $httpRequest, 'request_assignment.appended', 'Assignment request arsip digital ditambahkan setelah publish.');
+
                     continue;
                 }
 

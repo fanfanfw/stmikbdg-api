@@ -272,6 +272,28 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             'status' => 'active',
             'is_current' => true,
         ], 'sqlite');
+        DB::table('arsip_digital.request_files')->insert([
+            'request_id' => $requestId,
+            'assignment_id' => $assignmentId,
+            'file_id' => $personalFileId,
+            'submission_type' => 'reused',
+            'status' => 'waiting_verification',
+            'is_late' => false,
+            'is_current' => true,
+            'created_by_user_id' => 2,
+            'created_by_role' => 'mahasiswa',
+            'created_at' => now(),
+            'updated_at' => now(),
+            'deleted_at' => now(),
+        ]);
+        $this->assertSame(4, DB::table('arsip_digital.request_files')->where('assignment_id', $assignmentId)->count());
+        $this->assertSame(2, DB::table('arsip_digital.request_files')->where('assignment_id', $assignmentId)->where('is_current', true)->count());
+
+        $listResponse = $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/requests')
+            ->assertOk();
+        $listedRequest = collect($listResponse->json('data.requests'))->firstWhere('request_id', $requestId);
+        $this->assertSame(1, data_get($listedRequest, 'assignments.0.files_count'));
 
         DB::table('arsip_digital.requests')->where('request_id', $requestId)->update(['close_after_deadline' => true]);
 
