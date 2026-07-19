@@ -13,7 +13,9 @@ use Tests\TestCase;
 abstract class ArsipDigitalFeatureTestCase extends TestCase
 {
     protected UserView $admin;
+
     protected UserView $mahasiswa;
+
     protected UserView $dosen;
 
     protected function setUp(): void
@@ -101,7 +103,7 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
 
     protected function createActiveArchiveFileForMahasiswa(string $filename = 'akta.pdf'): int
     {
-        Storage::disk('s3')->put('arsip-digital/testing/source/' . $filename, 'file lama');
+        Storage::disk('s3')->put('arsip-digital/testing/source/'.$filename, 'file lama');
 
         return DB::table('arsip_digital.files')->insertGetId([
             'owner_user_id' => 2,
@@ -114,7 +116,7 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
             'original_filename' => $filename,
             'display_filename' => $filename,
             'storage_disk' => 's3',
-            'storage_path' => 'arsip-digital/testing/source/' . $filename,
+            'storage_path' => 'arsip-digital/testing/source/'.$filename,
             'mime_type' => 'application/pdf',
             'extension' => 'pdf',
             'file_size_bytes' => 9,
@@ -151,6 +153,9 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
         DB::statement('CREATE TABLE arsip_digital.request_files (request_file_id integer primary key autoincrement, request_id integer, assignment_id integer, file_id integer, submission_type varchar, status varchar default "waiting_verification", is_late integer default 0, is_current integer default 1, note text, created_by_user_id integer, created_by_role varchar, reviewed_by_user_id integer, reviewed_at datetime, reject_reason text, created_at datetime, updated_at datetime, deleted_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.distributions (distribution_id integer primary key autoincrement, title varchar, description text, target_role varchar, scope_type varchar, target_filters text, target_identifiers text, target_segment_ids text, status varchar default "draft", created_by_user_id integer, published_at datetime, created_at datetime, updated_at datetime, deleted_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.distribution_recipients (recipient_id integer primary key autoincrement, distribution_id integer, target_user_id integer, target_role varchar, identifier varchar, name_snapshot varchar, angkatan_snapshot varchar, prodi_snapshot varchar, status_snapshot varchar, metadata text, file_id integer, delivery_status varchar default "pending", created_at datetime, updated_at datetime, deleted_at datetime)');
+        DB::statement('CREATE INDEX arsip_digital.distribution_recipients_distribution_identifier_idx ON distribution_recipients (distribution_id, identifier)');
+        DB::statement('CREATE INDEX arsip_digital.distribution_recipients_distribution_status_idx ON distribution_recipients (distribution_id, delivery_status)');
+        DB::statement('CREATE INDEX arsip_digital.distributions_created_order_idx ON distributions (created_at DESC, distribution_id DESC)');
         DB::statement('CREATE TABLE arsip_digital.distribution_bulk_upload_jobs (bulk_upload_job_id integer primary key autoincrement, distribution_id integer, uploaded_by_user_id integer, status varchar default "uploaded", original_filename varchar, storage_disk varchar, storage_path text, file_size_bytes integer, summary text, error_message text, expires_at datetime, processed_at datetime, confirmed_at datetime, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.distribution_bulk_upload_entries (bulk_upload_entry_id integer primary key autoincrement, bulk_upload_job_id integer, recipient_id integer, identifier varchar, entry_path text, original_filename varchar, display_filename varchar, temporary_disk varchar, temporary_path text, mime_type varchar, extension varchar, file_size_bytes integer, checksum_sha256 varchar, match_status varchar, match_reason text, metadata text, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.export_jobs (export_job_id integer primary key autoincrement, requested_by_user_id integer, export_type varchar, filters text, status varchar default "queued", storage_disk varchar, storage_path text, file_size_bytes integer, error_message text, expires_at datetime, created_at datetime, updated_at datetime, completed_at datetime)');
@@ -188,7 +193,7 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
 
     private function userView(int $id, string $kdUser, string $name, bool $admin, bool $mhs, bool $dosen): UserView
     {
-        $user = new UserView();
+        $user = new UserView;
         $user->setRawAttributes([
             'id' => $id,
             'kd_user' => $kdUser,

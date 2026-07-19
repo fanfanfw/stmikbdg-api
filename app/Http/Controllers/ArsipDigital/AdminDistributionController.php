@@ -22,10 +22,22 @@ class AdminDistributionController extends Controller
                 'scope_type' => ['sometimes', 'in:filter,specific,segment'],
                 'status' => ['sometimes', 'in:draft,published,closed,archived'],
                 'with_deleted' => ['sometimes', 'boolean'],
+                'search' => ['sometimes', 'string', 'max:255'],
+                'page' => ['sometimes', 'integer', 'min:1'],
+                'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
+            $distributions = $distributionService->adminQuery($filters)
+                ->withCount('recipients')
+                ->paginate($filters['per_page'] ?? 50);
 
             return $this->successfulResponseJSON([
-                'distributions' => $distributionService->adminQuery($filters)->withCount('recipients')->get()->toArray(),
+                'distributions' => $distributions->items(),
+                'meta' => [
+                    'current_page' => $distributions->currentPage(),
+                    'last_page' => $distributions->lastPage(),
+                    'per_page' => $distributions->perPage(),
+                    'total' => $distributions->total(),
+                ],
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);

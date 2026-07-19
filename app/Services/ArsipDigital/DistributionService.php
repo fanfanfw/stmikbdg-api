@@ -20,8 +20,7 @@ class DistributionService
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly AuditLogService $auditLog,
         private readonly NotificationService $notifications,
-    ) {
-    }
+    ) {}
 
     public function adminQuery(array $filters = []): Builder
     {
@@ -35,6 +34,14 @@ class DistributionService
             if (! empty($filters[$field])) {
                 $query->where($field, $filters[$field]);
             }
+        }
+
+        if (! empty($filters['search'])) {
+            $search = '%'.strtolower($filters['search']).'%';
+            $query->where(function (Builder $query) use ($search): void {
+                $query->whereRaw('LOWER(title) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(description) LIKE ?', [$search]);
+            });
         }
 
         return $query->orderByDesc('created_at')->orderByDesc('distribution_id');
@@ -119,7 +126,7 @@ class DistributionService
 
     public function previewForPayload(array $payload): array
     {
-        return $this->targetPreview->preview($payload);
+        return $this->targetPreview->preview($payload, 1000, 100);
     }
 
     public function previewForDistribution(Distribution $distribution): array
@@ -130,7 +137,7 @@ class DistributionService
             'target_filters' => $distribution->target_filters ?? [],
             'target_identifiers' => $distribution->target_identifiers ?? [],
             'target_segment_ids' => $distribution->target_segment_ids ?? [],
-        ]);
+        ], 1000);
     }
 
     public function publish(Distribution $distribution, object $actor, string $actorRole, $httpRequest = null): Distribution
@@ -156,35 +163,25 @@ class DistributionService
             ]);
             $distribution->save();
 
-            foreach ($preview['valid_targets'] as $target) {
-                $recipient = DistributionRecipient::create([
-                    'distribution_id' => $distribution->distribution_id,
-                    'target_user_id' => $target['target_user_id'],
-                    'target_role' => $target['target_role'],
-                    'identifier' => $target['identifier'],
-                    'name_snapshot' => $target['name_snapshot'],
-                    'angkatan_snapshot' => $target['angkatan_snapshot'],
-                    'prodi_snapshot' => $target['prodi_snapshot'],
-                    'status_snapshot' => $target['status_snapshot'],
-                    'metadata' => [
-                        'scope_type' => $distribution->scope_type,
-                        'scholarship_snapshot' => $target['scholarship_snapshot'] ?? null,
-                        'target_metadata' => $target['metadata'] ?? null,
-                    ],
-                    'delivery_status' => 'pending',
-                ]);
-
-                $this->auditLog->record(
-                    'distribution_recipient.created',
-                    'distribution_recipient',
-                    $recipient->recipient_id,
-                    'Recipient distribution arsip digital dibuat saat publish.',
-                    ['distribution_id' => $distribution->distribution_id, 'identifier' => $recipient->identifier],
-                    $httpRequest,
-                    $actor->id,
-                    $actorRole
-                );
-            }
+            $now = now();
+            collect($preview['valid_targets'])->map(fn (array $target): array => [
+                'distribution_id' => $distribution->distribution_id,
+                'target_user_id' => $target['target_user_id'],
+                'target_role' => $target['target_role'],
+                'identifier' => $target['identifier'],
+                'name_snapshot' => $target['name_snapshot'],
+                'angkatan_snapshot' => $target['angkatan_snapshot'],
+                'prodi_snapshot' => $target['prodi_snapshot'],
+                'status_snapshot' => $target['status_snapshot'],
+                'metadata' => json_encode([
+                    'scope_type' => $distribution->scope_type,
+                    'scholarship_snapshot' => $target['scholarship_snapshot'] ?? null,
+                    'target_metadata' => $target['metadata'] ?? null,
+                ]),
+                'delivery_status' => 'pending',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->chunk(50)->each(fn ($recipients) => DistributionRecipient::insert($recipients->all()));
 
             $this->auditLog->record(
                 'distribution.published',
@@ -197,7 +194,7 @@ class DistributionService
                 $actorRole
             );
 
-            return $distribution->fresh('recipients');
+            return $distribution->fresh()->loadCount('recipients');
         });
     }
 
@@ -223,7 +220,7 @@ class DistributionService
         }
 
         if (! empty($filters['search'])) {
-            $search = '%' . strtolower($filters['search']) . '%';
+            $search = '%'.strtolower($filters['search']).'%';
             $query->where(function (Builder $query) use ($search): void {
                 $query->whereRaw('LOWER(identifier) LIKE ?', [$search])
                     ->orWhereRaw('LOWER(name_snapshot) LIKE ?', [$search]);
@@ -316,7 +313,7 @@ class DistributionService
                     $recipient->target_role,
                     'distribution_file_available',
                     'File distribution tersedia',
-                    'File untuk distribution ' . $recipient->distribution->title . ' sudah tersedia.',
+                    'File untuk distribution '.$recipient->distribution->title.' sudah tersedia.',
                     'distribution_recipient',
                     $recipient->recipient_id,
                     [

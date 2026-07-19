@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\ArsipDigital;
 
-use Illuminate\Support\Facades\Queue;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use App\Services\ArsipDigital\ExportJobService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
 {
@@ -29,12 +29,12 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.export_jobs.0.export_job_id', $jobId);
 
         $this->actingAsAdmin()
-            ->getJson('/api/arsip-digital/admin/export-jobs/' . $jobId)
+            ->getJson('/api/arsip-digital/admin/export-jobs/'.$jobId)
             ->assertOk()
             ->assertJsonPath('data.export_job.export_job_id', $jobId);
 
         $this->actingAsAdmin()
-            ->getJson('/api/arsip-digital/admin/export-jobs/' . $jobId . '/download')
+            ->getJson('/api/arsip-digital/admin/export-jobs/'.$jobId.'/download')
             ->assertStatus(422);
 
         Storage::disk('s3')->put('exports/test.zip', 'zip-content');
@@ -46,7 +46,7 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
         ]);
 
         $this->actingAsAdmin()
-            ->get('/api/arsip-digital/admin/export-jobs/' . $jobId . '/download')
+            ->get('/api/arsip-digital/admin/export-jobs/'.$jobId.'/download')
             ->assertOk()
             ->assertHeader('content-disposition');
     }
@@ -114,13 +114,15 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
             ->assertCreated()
             ->json('data.distribution.distribution_id');
 
-        $recipientId = $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/publish')
-            ->assertOk()
-            ->json('data.distribution.recipients.0.recipient_id');
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')
+            ->assertOk();
+        $recipientId = DB::table('arsip_digital.distribution_recipients')
+            ->where('distribution_id', $distributionId)
+            ->value('recipient_id');
 
         $this->actingAsAdmin()
-            ->post('/api/arsip-digital/admin/distribution-recipients/' . $recipientId . '/file', [
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', [
                 'file' => $this->pdfUpload('sertifikat.pdf', '%PDF export distribution'),
             ], ['X-Active-Role' => 'admin'])
             ->assertCreated();
@@ -137,7 +139,7 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
 
         Storage::disk('s3')->assertExists($exportJob['storage_path']);
 
-        $zip = new \ZipArchive();
+        $zip = new \ZipArchive;
         $zip->open(Storage::disk('s3')->path($exportJob['storage_path']));
         $names = [];
         for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -148,7 +150,7 @@ class ArsipDigitalExportJobTest extends ArsipDigitalFeatureTestCase
         $this->assertNotEmpty(array_filter($names, fn (string $name): bool => str_ends_with($name, '/22010001 - Mahasiswa Test/sertifikat.pdf')));
 
         $this->actingAsAdmin()
-            ->get('/api/arsip-digital/admin/export-jobs/' . $exportJob['export_job_id'] . '/download')
+            ->get('/api/arsip-digital/admin/export-jobs/'.$exportJob['export_job_id'].'/download')
             ->assertOk()
             ->assertHeader('content-disposition');
     }

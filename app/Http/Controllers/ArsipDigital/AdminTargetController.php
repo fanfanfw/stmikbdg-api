@@ -21,8 +21,10 @@ class AdminTargetController extends Controller
             $filters = $request->validate([
                 'role' => ['required', 'in:mahasiswa,dosen'],
                 'search' => ['sometimes', 'nullable', 'string', 'max:255'],
-                'angkatan' => ['sometimes', 'nullable', 'integer'],
-                'status' => ['sometimes', 'nullable', 'string', 'max:20'],
+                'angkatan' => ['sometimes', 'array', 'max:20'],
+                'angkatan.*' => ['integer'],
+                'status' => ['sometimes', 'array', 'max:20'],
+                'status.*' => ['string', 'max:20'],
                 'has_account' => ['sometimes', 'boolean'],
                 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
@@ -52,7 +54,7 @@ class AdminTargetController extends Controller
             ->whereNotNull('nim');
 
         if (! empty($filters['search'])) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $query->where(function (Builder $query) use ($search): void {
                 $query->where('nim', 'ilike', $search)
                     ->orWhere('nm_mhs', 'ilike', $search);
@@ -60,11 +62,11 @@ class AdminTargetController extends Controller
         }
 
         if (! empty($filters['angkatan'])) {
-            $query->where('masuk_tahun', $filters['angkatan']);
+            $query->whereIn('masuk_tahun', $filters['angkatan']);
         }
 
         if (! empty($filters['status'])) {
-            $query->where('sts_mhs', strtoupper($filters['status']));
+            $query->whereIn('sts_mhs', array_map('strtoupper', $filters['status']));
         }
 
         if (array_key_exists('has_account', $filters)) {
@@ -81,7 +83,7 @@ class AdminTargetController extends Controller
 
         return $targets->through(function ($item) use ($accounts): array {
             $identifier = trim((string) $item->nim);
-            $accountKey = 'MHS-' . $identifier;
+            $accountKey = 'MHS-'.$identifier;
 
             return [
                 'role' => 'mahasiswa',
@@ -102,7 +104,7 @@ class AdminTargetController extends Controller
             ->whereNotNull('kd_dosen');
 
         if (! empty($filters['search'])) {
-            $search = '%' . $filters['search'] . '%';
+            $search = '%'.$filters['search'].'%';
             $query->where(function (Builder $query) use ($search): void {
                 $query->where('kd_dosen', 'ilike', $search)
                     ->orWhere('nm_dosen', 'ilike', $search);
@@ -110,7 +112,7 @@ class AdminTargetController extends Controller
         }
 
         if (! empty($filters['status'])) {
-            $query->where('sts_dosen', strtoupper($filters['status']));
+            $query->whereIn('sts_dosen', array_map('strtoupper', $filters['status']));
         }
 
         if (array_key_exists('has_account', $filters)) {
@@ -126,7 +128,7 @@ class AdminTargetController extends Controller
 
         return $targets->through(function ($item) use ($accounts): array {
             $identifier = trim((string) $item->kd_dosen);
-            $accountKey = 'DSN-' . $identifier;
+            $accountKey = 'DSN-'.$identifier;
 
             return [
                 'role' => 'dosen',
@@ -142,7 +144,7 @@ class AdminTargetController extends Controller
 
     private function accountIdentifiers(string $prefix)
     {
-        return User::where('kd_user', 'like', $prefix . '%')
+        return User::where('kd_user', 'like', $prefix.'%')
             ->pluck('kd_user')
             ->map(fn (string $kdUser): string => substr($kdUser, strlen($prefix)))
             ->all();
@@ -150,7 +152,7 @@ class AdminTargetController extends Controller
 
     private function accountMapForIdentifiers(string $prefix, $identifiers)
     {
-        return User::whereIn('kd_user', collect($identifiers)->map(fn ($identifier): string => $prefix . trim((string) $identifier)))
+        return User::whereIn('kd_user', collect($identifiers)->map(fn ($identifier): string => $prefix.trim((string) $identifier)))
             ->pluck('id', 'kd_user');
     }
 }

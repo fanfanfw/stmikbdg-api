@@ -3,6 +3,7 @@
 namespace Tests\Feature\ArsipDigital;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
 {
@@ -26,15 +27,18 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.distribution.status', 'draft')
             ->json('data.distribution.distribution_id');
 
-        $recipientId = $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/publish')
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')
             ->assertOk()
             ->assertJsonPath('data.distribution.status', 'published')
-            ->assertJsonCount(1, 'data.distribution.recipients')
-            ->json('data.distribution.recipients.0.recipient_id');
+            ->assertJsonPath('data.distribution.recipients_count', 1)
+            ->assertJsonMissingPath('data.distribution.recipients');
+        $recipientId = DB::table('arsip_digital.distribution_recipients')
+            ->where('distribution_id', $distributionId)
+            ->value('recipient_id');
 
         $fileId = $this->actingAsAdmin()
-            ->post('/api/arsip-digital/admin/distribution-recipients/' . $recipientId . '/file', [
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', [
                 'file' => $this->pdfUpload('sertifikat.pdf'),
             ], ['X-Active-Role' => 'admin'])
             ->assertCreated()
@@ -47,17 +51,17 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.distributions.0.recipients.0.file_id', $fileId);
 
         $this->actingAsMahasiswa()
-            ->deleteJson('/api/arsip-digital/files/' . $fileId)
+            ->deleteJson('/api/arsip-digital/files/'.$fileId)
             ->assertForbidden()
             ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
         $this->actingAsAdmin()
-            ->deleteJson('/api/arsip-digital/files/' . $fileId)
+            ->deleteJson('/api/arsip-digital/files/'.$fileId)
             ->assertForbidden()
             ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
         $this->actingAsMahasiswa()
-            ->get('/api/arsip-digital/files/' . $fileId . '/download')
+            ->get('/api/arsip-digital/files/'.$fileId.'/download')
             ->assertForbidden()
             ->assertJsonPath('message', 'File distribution harus didownload melalui endpoint distribution.');
 
@@ -78,7 +82,7 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         ], 'sqlite');
 
         $this->actingAsMahasiswa()
-            ->get('/api/arsip-digital/distribution-files/' . $fileId . '/download')
+            ->get('/api/arsip-digital/distribution-files/'.$fileId.'/download')
             ->assertOk()
             ->assertHeader('content-disposition');
 
@@ -116,7 +120,7 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->json('data.distribution.distribution_id');
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/publish')
+            ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')
             ->assertOk();
 
         $recipientId = DB::table('arsip_digital.distribution_recipients')
@@ -128,7 +132,7 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->where('identifier', '22010002')
             ->value('recipient_id');
 
-        \Illuminate\Support\Facades\Storage::disk('s3')->put('tmp/bulk/22010001.pdf', '%PDF-1.4 bulk');
+        Storage::disk('s3')->put('tmp/bulk/22010001.pdf', '%PDF-1.4 bulk');
         $jobId = DB::table('arsip_digital.distribution_bulk_upload_jobs')->insertGetId([
             'distribution_id' => $distributionId,
             'uploaded_by_user_id' => 1,
@@ -190,7 +194,7 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         }
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/distribution-bulk-upload-jobs/' . $jobId . '/confirm')
+            ->postJson('/api/arsip-digital/admin/distribution-bulk-upload-jobs/'.$jobId.'/confirm')
             ->assertOk();
 
         $this->assertDatabaseHas('arsip_digital.notifications', [
@@ -228,12 +232,12 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->json('data.distribution.distribution_id');
 
         foreach (['22010001', '22010002', '22010003', '22010004'] as $identifier) {
-            \Illuminate\Support\Facades\DB::table('arsip_digital.distribution_recipients')->insert([
+            DB::table('arsip_digital.distribution_recipients')->insert([
                 'distribution_id' => $distributionId,
                 'target_user_id' => 2,
                 'target_role' => 'mahasiswa',
                 'identifier' => $identifier,
-                'name_snapshot' => 'Mahasiswa ' . $identifier,
+                'name_snapshot' => 'Mahasiswa '.$identifier,
                 'delivery_status' => 'pending',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -241,7 +245,7 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         }
 
         $this->actingAsAdmin()
-            ->getJson('/api/arsip-digital/admin/distributions/' . $distributionId . '/recipients?per_page=2&page=2')
+            ->getJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/recipients?per_page=2&page=2')
             ->assertOk()
             ->assertJsonCount(2, 'data.recipients')
             ->assertJsonPath('data.meta.current_page', 2)
