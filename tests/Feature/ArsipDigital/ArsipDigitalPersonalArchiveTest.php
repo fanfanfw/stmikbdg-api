@@ -148,10 +148,12 @@ class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
             ->assertCreated()
             ->json('data.distribution.distribution_id');
 
-        $recipientId = $this->actingAsAdmin()
+        $this->actingAsAdmin()
             ->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')
-            ->assertOk()
-            ->json('data.distribution.recipients.0.recipient_id');
+            ->assertOk();
+        $recipientId = DB::table('arsip_digital.distribution_recipients')
+            ->where('distribution_id', $distributionId)
+            ->value('recipient_id');
 
         $this->actingAsAdmin()
             ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', [

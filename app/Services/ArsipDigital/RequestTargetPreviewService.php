@@ -14,7 +14,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class RequestTargetPreviewService
 {
-    public function preview(array $payload): array
+    public function preview(array $payload, ?int $maxTargets = null, ?int $detailLimit = null): array
     {
         $targetRole = $payload['target_role'];
         $scopeType = $payload['scope_type'];
@@ -30,7 +30,19 @@ class RequestTargetPreviewService
             default => throw new HttpException(422, 'Scope target tidak valid.'),
         };
 
+        $candidates = $candidates
+            ->map(fn ($candidate): string => trim((string) (is_array($candidate) ? ($candidate['identifier'] ?? '') : $candidate)))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($maxTargets !== null && $candidates->count() > $maxTargets) {
+            throw new HttpException(422, "Jumlah target distribution maksimal {$maxTargets}.");
+        }
+
         [$valid, $invalid] = $this->resolveCandidates($targetRole, $scopeType, $candidates);
+        $validDetails = $detailLimit === null ? $valid : array_slice($valid, 0, $detailLimit);
+        $invalidDetails = $detailLimit === null ? $invalid : array_slice($invalid, 0, $detailLimit);
 
         return [
             'target_role' => $targetRole,
@@ -38,8 +50,11 @@ class RequestTargetPreviewService
             'total_targets' => count($valid) + count($invalid),
             'total_valid' => count($valid),
             'total_invalid' => count($invalid),
-            'valid_targets' => $valid,
-            'invalid_targets' => $invalid,
+            'valid_targets' => $validDetails,
+            'invalid_targets' => $invalidDetails,
+            'details_limit' => $detailLimit,
+            'valid_targets_truncated' => count($validDetails) < count($valid),
+            'invalid_targets_truncated' => count($invalidDetails) < count($invalid),
         ];
     }
 
@@ -56,14 +71,16 @@ class RequestTargetPreviewService
         }
 
         if ($targetRole === 'mahasiswa') {
-            $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'MHS-' . $identifier))->get()->keyBy('kd_user');
+            $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'MHS-'.$identifier))->get()->keyBy('kd_user');
             $profiles = MahasiswaView::whereIn('nim', $identifiers)->get()->keyBy(fn ($profile): string => trim((string) $profile->nim));
             $scholarships = $this->scholarshipSnapshots($identifiers);
+
             return $this->buildResolvedTargets($identifiers, $targetRole, $scopeType, $accounts, $profiles, $scholarships, 'MHS-', 'Akun user mahasiswa tidak ditemukan.');
         }
 
-        $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'DSN-' . $identifier))->get()->keyBy('kd_user');
+        $accounts = User::whereIn('kd_user', $identifiers->map(fn ($identifier): string => 'DSN-'.$identifier))->get()->keyBy('kd_user');
         $profiles = Dosen::whereIn('kd_dosen', $identifiers)->get()->keyBy(fn ($profile): string => trim((string) $profile->kd_dosen));
+
         return $this->buildResolvedTargets($identifiers, $targetRole, $scopeType, $accounts, $profiles, collect(), 'DSN-', 'Akun user dosen tidak ditemukan.');
     }
 
@@ -73,7 +90,7 @@ class RequestTargetPreviewService
         $invalid = [];
 
         foreach ($identifiers as $identifier) {
-            $account = $accounts->get($accountPrefix . $identifier);
+            $account = $accounts->get($accountPrefix.$identifier);
 
             if (! $account) {
                 $invalid[] = [
@@ -81,6 +98,7 @@ class RequestTargetPreviewService
                     'identifier' => $identifier,
                     'reason' => $missingAccountMessage,
                 ];
+
                 continue;
             }
 
@@ -117,7 +135,7 @@ class RequestTargetPreviewService
             default => throw new HttpException(422, 'Target role harus mahasiswa atau dosen.'),
         };
 
-        return User::where('kd_user', 'like', $prefix . '%')
+        return User::where('kd_user', 'like', $prefix.'%')
             ->pluck('kd_user')
             ->map(fn (string $kdUser): string => substr($kdUser, strlen($prefix)));
     }
@@ -255,5 +273,4 @@ class RequestTargetPreviewService
 
         return $fallback;
     }
-
 }
