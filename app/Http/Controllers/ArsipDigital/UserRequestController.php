@@ -56,6 +56,7 @@ class UserRequestController extends Controller
             $payload = $request->validate([
                 'file' => ['required', 'file'],
                 'display_filename' => ['nullable', 'string', 'max:255'],
+                'replace_request_file_id' => ['nullable', 'integer'],
                 'note' => ['nullable', 'string'],
             ]);
             $assignment = RequestAssignment::with('request')->findOrFail($assignment_id);
@@ -73,10 +74,11 @@ class UserRequestController extends Controller
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
             $payload = $request->validate([
                 'file_id' => ['required', 'integer'],
+                'replace_request_file_id' => ['nullable', 'integer'],
             ]);
             $assignment = RequestAssignment::with('request')->findOrFail($assignment_id);
             $file = ArchiveFile::findOrFail($payload['file_id']);
-            $requestFile = $submissionService->reuse($assignment, $file, auth()->user(), $role, $request);
+            $requestFile = $submissionService->reuse($assignment, $file, $payload, auth()->user(), $role, $request);
 
             return $this->successfulResponseJSON(['request_file' => $requestFile->toArray()], 'File lama berhasil dipakai untuk request.', 201);
         } catch (\Exception $e) {

@@ -31,7 +31,7 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->json('data.request.request_id');
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/requests/' . $requestId . '/publish')
+            ->postJson('/api/arsip-digital/admin/requests/'.$requestId.'/publish')
             ->assertOk()
             ->assertJsonPath('data.request.status', 'published')
             ->assertJsonCount(1, 'data.request.assignments');
@@ -70,11 +70,11 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->json('data.request.request_id');
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/requests/' . $requestId . '/publish')
+            ->postJson('/api/arsip-digital/admin/requests/'.$requestId.'/publish')
             ->assertOk();
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/requests/' . $requestId . '/targets', [
+            ->postJson('/api/arsip-digital/admin/requests/'.$requestId.'/targets', [
                 'target_role' => 'mahasiswa',
                 'scope_type' => 'specific',
                 'target_identifiers' => ['22010001', '22010002', '99999999'],
@@ -113,7 +113,7 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->json('data.request.request_id');
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/requests/' . $requestId . '/publish')
+            ->postJson('/api/arsip-digital/admin/requests/'.$requestId.'/publish')
             ->assertStatus(422);
 
         $this->assertSame(0, DB::table('arsip_digital.request_assignments')->where('request_id', $requestId)->count());
@@ -126,14 +126,14 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
         $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
                 'file' => $this->pdfUpload('upload-request.txt'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertStatus(422);
         $this->assertSame(0, DB::table('arsip_digital.notifications')->where('type', 'request_file_submitted')->count());
 
         $uploadedRequestFile = $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
                 'file' => $this->pdfUpload('upload-request.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated()
@@ -154,12 +154,12 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         ], json_decode($uploadNotification->data, true));
 
         $this->actingAsMahasiswa()
-            ->deleteJson('/api/arsip-digital/files/' . $uploadedRequestFile['file_id'])
+            ->deleteJson('/api/arsip-digital/files/'.$uploadedRequestFile['file_id'])
             ->assertForbidden()
             ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
         $this->actingAsAdmin()
-            ->deleteJson('/api/arsip-digital/files/' . $uploadedRequestFile['file_id'])
+            ->deleteJson('/api/arsip-digital/files/'.$uploadedRequestFile['file_id'])
             ->assertForbidden()
             ->assertJsonPath('message', 'File workflow tidak dapat dihapus dari Arsip Pengguna.');
 
@@ -169,7 +169,7 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         ], 'sqlite');
 
         $this->actingAsMahasiswa()
-            ->postJson('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/reuse', [
+            ->postJson('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/reuse', [
                 'file_id' => 999999,
             ])
             ->assertNotFound();
@@ -178,7 +178,7 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         $fileId = $this->createActiveArchiveFileForMahasiswa('reuse.pdf');
 
         $reusedRequestFile = $this->actingAsMahasiswa()
-            ->postJson('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/reuse', [
+            ->postJson('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/reuse', [
                 'file_id' => $fileId,
             ])
             ->assertCreated()
@@ -192,13 +192,117 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         $this->assertSame('22010001', json_decode($reuseNotification->data, true)['identifier']);
 
         $this->actingAsMahasiswa()
-            ->deleteJson('/api/arsip-digital/files/' . $fileId)
+            ->deleteJson('/api/arsip-digital/files/'.$fileId)
             ->assertStatus(409)
             ->assertJsonPath('message', 'File sedang dipakai pada request berkas.');
 
         $this->assertDatabaseHas('arsip_digital.files', [
             'file_id' => $fileId,
         ], 'sqlite');
+    }
+
+    public function test_user_can_replace_current_request_file_until_assignment_is_approved(): void
+    {
+        [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+        DB::table('arsip_digital.requests')->where('request_id', $requestId)->update(['max_files' => 1]);
+
+        $original = $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('salah.pdf'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated()
+            ->json('data.request_file');
+
+        [, $otherAssignmentId] = $this->createPublishedRequestForMahasiswa(true);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$otherAssignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('assignment-lain.pdf'),
+                'replace_request_file_id' => $original['request_file_id'],
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'File yang akan diganti tidak valid.');
+
+        DB::table('arsip_digital.requests')->where('request_id', $requestId)->update([
+            'deadline_at' => now()->subDay(),
+            'close_after_deadline' => false,
+        ]);
+
+        $replacement = $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('benar.pdf', '%PDF-1.4 corrected'),
+                'replace_request_file_id' => $original['request_file_id'],
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated()
+            ->assertJsonPath('data.request_file.status', 'waiting_verification')
+            ->assertJsonPath('data.request_file.file.display_filename', 'benar.pdf')
+            ->assertJsonPath('data.request_file.file.version_number', 2)
+            ->json('data.request_file');
+
+        $this->assertDatabaseHas('arsip_digital.request_files', [
+            'request_file_id' => $original['request_file_id'],
+            'status' => 'replaced',
+            'is_current' => false,
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.files', [
+            'file_id' => $original['file_id'],
+            'status' => 'replaced',
+            'is_current' => false,
+        ], 'sqlite');
+        $this->assertSame($original['file']['version_group_uuid'], $replacement['file']['version_group_uuid']);
+
+        $personalFileId = $this->createActiveArchiveFileForMahasiswa('dari-arsip.pdf');
+        $reusedReplacement = $this->actingAsMahasiswa()
+            ->postJson('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/reuse', [
+                'file_id' => $personalFileId,
+                'replace_request_file_id' => $replacement['request_file_id'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.request_file.submission_type', 'reused')
+            ->assertJsonPath('data.request_file.file_id', $personalFileId)
+            ->json('data.request_file');
+
+        $this->assertDatabaseHas('arsip_digital.request_files', [
+            'request_file_id' => $replacement['request_file_id'],
+            'status' => 'replaced',
+            'is_current' => false,
+        ], 'sqlite');
+        $this->assertDatabaseHas('arsip_digital.files', [
+            'file_id' => $personalFileId,
+            'status' => 'active',
+            'is_current' => true,
+        ], 'sqlite');
+
+        DB::table('arsip_digital.requests')->where('request_id', $requestId)->update(['close_after_deadline' => true]);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('terlambat.pdf'),
+                'replace_request_file_id' => $reusedReplacement['request_file_id'],
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Request sudah melewati deadline dan tidak menerima submission baru.');
+
+        DB::table('arsip_digital.requests')->where('request_id', $requestId)->update(['deadline_at' => null]);
+        DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->update(['status' => 'approved']);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('ubah-lagi.pdf'),
+                'replace_request_file_id' => $reusedReplacement['request_file_id'],
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'File assignment tidak dapat diubah pada status saat ini.');
+
+        DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->update(['status' => 'closed']);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('setelah-ditutup.pdf'),
+                'replace_request_file_id' => $reusedReplacement['request_file_id'],
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'File assignment tidak dapat diubah pada status saat ini.');
     }
 
     public function test_upload_notification_without_verification_avoids_waiting_title_and_marks_late(): void
@@ -208,7 +312,7 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
         DB::table('arsip_digital.requests')->where('request_id', $requestId)->update(['deadline_at' => now()->subDay()]);
 
         $requestFile = $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
                 'file' => $this->pdfUpload('late.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated()
