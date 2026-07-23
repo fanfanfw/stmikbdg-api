@@ -3,35 +3,36 @@
 namespace App\Http\Controllers\KRS;
 
 use App\Exceptions\ErrorHandler;
+use App\Exports\RekapExport;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
-use Symfony\Component\HttpKernel\Exception\HttpException;
-
-// ? Models - table
 use App\Models\KRS\KRS;
 use App\Models\KRS\KRSMatkul;
-use App\Models\Users\Dosen;
-
-// ? Models - view
 use App\Models\KRS\MatkulDiselenggarakanView;
 use App\Models\KRS\NilaiAkhirView;
 use App\Models\TahunAjaranView;
+use App\Models\Users\Dosen;
+// ? Models - table
 use App\Models\Users\Mahasiswa;
 use App\Models\Users\MahasiswaView;
+use Illuminate\Http\Request;
+// ? Models - view
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class KRSDosenController extends Controller
 {
     private $user;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->user = $this->getUserAuth();
     }
 
-    public function getKRSMahasiswa(Request $request) {
+    public function getKRSMahasiswa(Request $request)
+    {
         try {
             // is user dosen wali?
             self::getStatusDosenWali($request);
@@ -69,7 +70,8 @@ class KRSDosenController extends Controller
         }
     }
 
-    public function updateStatusKRSMahasiswa(Request $request) {
+    public function updateStatusKRSMahasiswa(Request $request)
+    {
         try {
             // is user dosen wali?
             self::getStatusDosenWali($request);
@@ -77,7 +79,7 @@ class KRSDosenController extends Controller
             $request->validate([
                 'mhs_id' => 'required',
                 'krs_id' => 'required',
-                'sts_krs' =>  'required',
+                'sts_krs' => 'required',
                 'krs_matkul' => 'required|array',
                 'krs_matkul.*.k_disetujui' => 'required|boolean',
                 'krs_matkul.*.krs_mk_id' => 'required',
@@ -87,7 +89,7 @@ class KRSDosenController extends Controller
             $currentKRS = KRS::where('krs_id', $request->krs_id)->first();
             $mahasiswa = Mahasiswa::where('mhs_id', $request->mhs_id)->first();
 
-            if (!$currentKRS or !$mahasiswa) {
+            if (! $currentKRS or ! $mahasiswa) {
                 return $this->failedResponseJSON('Nilai mhs_id atau krs_id tidak ditemukan', 404);
             }
 
@@ -103,8 +105,8 @@ class KRSDosenController extends Controller
                     ->where('krs_mk_id', $item['krs_mk_id'])
                     ->first();
 
-                if (!$krsMkMatch) {
-                    return $this->failedResponseJSON('Nilai krs_mk_id ' . $item['krs_mk_id'] . ' tidak sesuai', 400);
+                if (! $krsMkMatch) {
+                    return $this->failedResponseJSON('Nilai krs_mk_id '.$item['krs_mk_id'].' tidak sesuai', 400);
                 }
 
                 array_push($tempKrsMatkulArr, $item['krs_mk_id']);
@@ -132,11 +134,12 @@ class KRSDosenController extends Controller
                     $updateKRSMatkul = KRSMatkul::where('krs_id', $request->krs_id)
                         ->where('krs_mk_id', $matkul['krs_mk_id'])
                         ->update([
-                            'k_disetujui' => $matkul['k_disetujui']
+                            'k_disetujui' => $matkul['k_disetujui'],
                         ]);
 
-                    if (!$updateKRSMatkul) {
+                    if (! $updateKRSMatkul) {
                         DB::rollBack();
+
                         return $this->failedResponseJSON('Matakuliah di KRS Mahasiswa gagal diperbarui', 500);
                     }
                 }
@@ -154,11 +157,12 @@ class KRSDosenController extends Controller
                  */
                 $updateKRSIdLast = Mahasiswa::where('mhs_id', $request->mhs_id)
                     ->update([
-                        'krs_id_last' => $request->krs_id
+                        'krs_id_last' => $request->krs_id,
                     ]);
 
                 if ($updateKRSIdLast) {
                     DB::commit();
+
                     return $this->successfulResponseJSON([
                         'krs_id' => $request->krs_id,
                     ], 'KRS mahasiswa berhasil diperbaharui');
@@ -166,14 +170,17 @@ class KRSDosenController extends Controller
             }
 
             DB::rollBack();
+
             return $this->failedResponseJSON('KRS Mahasiswa gagal diperbarui', 500);
         } catch (\Exception $e) {
             DB::rollBack();
+
             return ErrorHandler::handle($e);
         }
     }
 
-    public function getListKRSMahasiswa(Request $request) {
+    public function getListKRSMahasiswa(Request $request)
+    {
         try {
             $page = $request->query('page') ?? null;
             $search = $request->query('search') ?? null;
@@ -210,9 +217,9 @@ class KRSDosenController extends Controller
             }
 
             // jika ada filter page pada query params
-            if ($page and !$search) {
+            if ($page and ! $search) {
                 $perPage = 10;
-                $currentPage = (integer) $page ?? Paginator::resolveCurrentPage();
+                $currentPage = (int) $page ?? Paginator::resolveCurrentPage();
                 $currentPageData = Collection::make($listMahasiswa)->slice(($currentPage - 1) * $perPage, $perPage);
                 $paginator = new Paginator($currentPageData->all(), $perPage, $currentPage);
                 $paginatedData = array_values($paginator->items());
@@ -231,9 +238,9 @@ class KRSDosenController extends Controller
                         'total_items' => count($listMahasiswa),
                         'items_per_page' => $paginator->perPage(),
                         'prev_page_url' => $currentPage == 1 ? null
-                            :  config('app.url') . 'krs/mahasiswa/list' . substr($paginator->previousPageUrl(), 1),
+                            : config('app.url').'krs/mahasiswa/list'.substr($paginator->previousPageUrl(), 1),
                         'next_page_url' => ($totalNextItems > -1 and count($listMahasiswa) > 10)
-                            ? config('app.url') . 'krs/mahasiswa/list?page=' . $currentPage + 1
+                            ? config('app.url').'krs/mahasiswa/list?page='.$currentPage + 1
                             : null,
                     ],
                 ], 200);
@@ -247,7 +254,56 @@ class KRSDosenController extends Controller
         }
     }
 
-    public function getListFilterAngkatan() {
+    public function exportKRSMahasiswa(Request $request)
+    {
+        $filters = $request->validate([
+            'sts_krs' => 'required|in:P,D,S',
+            'jns_mhs' => 'nullable|in:R,K,E',
+            'sts_mhs' => 'nullable|in:A,C,N',
+            'masuk_tahun' => 'nullable|integer',
+            'semester' => 'nullable|integer|min:1|max:8',
+            'format' => 'nullable|in:xlsx,data',
+        ]);
+
+        $activeTahunIds = TahunAjaranView::pluck('tahun_id');
+        $students = collect(Dosen::getListKRSMahasiswa($this->user['dosen_id']))
+            ->when($filters['jns_mhs'] ?? null, fn ($rows, $value) => $rows->where('jns_mhs', $value))
+            ->when($filters['sts_mhs'] ?? null, fn ($rows, $value) => $rows->where('sts_mhs', $value))
+            ->when($filters['masuk_tahun'] ?? null, fn ($rows, $value) => $rows->where('masuk_tahun', $value));
+
+        $rows = $students->flatMap(function ($student) use ($activeTahunIds, $filters) {
+            return collect($student['krs'])->whereIn('tahun_id', $activeTahunIds)->where('sts_krs', $filters['sts_krs'])
+                ->when($filters['semester'] ?? null, fn ($rows, $value) => $rows->where('semester', $value))
+                ->map(fn ($krs) => array_merge($student->toArray(), ['krs_item' => $krs]));
+        })->values();
+
+        $status = ['P' => 'Pengajuan', 'D' => 'Draft-Ditolak', 'S' => 'Disetujui'][$filters['sts_krs']];
+        $dosenWali = collect($this->user)->only(['nama_dan_gelar', 'nama', 'kd_dosen', 'nidn'])->filter()->all();
+        if (($filters['format'] ?? 'xlsx') === 'data') {
+            return $this->successfulResponseJSON(['rows' => $rows, 'filters' => $filters, 'status_label' => $status, 'dosen_wali' => $dosenWali]);
+        }
+
+        $labels = ['R' => 'Reguler', 'K' => 'Karyawan', 'E' => 'Eksekutif', 'A' => 'Aktif', 'C' => 'Cuti', 'N' => 'Tidak Aktif'];
+        $export = [
+            ['REKAP KRS DOSEN WALI - '.strtoupper($status)],
+            ['Dosen Wali', $dosenWali['nama_dan_gelar'] ?? $dosenWali['nama'] ?? '-', $dosenWali['kd_dosen'] ?? $dosenWali['nidn'] ?? ''],
+            ['Filter', collect($filters)->except(['format', 'sts_krs'])->filter(fn ($value) => $value !== null)->map(fn ($value, $key) => "$key: $value")->implode(', ') ?: 'Semua'],
+            ['Dibuat', now()->format('d-m-Y H:i:s')],
+            [],
+            ['No', 'NIM', 'Nama Mahasiswa', 'Jenis Mahasiswa', 'Status Mahasiswa', 'Tahun Angkatan', 'Semester', 'Nomor KRS', 'Tanggal KRS', 'Status KRS'],
+        ];
+        foreach ($rows as $index => $row) {
+            $krs = $row['krs_item'];
+            $export[] = [$index + 1, $row['nim'], $row['nm_mhs'], $labels[$row['jns_mhs']] ?? $row['jns_mhs'], $labels[$row['sts_mhs']] ?? $row['sts_mhs'], $row['masuk_tahun'], $krs['semester'], $krs['nmr_krs'], $krs['tanggal'], $status];
+        }
+
+        $suffix = collect($filters)->except(['format'])->filter(fn ($value) => $value !== null)->map(fn ($value, $key) => "$key-$value")->implode('-');
+
+        return Excel::download(new RekapExport($export), preg_replace('/[^A-Za-z0-9_-]/', '-', "Rekap-KRS-$status-$suffix").'.xlsx');
+    }
+
+    public function getListFilterAngkatan()
+    {
         try {
             $listMahasiswa = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
                 ->select('angkatan')
@@ -256,14 +312,15 @@ class KRSDosenController extends Controller
                 ->get();
 
             return $this->successfulResponseJSON([
-                'filter_angkatan' => $listMahasiswa
+                'filter_angkatan' => $listMahasiswa,
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
     }
 
-    public function getListFilterSemester() {
+    public function getListFilterSemester()
+    {
         try {
             $listMahasiswaId = MahasiswaView::where('dosen_id', $this->user['dosen_id'])
                 ->where('sts_mhs', 'A')
@@ -279,14 +336,15 @@ class KRSDosenController extends Controller
                 ->get();
 
             return $this->successfulResponseJSON([
-                'filter_semester' => $listFilterSemesterTersedia
+                'filter_semester' => $listFilterSemesterTersedia,
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
     }
 
-    public function getListMahasiswaKHS(Request $request) {
+    public function getListMahasiswaKHS(Request $request)
+    {
         try {
             $page = max((int) $request->query('page', 1), 1);
             $perPage = min(max((int) $request->query('per_page', 10), 5), 50);
@@ -309,8 +367,8 @@ class KRSDosenController extends Controller
 
             if ($search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('nim', 'like', '%' . $search . '%')
-                      ->orWhere('nm_mhs', 'like', '%' . $search . '%');
+                    $q->where('nim', 'like', '%'.$search.'%')
+                        ->orWhere('nm_mhs', 'like', '%'.$search.'%');
                 });
             }
 
@@ -325,8 +383,8 @@ class KRSDosenController extends Controller
             $semesterFilterList = [];
             if ($semesterFilter && $semesterFilter !== 'all') {
                 $semesterFilterList = collect(explode(',', $semesterFilter))
-                    ->map(fn($semester) => (int) trim($semester))
-                    ->filter(fn($semester) => $semester >= 1)
+                    ->map(fn ($semester) => (int) trim($semester))
+                    ->filter(fn ($semester) => $semester >= 1)
                     ->unique()
                     ->values()
                     ->toArray();
@@ -367,7 +425,7 @@ class KRSDosenController extends Controller
 
             $mahasiswaWithKHS = $mahasiswaList->map(function ($mhs) {
                 $nilaiList = NilaiAkhirView::getNilaiAkhirByMhsId($mhs->mhs_id);
-                
+
                 $hasKhs = $nilaiList->count() > 0;
                 $totalSks = 0;
                 $ipk = 0;
@@ -376,13 +434,13 @@ class KRSDosenController extends Controller
                 if ($hasKhs) {
                     $totalMutu = $nilaiList->sum('mutu');
                     $countTotal = $nilaiList->count();
-                    
+
                     $totalSks = $nilaiList->sum(function ($nilai) {
                         return $nilai->matakuliah->sks ?? 0;
                     });
-                    
+
                     $ipk = $countTotal > 0 ? round($totalMutu / $countTotal, 2) : 0;
-                    
+
                     $semesterTersedia = $nilaiList->pluck('matakuliah.semester')
                         ->filter()
                         ->unique()
@@ -413,9 +471,9 @@ class KRSDosenController extends Controller
             });
 
             if ($filteredByKhs && in_array($khsFilter, ['ada', '1', 'available'], true)) {
-                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => $m['has_khs']);
+                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn ($m) => $m['has_khs']);
             } elseif ($filteredByKhs && in_array($khsFilter, ['tidak_ada', '0', 'empty'], true)) {
-                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn($m) => !$m['has_khs']);
+                $mahasiswaWithKHS = $mahasiswaWithKHS->filter(fn ($m) => ! $m['has_khs']);
             }
 
             if ($filteredByKhs) {
@@ -433,8 +491,8 @@ class KRSDosenController extends Controller
                 ->select('jns_mhs')
                 ->distinct()
                 ->pluck('jns_mhs');
-            
-            $filterJenisMhs = $filterJenisMhsRaw->map(function($jns) {
+
+            $filterJenisMhs = $filterJenisMhsRaw->map(function ($jns) {
                 return [
                     'label' => $this->getJenisMahasiswaLabel($jns),
                     'value' => $jns,
@@ -490,15 +548,16 @@ class KRSDosenController extends Controller
         }
     }
 
-    public function getKHSMahasiswa(Request $request, $mhsId) {
+    public function getKHSMahasiswa(Request $request, $mhsId)
+    {
         try {
             $this->assertDosenWaliMahasiswa($mhsId);
 
             $semesterFilter = $request->query('semesters', 'all');
 
             $mahasiswa = MahasiswaView::where('mhs_id', $mhsId)->first();
-            
-            if (!$mahasiswa) {
+
+            if (! $mahasiswa) {
                 return response()->json([
                     'status' => 'fail',
                     'message' => 'Mahasiswa tidak ditemukan',
@@ -553,7 +612,8 @@ class KRSDosenController extends Controller
         }
     }
 
-    private function setKRSData($jurusan, $krs, $krsMatkul, $mhsId) {
+    private function setKRSData($jurusan, $krs, $krsMatkul, $mhsId)
+    {
         $tempMatkul = [];
 
         foreach ($krsMatkul as $index => $item) {
@@ -566,7 +626,7 @@ class KRSDosenController extends Controller
             //     'detailMatkul' => $detailMatkul,
             //     'item' => $item,
             // ]);
-            if(!$detailMatkul) {
+            if (! $detailMatkul) {
                 continue;
             }
 
@@ -596,7 +656,7 @@ class KRSDosenController extends Controller
             'tanggal' => $krs['tanggal'],
             'semester' => $krs['semester'],
             'sts_krs' => $krs['sts_krs'],
-            'kd_kampus'  => $krs['kd_kampus'],
+            'kd_kampus' => $krs['kd_kampus'],
             'kd_chanel' => $krs['kd_chanel'],
             'pengajuan_catatan' => $krs['pengajuan_catatan'],
             'ditolak_tanggal' => $krs['ditolak_tanggal'],
@@ -608,10 +668,11 @@ class KRSDosenController extends Controller
         return $krsData;
     }
 
-    private function getStatusDosenWali($request) {
+    private function getStatusDosenWali($request)
+    {
         $isDosenWali = $this->isDosenWali($this->user, $request->query('mhs_id'));
 
-        if (!$isDosenWali) {
+        if (! $isDosenWali) {
             return response()->json([
                 'status' => 'fail',
                 'message' => 'Bukan wali dosen dari mahasiswa',
@@ -619,36 +680,42 @@ class KRSDosenController extends Controller
         }
     }
 
-    private function assertDosenWaliMahasiswa($mhsId) {
+    private function assertDosenWaliMahasiswa($mhsId)
+    {
         $isDosenWali = $this->isDosenWali($this->user, $mhsId);
 
-        if (!$isDosenWali) {
+        if (! $isDosenWali) {
             throw new HttpException(403, 'Anda bukan dosen wali dari mahasiswa ini');
         }
 
         return true;
     }
 
-    private function getStatusMahasiswaLabel($sts_mhs) {
+    private function getStatusMahasiswaLabel($sts_mhs)
+    {
         $labels = [
             'A' => 'Aktif',
             'C' => 'Cuti',
             'L' => 'Lulus',
             'N' => 'Tidak Aktif',
         ];
+
         return $labels[$sts_mhs] ?? $sts_mhs;
     }
 
-    private function getJenisMahasiswaLabel($jns_mhs) {
+    private function getJenisMahasiswaLabel($jns_mhs)
+    {
         $labels = [
             'R' => 'Reguler',
             'K' => 'Karyawan',
             'E' => 'Ekstensi',
         ];
+
         return $labels[$jns_mhs] ?? $jns_mhs;
     }
 
-    private function buildKHSDataForMahasiswa($mhsId, $semesterFilter) {
+    private function buildKHSDataForMahasiswa($mhsId, $semesterFilter)
+    {
         $nilaiList = NilaiAkhirView::getNilaiAkhirByMhsId($mhsId);
 
         if ($nilaiList->count() === 0) {
