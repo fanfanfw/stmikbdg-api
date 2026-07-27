@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
     {
         $schedule->command('arsip-digital:cleanup-expired-distribution-bulk-upload-jobs')->daily();
         $schedule->command('arsip-digital:cleanup-expired-pdf-sign-sessions')->hourly();
+        $schedule->command('arsip-digital:expire-signature-requests')->hourly();
     }
 
     /**

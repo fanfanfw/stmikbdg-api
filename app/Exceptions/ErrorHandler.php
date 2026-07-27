@@ -2,20 +2,20 @@
 
 namespace App\Exceptions;
 
-use Exception;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 // JWT Exception
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class ErrorHandler
 {
-    public static function handle(Exception $e, bool $isToken = false): JsonResponse
+    public static function handle(Throwable $e, bool $isToken = false): JsonResponse
     {
         if ($e instanceof ValidationException) {
             return self::handleValidationException($e);
@@ -89,7 +89,7 @@ class ErrorHandler
         ], $e->getStatusCode());
     }
 
-    private static function handleGenericException(Exception $e, $isToken): JsonResponse
+    private static function handleGenericException(Throwable $e, $isToken): JsonResponse
     {
         if ($isToken) {
             return response()->json([
