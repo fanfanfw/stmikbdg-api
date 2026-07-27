@@ -159,10 +159,10 @@ class ArchiveFileService
                     'version_number' => $version['version_number'],
                     'is_current' => true,
                     'status' => 'active',
-                    'metadata' => [
+                    'metadata' => array_merge($payload['metadata'] ?? [], [
                         'requested_display_filename' => $displayFilename,
                         'note' => $payload['note'] ?? null,
-                    ],
+                    ]),
                 ]);
             }, 3);
         } catch (\Throwable $e) {
@@ -171,6 +171,94 @@ class ArchiveFileService
             } catch (\Throwable) {
             }
 
+            throw $e;
+        }
+    }
+
+    public function uploadSignatureRequestResult(UploadedFile $uploadedFile, object $student, object $lecturer, int $requestId, string $lecturerName, array $metadata = []): ArchiveFile
+    {
+        $resolved = $this->targetResolver->resolveCurrentUser($student, 'mahasiswa');
+        if (! $resolved['valid']) {
+            throw new HttpException(422, $resolved['error']);
+        }
+
+        $folderName = 'request_ttd_'.(Str::slug($lecturerName, '_') ?: 'dosen');
+        $storageMetadata = $this->storage->uploadPrivate($uploadedFile, 'request', [
+            'request_id' => 'signature-'.$requestId,
+            'assignment_id' => $student->id,
+        ]);
+        $displayFilename = $this->normalizeDisplayFilename($uploadedFile->getClientOriginalName());
+
+        try {
+            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($student, $lecturer, $requestId, $resolved, $folderName, $storageMetadata, $displayFilename, $metadata): ArchiveFile {
+                $this->lockOwner($student->id);
+                $category = Category::where('owner_user_id', $student->id)
+                    ->where('owner_role', 'mahasiswa')
+                    ->where('category_type', 'personal')
+                    ->where('name', $folderName)
+                    ->lockForUpdate()
+                    ->first();
+                if (! $category) {
+                    $category = Category::create([
+                        'owner_user_id' => $student->id,
+                        'owner_role' => 'mahasiswa',
+                        'category_type' => 'personal',
+                        'name' => $folderName,
+                        'visibility' => 'admin_visible',
+                        'created_by_user_id' => $lecturer->id,
+                        'created_by_role' => 'dosen',
+                        'is_system' => false,
+                    ]);
+                }
+
+                $latest = ArchiveFile::withTrashed()
+                    ->where('owner_user_id', $student->id)
+                    ->where('owner_role', 'mahasiswa')
+                    ->where('source_type', 'request')
+                    ->where('category_id', $category->category_id)
+                    ->where('display_filename', $displayFilename)
+                    ->orderByDesc('version_number')
+                    ->lockForUpdate()
+                    ->first();
+                ArchiveFile::where('owner_user_id', $student->id)
+                    ->where('owner_role', 'mahasiswa')
+                    ->where('source_type', 'request')
+                    ->where('category_id', $category->category_id)
+                    ->where('display_filename', $displayFilename)
+                    ->where('is_current', true)
+                    ->whereNull('deleted_at')
+                    ->update(['is_current' => false, 'status' => 'replaced', 'updated_at' => now()]);
+
+                return ArchiveFile::create([
+                    'category_id' => $category->category_id,
+                    'owner_user_id' => $student->id,
+                    'owner_role' => 'mahasiswa',
+                    'owner_identifier' => $resolved['identifier'],
+                    'owner_name_snapshot' => $resolved['name_snapshot'],
+                    'owner_status_snapshot' => $resolved['status_snapshot'],
+                    'uploaded_by_user_id' => $lecturer->id,
+                    'uploaded_by_role' => 'dosen',
+                    'source_type' => 'request',
+                    'original_filename' => $storageMetadata['original_filename'],
+                    'display_filename' => $displayFilename,
+                    'storage_disk' => $storageMetadata['storage_disk'],
+                    'storage_path' => $storageMetadata['storage_path'],
+                    'mime_type' => $storageMetadata['mime_type'],
+                    'extension' => $storageMetadata['extension'],
+                    'file_size_bytes' => $storageMetadata['file_size_bytes'],
+                    'checksum_sha256' => $storageMetadata['checksum_sha256'],
+                    'version_group_uuid' => $latest?->version_group_uuid ?? (string) Str::uuid(),
+                    'version_number' => $latest ? $latest->version_number + 1 : 1,
+                    'is_current' => true,
+                    'status' => 'active',
+                    'metadata' => array_merge($metadata, ['folder' => $folderName, 'signature_request_id' => $requestId]),
+                ]);
+            }, 3);
+        } catch (\Throwable $e) {
+            try {
+                $this->storage->deletePrivate($storageMetadata['storage_disk'], $storageMetadata['storage_path']);
+            } catch (\Throwable) {
+            }
             throw $e;
         }
     }

@@ -9,6 +9,7 @@ use App\Services\ArsipDigital\ArsipDigitalSettingsService;
 use App\Services\ArsipDigital\AuditLogService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class FoundationController extends Controller
 {
@@ -59,6 +60,11 @@ class FoundationController extends Controller
                 'personal_quota_mb_by_role' => ['sometimes', 'array'],
                 'personal_quota_mb_by_role.mahasiswa' => ['sometimes', 'integer', 'min:1', 'max:102400'],
                 'personal_quota_mb_by_role.dosen' => ['sometimes', 'integer', 'min:1', 'max:102400'],
+                'signature_request_max_files' => ['sometimes', 'integer', 'min:1', 'max:100'],
+                'signature_request_max_file_size_mb' => ['sometimes', 'integer', 'min:1', 'max:200'],
+                'signature_request_max_total_size_mb' => ['sometimes', 'integer', 'min:1', 'max:1000'],
+                'signature_request_expiry_days' => ['sometimes', 'integer', 'min:1', 'max:90'],
+                'signature_request_cooldown_hours' => ['sometimes', 'integer', 'min:0', 'max:720'],
             ]);
 
             if (isset($payload['default_allowed_extensions'])) {
@@ -66,6 +72,13 @@ class FoundationController extends Controller
                     fn (string $extension): string => strtolower($extension),
                     $payload['default_allowed_extensions']
                 )));
+            }
+
+            $current = $settingsService->getDefaults();
+            $archiveLimit = $payload['default_max_file_size_mb'] ?? $current['default_max_file_size_mb'];
+            $requestLimit = $payload['signature_request_max_file_size_mb'] ?? $current['signature_request_max_file_size_mb'];
+            if ($requestLimit > $archiveLimit) {
+                throw new HttpException(422, 'Batas file request tanda tangan tidak boleh melebihi batas upload arsip.');
             }
 
             $settings = $settingsService->updateDefaults($payload);

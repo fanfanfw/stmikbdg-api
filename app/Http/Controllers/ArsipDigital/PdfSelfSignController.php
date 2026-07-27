@@ -10,6 +10,7 @@ use App\Services\ArsipDigital\ArchivePermissionService;
 use App\Services\ArsipDigital\AuditLogService;
 use App\Services\ArsipDigital\PdfSelfSignService;
 use App\Services\ArsipDigital\RoleResolverService;
+use App\Services\ArsipDigital\SignatureRequestService;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -44,7 +45,7 @@ class PdfSelfSignController extends Controller
         }
     }
 
-    public function finalize(Request $request, string $session_id, RoleResolverService $roles, PdfSelfSignService $service, AuditLogService $audit)
+    public function finalize(Request $request, string $session_id, RoleResolverService $roles, PdfSelfSignService $service, AuditLogService $audit, SignatureRequestService $signatureRequests)
     {
         try {
             $role = $roles->resolve($request);
@@ -87,14 +88,18 @@ class PdfSelfSignController extends Controller
                 }
             }
             $session = $service->owned($session_id, auth()->user(), $role);
-            $session = $service->finalize($session, $payload['placements'], $images);
+            if ($session->status === 'created') {
+                $session = $service->finalize($session, $payload['placements'], $images);
+            } elseif ($session->status !== 'finalized') {
+                throw new HttpException(409, 'Sesi sudah diproses.');
+            }
+            $requestFile = $session->signature_request_file_id ? $signatureRequests->syncFinalized($session, auth()->user()) : null;
             $methods = array_count_values(array_column($payload['placements'], 'method'));
-            if (! $audit->record('pdf_self_sign.finalized', 'pdf_sign_session', $session->sign_session_id, 'PDF self-sign difinalisasi.', ['source_sha256' => $session->source_sha256, 'result_sha256' => $session->result_sha256, 'placement_count' => count($payload['placements']), 'methods' => $methods], $request, auth()->id(), $role)) {
-                $service->delete($session);
+            if (! $audit->record('pdf_self_sign.finalized', 'pdf_sign_session', $session->sign_session_id, 'PDF self-sign difinalisasi.', ['source_sha256' => $session->source_sha256, 'result_sha256' => $session->result_sha256, 'placement_count' => count($payload['placements']), 'methods' => $methods], $request, auth()->id(), $role) && ! $requestFile) {
                 throw new HttpException(500, 'Audit finalize gagal disimpan.');
             }
 
-            return $this->successfulResponseJSON(['session' => $session->toArray()], 'PDF berhasil ditandatangani.');
+            return $this->successfulResponseJSON(['session' => $requestFile ? null : $session->toArray(), 'request_file' => $requestFile?->toArray()], 'PDF berhasil ditandatangani.');
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

@@ -132,7 +132,7 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
 
     private function createCampusTables(): void
     {
-        DB::statement('CREATE TABLE users (id integer primary key autoincrement, kd_user varchar, name varchar, created_at datetime, updated_at datetime)');
+        DB::statement('CREATE TABLE users (id integer primary key autoincrement, kd_user varchar, name varchar, is_admin integer default 0, is_mhs integer default 0, is_dosen integer default 0, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE vusers (id integer primary key, kd_user varchar, name varchar, is_admin integer, is_mhs integer, is_dosen integer, is_staff integer, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE vmahasiswa (nim varchar primary key, nm_mhs varchar, angkatan varchar, prodi varchar, sts_mhs varchar)');
         DB::statement('CREATE TABLE dosen (kd_dosen varchar primary key, nm_dosen varchar, prodi varchar, status varchar)');
@@ -160,7 +160,11 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
         DB::statement('CREATE TABLE arsip_digital.distribution_bulk_upload_entries (bulk_upload_entry_id integer primary key autoincrement, bulk_upload_job_id integer, recipient_id integer, identifier varchar, entry_path text, original_filename varchar, display_filename varchar, temporary_disk varchar, temporary_path text, mime_type varchar, extension varchar, file_size_bytes integer, checksum_sha256 varchar, match_status varchar, match_reason text, metadata text, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.export_jobs (export_job_id integer primary key autoincrement, requested_by_user_id integer, export_type varchar, filters text, status varchar default "queued", storage_disk varchar, storage_path text, file_size_bytes integer, error_message text, expires_at datetime, created_at datetime, updated_at datetime, completed_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.audit_logs (audit_log_id integer primary key autoincrement, actor_user_id integer, actor_role varchar, action varchar, entity_type varchar, entity_id varchar, description text, ip_address varchar, user_agent text, metadata text, created_at datetime)');
-        DB::statement('CREATE TABLE arsip_digital.pdf_sign_sessions (sign_session_id varchar primary key, owner_user_id integer not null, owner_role varchar not null, source_file_id integer, source_path text not null, result_path text, source_sha256 varchar not null, result_sha256 varchar, original_filename varchar not null, status varchar not null default "created", expires_at datetime not null, created_at datetime, updated_at datetime)');
+        DB::statement('CREATE TABLE arsip_digital.pdf_sign_sessions (sign_session_id varchar primary key, owner_user_id integer not null, owner_role varchar not null, source_file_id integer, signature_request_file_id integer, source_path text not null, result_path text, source_sha256 varchar not null, result_sha256 varchar, original_filename varchar not null, status varchar not null default "created", expires_at datetime not null, created_at datetime, updated_at datetime)');
+        DB::statement('CREATE TABLE arsip_digital.dosen_signature_availability (user_id integer primary key, is_available integer not null default 0, created_at datetime, updated_at datetime)');
+        DB::statement('CREATE TABLE arsip_digital.signature_requests (signature_request_id integer primary key autoincrement, student_user_id integer not null, lecturer_user_id integer not null, student_name varchar, lecturer_name varchar, title varchar not null, description text, status varchar not null default "requested", rejection_reason text, expires_at datetime not null, finished_at datetime, created_at datetime, updated_at datetime)');
+        DB::statement('CREATE UNIQUE INDEX arsip_digital.signature_requests_active_pair_idx ON signature_requests (student_user_id, lecturer_user_id) WHERE status IN ("requested", "draft")');
+        DB::statement('CREATE TABLE arsip_digital.signature_request_files (signature_request_file_id integer primary key autoincrement, signature_request_id integer not null, source_file_id integer not null, source_sha256 varchar not null, source_filename varchar not null, source_size_bytes integer not null, sign_session_id varchar, signed_result_disk varchar, signed_result_path text, result_sha256 varchar, result_file_id integer, signed_at datetime, created_at datetime, updated_at datetime, unique(signature_request_id, source_file_id))');
         DB::statement('CREATE TABLE arsip_digital.notifications (notification_id integer primary key autoincrement, recipient_user_id integer not null, recipient_role varchar not null, type varchar not null, title varchar not null, message text, entity_type varchar, entity_id integer, data text, read_at datetime, created_at datetime, updated_at datetime)');
 
         DB::table('arsip_digital.settings')->insert([
@@ -179,9 +183,9 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
     private function seedUsers(): void
     {
         DB::table('users')->insert([
-            ['id' => 1, 'kd_user' => 'ADM-ADM001', 'name' => 'Admin Test', 'created_at' => now(), 'updated_at' => now()],
-            ['id' => 2, 'kd_user' => 'MHS-22010001', 'name' => 'Mahasiswa Test', 'created_at' => now(), 'updated_at' => now()],
-            ['id' => 3, 'kd_user' => 'DSN-DSN001', 'name' => 'Dosen Test', 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 1, 'kd_user' => 'ADM-ADM001', 'name' => 'Admin Test', 'is_admin' => 1, 'is_mhs' => 0, 'is_dosen' => 0, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 2, 'kd_user' => 'MHS-22010001', 'name' => 'Mahasiswa Test', 'is_admin' => 0, 'is_mhs' => 1, 'is_dosen' => 0, 'created_at' => now(), 'updated_at' => now()],
+            ['id' => 3, 'kd_user' => 'DSN-DSN001', 'name' => 'Dosen Test', 'is_admin' => 0, 'is_mhs' => 0, 'is_dosen' => 1, 'created_at' => now(), 'updated_at' => now()],
         ]);
         DB::table('vmahasiswa')->insert(['nim' => '22010001', 'nm_mhs' => 'Mahasiswa Test', 'angkatan' => '2022', 'prodi' => 'TI', 'sts_mhs' => 'aktif']);
         DB::table('dosen')->insert(['kd_dosen' => 'DSN001', 'nm_dosen' => 'Dosen Test', 'prodi' => 'TI', 'status' => 'aktif']);
