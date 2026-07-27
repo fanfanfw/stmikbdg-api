@@ -11,6 +11,7 @@ use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
+use App\Http\Controllers\ArsipDigital\PdfSelfSignController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
 use App\Http\Controllers\ArsipDigital\SegmentController;
 use App\Http\Controllers\ArsipDigital\UserDistributionController;
@@ -44,6 +45,11 @@ Route::prefix('/arsip-digital')
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
         Route::post('/files/{file_id}/restore', [ArchiveFileController::class, 'restore']);
+
+        Route::post('/pdf-sign-sessions', [PdfSelfSignController::class, 'store']);
+        Route::post('/pdf-sign-sessions/{session_id}/finalize', [PdfSelfSignController::class, 'finalize']);
+        Route::get('/pdf-sign-sessions/{session_id}/download', [PdfSelfSignController::class, 'download']);
+        Route::post('/pdf-sign-sessions/{session_id}/save', [PdfSelfSignController::class, 'save']);
 
         Route::get('/admin/requests', [AdminRequestController::class, 'index']);
         Route::get('/admin/targets', [AdminTargetController::class, 'index']);

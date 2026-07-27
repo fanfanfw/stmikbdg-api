@@ -13,6 +13,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         $schedule->command('arsip-digital:cleanup-expired-distribution-bulk-upload-jobs')->daily();
+        $schedule->command('arsip-digital:cleanup-expired-pdf-sign-sessions')->hourly();
     }
 
     /**

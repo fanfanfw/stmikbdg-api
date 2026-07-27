@@ -1,0 +1,144 @@
+<?php
+
+namespace App\Http\Controllers\ArsipDigital;
+
+use App\Exceptions\ErrorHandler;
+use App\Http\Controllers\Controller;
+use App\Models\ArsipDigital\ArchiveFile;
+use App\Services\ArsipDigital\ArchiveFileService;
+use App\Services\ArsipDigital\ArchivePermissionService;
+use App\Services\ArsipDigital\AuditLogService;
+use App\Services\ArsipDigital\PdfSelfSignService;
+use App\Services\ArsipDigital\RoleResolverService;
+use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+
+class PdfSelfSignController extends Controller
+{
+    public function store(Request $request, RoleResolverService $roles, ArchivePermissionService $permissions, PdfSelfSignService $service, AuditLogService $audit)
+    {
+        try {
+            $role = $roles->resolve($request);
+            $payload = $request->validate([
+                'file_id' => ['nullable', 'integer'],
+                'file' => ['nullable', 'file', 'max:10240'],
+            ]);
+            $source = isset($payload['file_id']) ? ArchiveFile::findOrFail($payload['file_id']) : null;
+            if ($source && (! $permissions->canViewFile($source, auth()->user(), $role) || $source->extension !== 'pdf')) {
+                throw new HttpException(403, 'PDF arsip bukan milik pengguna.');
+            }
+            if ($role === 'admin' && $source || $role !== 'admin' && $request->hasFile('file')) {
+                throw new HttpException(422, 'Sumber PDF tidak sesuai role.');
+            }
+            $session = $service->create(auth()->user(), $role, $source, $request->file('file'));
+            if (! $audit->record('pdf_self_sign.created', 'pdf_sign_session', $session->sign_session_id, 'Sesi PDF self-sign dibuat.', ['source_sha256' => $session->source_sha256, 'source_file_id' => $session->source_file_id], $request, auth()->id(), $role)) {
+                $service->delete($session);
+                throw new HttpException(500, 'Audit create gagal disimpan.');
+            }
+
+            return $this->successfulResponseJSON(['session' => $session->toArray()], 'Sesi tanda tangan dibuat.', 201);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function finalize(Request $request, string $session_id, RoleResolverService $roles, PdfSelfSignService $service, AuditLogService $audit)
+    {
+        try {
+            $role = $roles->resolve($request);
+            if ($request->filled('placements') && is_string($request->input('placements'))) {
+                $placements = json_decode($request->input('placements'), true);
+                if (! is_array($placements)) {
+                    throw new HttpException(422, 'Placements wajib berupa JSON array valid.');
+                }
+                $request->merge(['placements' => $placements]);
+            }
+            if (! $request->has('placements')) {
+                $request->merge(['placements' => [$request->only(['method', 'text', 'page', 'x', 'y', 'width', 'height'])]]);
+            }
+            $payload = $request->validate([
+                'placements' => ['required', 'array', 'min:1', 'max:20'],
+                'placements.*.method' => ['required', 'in:draw,upload,text'],
+                'placements.*.text' => ['nullable', 'string', 'max:200'],
+                'placements.*.page' => ['required', 'integer', 'min:1'],
+                'placements.*.x' => ['required', 'numeric', 'between:0,1'],
+                'placements.*.y' => ['required', 'numeric', 'between:0,1'],
+                'placements.*.width' => ['required', 'numeric', 'gt:0', 'lte:1'],
+                'placements.*.height' => ['required', 'numeric', 'gt:0', 'lte:1'],
+                'signatures' => ['nullable', 'array'],
+                'signatures.*' => ['file', 'mimes:png', 'max:2048'],
+                'signature' => ['nullable', 'file', 'mimes:png', 'max:2048'],
+            ]);
+            $images = [];
+            foreach ($payload['placements'] as $index => $placement) {
+                if ($placement['x'] + $placement['width'] > 1 || $placement['y'] + $placement['height'] > 1) {
+                    throw new HttpException(422, "Placement {$index} melewati batas halaman.");
+                }
+                if ($placement['method'] === 'text' && ! isset($placement['text'])) {
+                    throw new HttpException(422, "Text placement {$index} wajib diisi.");
+                }
+                if ($placement['method'] !== 'text') {
+                    $images[$index] = $request->file("signatures.{$index}") ?? ($index === 0 ? $request->file('signature') : null);
+                    if (! $images[$index]) {
+                        throw new HttpException(422, "Signature placement {$index} wajib diisi.");
+                    }
+                }
+            }
+            $session = $service->owned($session_id, auth()->user(), $role);
+            $session = $service->finalize($session, $payload['placements'], $images);
+            $methods = array_count_values(array_column($payload['placements'], 'method'));
+            if (! $audit->record('pdf_self_sign.finalized', 'pdf_sign_session', $session->sign_session_id, 'PDF self-sign difinalisasi.', ['source_sha256' => $session->source_sha256, 'result_sha256' => $session->result_sha256, 'placement_count' => count($payload['placements']), 'methods' => $methods], $request, auth()->id(), $role)) {
+                $service->delete($session);
+                throw new HttpException(500, 'Audit finalize gagal disimpan.');
+            }
+
+            return $this->successfulResponseJSON(['session' => $session->toArray()], 'PDF berhasil ditandatangani.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function download(Request $request, string $session_id, RoleResolverService $roles, PdfSelfSignService $service, AuditLogService $audit)
+    {
+        try {
+            $role = $roles->resolve($request);
+            $session = $service->owned($session_id, auth()->user(), $role);
+            if (! $session->result_path) {
+                throw new HttpException(409, 'PDF belum difinalisasi.');
+            }
+            if (! $audit->record('pdf_self_sign.downloaded', 'pdf_sign_session', $session->sign_session_id, 'Hasil PDF self-sign diunduh.', ['result_sha256' => $session->result_sha256], $request, auth()->id(), $role)) {
+                throw new HttpException(500, 'Audit download gagal disimpan.');
+            }
+
+            return Storage::disk('local')->download($session->result_path, 'signed-'.$session->original_filename);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function save(Request $request, string $session_id, RoleResolverService $roles, PdfSelfSignService $service, ArchiveFileService $files, AuditLogService $audit)
+    {
+        try {
+            $role = $roles->resolve($request, ['mahasiswa', 'dosen']);
+            $payload = $request->validate(['category_id' => ['nullable', 'integer'], 'display_filename' => ['nullable', 'string', 'max:255']]);
+            $session = $service->owned($session_id, auth()->user(), $role);
+            if ($session->status !== 'finalized' || ! $session->result_path) {
+                throw new HttpException(409, 'PDF belum dapat disimpan.');
+            }
+            $path = Storage::disk('local')->path($session->result_path);
+            $upload = new UploadedFile($path, 'signed-'.$session->original_filename, 'application/pdf', null, true);
+            $file = $files->uploadPersonal($upload, $payload, auth()->user(), $role);
+            if (! $audit->record('pdf_self_sign.saved', 'file', $file->file_id, 'Hasil self-sign disimpan ke Arsip Saya.', ['sign_session_id' => $session->sign_session_id, 'source_sha256' => $session->source_sha256, 'result_sha256' => $session->result_sha256], $request, auth()->id(), $role)) {
+                $files->delete($file, auth()->user(), $role, 'Audit save gagal');
+                throw new HttpException(500, 'Audit save gagal disimpan.');
+            }
+            $service->delete($session);
+
+            return $this->successfulResponseJSON(['file' => $file->toArray()], 'PDF tersimpan di Arsip Saya.', 201);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+}
