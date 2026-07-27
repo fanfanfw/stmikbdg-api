@@ -98,9 +98,13 @@ class ErrorHandler
             ], 401);
         }
 
+        Log::error('Unhandled application error', [
+            'exception' => $e,
+        ]);
+
         return response()->json([
             'status' => 'Internal Server Error',
-            'message' => $e->getMessage(),
+            'message' => 'Terjadi kesalahan pada server. Silakan coba kembali atau hubungi administrator.',
         ], 500);
     }
 }
