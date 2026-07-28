@@ -50,6 +50,7 @@ Route::prefix('/arsip-digital')
 
         Route::post('/pdf-sign-sessions', [PdfSelfSignController::class, 'store']);
         Route::post('/pdf-sign-sessions/{session_id}/finalize', [PdfSelfSignController::class, 'finalize']);
+        Route::get('/pdf-sign-sessions/{session_id}', [PdfSelfSignController::class, 'show']);
         Route::get('/pdf-sign-sessions/{session_id}/download', [PdfSelfSignController::class, 'download']);
         Route::post('/pdf-sign-sessions/{session_id}/save', [PdfSelfSignController::class, 'save']);
 
