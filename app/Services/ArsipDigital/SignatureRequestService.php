@@ -108,7 +108,8 @@ class SignatureRequestService
         }
         $this->assertSourceHash($file);
         $oldSession = $file->session;
-        $session = $this->signer->create($lecturer, 'dosen', $file->source, null);
+        $limitMb = (int) $this->settings->getDefaults()['signature_request_max_file_size_mb'];
+        $session = $this->signer->create($lecturer, 'dosen', $file->source, null, $limitMb);
         try {
             $session->update(['signature_request_file_id' => $file->signature_request_file_id]);
             $file->update(['sign_session_id' => $session->sign_session_id]);
@@ -127,7 +128,7 @@ class SignatureRequestService
     {
         $synced = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($session, $lecturer) {
             $file = SignatureRequestFile::with('request')->where('signature_request_file_id', $session->signature_request_file_id)->lockForUpdate()->firstOrFail();
-            if ($file->request->lecturer_user_id !== $lecturer->id || $file->request->status !== 'draft' || $session->status !== 'finalized') {
+            if ($file->request->lecturer_user_id !== $lecturer->id || $file->request->status !== 'draft' || ! in_array($session->status, ['processing', 'finalized'], true) || ! $session->result_path) {
                 throw new HttpException(409, 'Hasil tanda tangan belum final.');
             }
             if ($file->result_sha256 === $session->result_sha256 && $file->signed_result_path && Storage::disk($file->signed_result_disk)->exists($file->signed_result_path)) {

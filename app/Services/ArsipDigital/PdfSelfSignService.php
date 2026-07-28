@@ -2,6 +2,7 @@
 
 namespace App\Services\ArsipDigital;
 
+use App\Jobs\ArsipDigital\FinalizePdfSignSessionJob;
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\PdfSignSession;
 use Com\Tecnick\Pdf\Tcpdf;
@@ -12,9 +13,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class PdfSelfSignService
 {
-    private const DISK = 'local';
+    public function __construct(private readonly ArsipDigitalSettingsService $settings) {}
 
-    public function create(object $user, string $role, ?ArchiveFile $source, ?UploadedFile $upload): PdfSignSession
+    public function create(object $user, string $role, ?ArchiveFile $source, ?UploadedFile $upload, ?int $limitMb = null): PdfSignSession
     {
         $this->cleanup();
         if ($role === 'admin' && ! $upload) {
@@ -23,33 +24,72 @@ class PdfSelfSignService
         if ($role !== 'admin' && ! $source) {
             throw new HttpException(422, 'File arsip sumber wajib dipilih.');
         }
-
-        $bytes = $upload ? file_get_contents($upload->getRealPath()) : Storage::disk($source->storage_disk)->get($source->storage_path);
-        if ($bytes === false || strlen($bytes) > 10 * 1024 * 1024 || ! str_starts_with($bytes, '%PDF-')) {
-            throw new HttpException(422, 'PDF sumber tidak valid atau melebihi 10MB.');
+        $settings = $this->settings->getDefaults();
+        $limitMb ??= (int) $settings['default_max_file_size_mb'];
+        $limit = $limitMb * 1024 * 1024;
+        $knownSize = $upload?->getSize() ?? $source?->file_size_bytes;
+        if ($knownSize !== null && $knownSize > $limit) {
+            throw new HttpException(422, "PDF sumber melebihi batas {$limitMb}MB.");
+        }
+        $bytes = $upload ? $this->readUpload($upload, $limit) : $this->readStorage($source->storage_disk, $source->storage_path, $limit);
+        $prefix = preg_replace('/^(?:\xEF\xBB\xBF)?\s*/', '', substr($bytes, 0, 1024));
+        if (! str_starts_with($prefix, '%PDF-')) {
+            throw new HttpException(422, 'Header PDF sumber tidak valid.');
         }
 
         $id = (string) Str::uuid();
+        $disk = (string) $settings['storage_disk'];
         $path = "arsip-digital/tmp/pdf-sign/{$id}/source.pdf";
-        if (! Storage::disk(self::DISK)->put($path, $bytes)) {
+        if (! Storage::disk($disk)->put($path, $bytes, ['visibility' => 'private'])) {
             throw new HttpException(500, 'Gagal menyimpan PDF sementara.');
         }
-
         try {
             return PdfSignSession::create([
-                'sign_session_id' => $id,
-                'owner_user_id' => $user->id,
-                'owner_role' => $role,
-                'source_file_id' => $source?->file_id,
-                'source_path' => $path,
-                'source_sha256' => hash('sha256', $bytes),
-                'original_filename' => $upload?->getClientOriginalName() ?? $source->display_filename,
+                'sign_session_id' => $id, 'owner_user_id' => $user->id, 'owner_role' => $role,
+                'source_file_id' => $source?->file_id, 'storage_disk' => $disk, 'source_path' => $path,
+                'source_sha256' => hash('sha256', $bytes), 'original_filename' => $upload?->getClientOriginalName() ?? $source->display_filename,
                 'expires_at' => now()->addHour(),
             ]);
         } catch (\Throwable $e) {
-            Storage::disk(self::DISK)->deleteDirectory(dirname($path));
+            Storage::disk($disk)->deleteDirectory(dirname($path));
             throw $e;
         }
+    }
+
+    private function readUpload(UploadedFile $upload, int $limit): string
+    {
+        $stream = @fopen($upload->getRealPath(), 'rb');
+
+        return $this->readCapped($stream, $limit);
+    }
+
+    private function readStorage(string $disk, string $path, int $limit): string
+    {
+        try {
+            return $this->readCapped(Storage::disk($disk)->readStream($path), $limit);
+        } catch (\Throwable) {
+            throw new HttpException(500, 'Gagal membaca PDF sumber.');
+        }
+    }
+
+    private function readCapped($stream, int $limit): string
+    {
+        if (! is_resource($stream)) {
+            throw new HttpException(500, 'Gagal membaca PDF sumber.');
+        }
+        try {
+            $bytes = stream_get_contents($stream, $limit + 1);
+        } finally {
+            fclose($stream);
+        }
+        if (! is_string($bytes)) {
+            throw new HttpException(500, 'Gagal membaca PDF sumber.');
+        }
+        if (strlen($bytes) > $limit) {
+            throw new HttpException(422, 'PDF sumber melebihi batas '.($limit / 1024 / 1024).'MB.');
+        }
+
+        return $bytes;
     }
 
     public function owned(string $id, object $user, string $role): PdfSignSession
@@ -58,7 +98,7 @@ class PdfSelfSignService
         if ($session->owner_user_id !== $user->id || $session->owner_role !== $role) {
             throw new HttpException(403, 'Tidak memiliki akses sesi tanda tangan.');
         }
-        if ($session->expires_at->isPast()) {
+        if ($session->expires_at->isPast() && ! in_array($session->status, ['queued', 'processing'], true)) {
             $this->delete($session);
             throw new HttpException(410, 'Sesi tanda tangan sudah kedaluwarsa.');
         }
@@ -66,89 +106,152 @@ class PdfSelfSignService
         return $session;
     }
 
-    public function finalize(PdfSignSession $session, array $placements, array $images = []): PdfSignSession
+    public function queueFinalize(PdfSignSession $session, array $placements, array $images): PdfSignSession
     {
-        if ($session->status !== 'created') {
-            throw new HttpException(409, 'Sesi sudah difinalisasi.');
-        }
-        $imagePaths = [];
+        $disk = Storage::disk($session->storage_disk);
+        $directory = dirname($session->source_path).'/payload';
+        $disk->deleteDirectory($directory);
         try {
             foreach ($images as $index => $image) {
-                if (! $image instanceof UploadedFile || $image->getSize() > 2 * 1024 * 1024 || $image->getMimeType() !== 'image/png') {
-                    throw new HttpException(422, "Signature placement {$index} wajib PNG valid maksimal 2MB.");
-                }
-                $dimensions = getimagesize($image->getRealPath());
-                if (! $dimensions || $dimensions[0] > 4096 || $dimensions[1] > 4096) {
-                    throw new HttpException(422, "Dimensi signature placement {$index} maksimal 4096x4096.");
-                }
-                $imagePaths[$index] = Storage::disk(self::DISK)->path(dirname($session->source_path)."/signature-{$index}.png");
-                if (! copy($image->getRealPath(), $imagePaths[$index])) {
-                    throw new HttpException(500, 'Gagal menyiapkan signature sementara.');
-                }
-            }
-
-            $fontPath = resource_path('pdf-fonts');
-            if (! defined('K_PATH_FONTS')) {
-                define('K_PATH_FONTS', $fontPath);
-            }
-            $pdf = new Tcpdf(fileOptions: ['allowedPaths' => [dirname(Storage::disk(self::DISK)->path($session->source_path)), $fontPath]]);
-            $font = $pdf->font->insert($pdf->pon, 'dejavusans', '', 12);
-            $sourceId = $pdf->setImportSourceData(Storage::disk(self::DISK)->get($session->source_path));
-            $count = $pdf->getSourcePageCount($sourceId);
-            foreach ($placements as $placement) {
-                if ($placement['page'] > $count) {
-                    throw new HttpException(422, 'Halaman placement tidak tersedia.');
-                }
-            }
-            for ($pageNumber = 1; $pageNumber <= $count; $pageNumber++) {
-                $pdf->addPageFromImport($sourceId, $pageNumber);
-                $pdf->page->addContent("\n".$font['out']);
-                $page = $pdf->page->getPage();
-                foreach ($placements as $index => $placement) {
-                    if ($pageNumber !== $placement['page']) {
-                        continue;
+                $stream = fopen($image->getRealPath(), 'rb');
+                try {
+                    if (! $disk->writeStream("{$directory}/signature-{$index}.png", $stream, ['visibility' => 'private'])) {
+                        throw new \RuntimeException;
                     }
-                    $x = $placement['x'] * $page['width'];
-                    $y = $placement['y'] * $page['height'];
-                    $width = $placement['width'] * $page['width'];
-                    $height = $placement['height'] * $page['height'];
-                    if ($placement['method'] === 'text') {
-                        $pdf->addHTMLCell(html: e($placement['text']), posx: $x, posy: $y, width: $width, height: $height);
-                    } else {
-                        $imageId = $pdf->image->add($imagePaths[$index]);
-                        $pdf->page->addContent($pdf->image->getSetImage($imageId, $x, $y, $width, $height, $page['height']));
-                    }
+                } finally {
+                    fclose($stream);
                 }
             }
-            $result = $pdf->getOutPDFString();
-            $resultPath = dirname($session->source_path).'/result.pdf';
-            if (! Storage::disk(self::DISK)->put($resultPath, $result)) {
-                throw new HttpException(500, 'Gagal menyimpan PDF hasil tanda tangan.');
+            if (! $disk->put("{$directory}/placements.json", json_encode($placements, JSON_THROW_ON_ERROR), ['visibility' => 'private'])) {
+                throw new \RuntimeException;
             }
-            $session->update(['result_path' => $resultPath, 'result_sha256' => hash('sha256', $result), 'status' => 'finalized']);
-
-            return $session->refresh();
+        } catch (\Throwable) {
+            $disk->deleteDirectory($directory);
+            throw new HttpException(500, 'Gagal menyimpan payload sementara.');
+        }
+        $updated = PdfSignSession::whereKey($session->getKey())->whereIn('status', ['created', 'failed'])->update(['status' => 'queued', 'error_message' => null, 'started_at' => null, 'finished_at' => null]);
+        if (! $updated) {
+            $disk->deleteDirectory($directory);
+            throw new HttpException(409, 'Sesi sudah diproses.');
+        }
+        try {
+            FinalizePdfSignSessionJob::dispatch($session->getKey())->onConnection(config('queue.default'));
         } catch (\Throwable $e) {
-            Storage::disk(self::DISK)->delete(dirname($session->source_path).'/result.pdf');
+            PdfSignSession::whereKey($session->getKey())->where('status', 'queued')->update(['status' => 'failed', 'error_message' => 'Pemrosesan PDF gagal.', 'finished_at' => now()]);
+            $disk->deleteDirectory($directory);
             throw $e;
-        } finally {
-            foreach ($imagePaths as $imagePath) {
-                @unlink($imagePath);
+        }
+
+        return $session->refresh();
+    }
+
+    public function processFinalize(string $sessionId): void
+    {
+        if (! PdfSignSession::whereKey($sessionId)->where('status', 'queued')->update(['status' => 'processing', 'started_at' => now()])) {
+            return;
+        }
+        $session = PdfSignSession::findOrFail($sessionId);
+        $disk = Storage::disk($session->storage_disk);
+        $payload = dirname($session->source_path).'/payload';
+        $work = sys_get_temp_dir().'/pdf-sign-'.$sessionId.'-'.Str::random(8);
+        mkdir($work, 0700, true);
+        try {
+            $placements = json_decode($disk->get("{$payload}/placements.json"), true, flags: JSON_THROW_ON_ERROR);
+            file_put_contents("{$work}/source.pdf", $disk->get($session->source_path));
+            $images = [];
+            foreach ($placements as $index => $placement) {
+                if ($placement['method'] !== 'text') {
+                    $path = "{$work}/signature-{$index}.png";
+                    file_put_contents($path, $disk->get("{$payload}/signature-{$index}.png"));
+                    $images[$index] = new UploadedFile($path, basename($path), 'image/png', null, true);
+                }
             }
+            $result = $this->stamp("{$work}/source.pdf", $placements, $images, $work);
+            $resultPath = dirname($session->source_path).'/result.pdf';
+            if (! $disk->put($resultPath, $result, ['visibility' => 'private'])) {
+                throw new \RuntimeException;
+            }
+            $session->update(['result_path' => $resultPath, 'result_sha256' => hash('sha256', $result)]);
+            if ($session->signature_request_file_id) {
+                app(SignatureRequestService::class)->syncFinalized($session->refresh(), (object) ['id' => $session->owner_user_id]);
+            }
+            $session->update(['status' => 'finalized', 'finished_at' => now()]);
+            app(AuditLogService::class)->record('pdf_self_sign.finalized', 'pdf_sign_session', $sessionId, 'PDF self-sign difinalisasi.', ['result_sha256' => $session->result_sha256], null, $session->owner_user_id, $session->owner_role);
+        } catch (\Throwable) {
+            $disk->delete(dirname($session->source_path).'/result.pdf');
+            $this->failFinalize($sessionId);
+        } finally {
+            $disk->deleteDirectory($payload);
+            foreach (glob($work.'/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($work);
+        }
+    }
+
+    private function stamp(string $sourcePath, array $placements, array $images, string $work): string
+    {
+        $fontPath = resource_path('pdf-fonts');
+        if (! defined('K_PATH_FONTS')) {
+            define('K_PATH_FONTS', $fontPath);
+        }
+        $pdf = new Tcpdf(fileOptions: ['allowedPaths' => [$work, $fontPath]]);
+        $font = $pdf->font->insert($pdf->pon, 'dejavusans', '', 12);
+        $sourceId = $pdf->setImportSourceData(file_get_contents($sourcePath));
+        $count = $pdf->getSourcePageCount($sourceId);
+        foreach ($placements as $placement) {
+            if ($placement['page'] > $count) {
+                throw new HttpException(422, 'Halaman placement tidak tersedia.');
+            }
+        }
+        for ($number = 1; $number <= $count; $number++) {
+            $pdf->addPageFromImport($sourceId, $number);
+            $pdf->page->addContent("\n".$font['out']);
+            $page = $pdf->page->getPage();
+            foreach ($placements as $index => $p) {
+                if ($number === $p['page']) {
+                    $x = $p['x'] * $page['width'];
+                    $y = $p['y'] * $page['height'];
+                    $w = $p['width'] * $page['width'];
+                    $h = $p['height'] * $page['height'];
+                    if ($p['method'] === 'text') {
+                        $pdf->addHTMLCell(html: e($p['text']), posx: $x, posy: $y, width: $w, height: $h);
+                    } else {
+                        $id = $pdf->image->add($images[$index]->getRealPath());
+                        $pdf->page->addContent($pdf->image->getSetImage($id, $x, $y, $w, $h, $page['height']));
+                    }
+                }
+            }
+        }
+
+        return $pdf->getOutPDFString();
+    }
+
+    public function failFinalize(string $id): void
+    {
+        PdfSignSession::whereKey($id)->whereIn('status', ['queued', 'processing'])->update(['status' => 'failed', 'error_message' => 'Pemrosesan PDF gagal.', 'finished_at' => now()]);
+        if ($session = PdfSignSession::find($id)) {
+            Storage::disk($session->storage_disk)->deleteDirectory(dirname($session->source_path).'/payload');
+            app(AuditLogService::class)->record('pdf_self_sign.failed', 'pdf_sign_session', $id, 'Pemrosesan PDF self-sign gagal.', [], null, $session->owner_user_id, $session->owner_role);
         }
     }
 
     public function delete(PdfSignSession $session): void
     {
-        Storage::disk(self::DISK)->deleteDirectory(dirname($session->source_path));
+        Storage::disk($session->storage_disk)->deleteDirectory(dirname($session->source_path));
         $session->delete();
     }
 
     public function cleanup(): int
     {
         $count = 0;
-        PdfSignSession::where('expires_at', '<=', now())->eachById(function (PdfSignSession $session) use (&$count): void {
-            $this->delete($session);
+        $lease = now()->subMinutes(30);
+        PdfSignSession::whereIn('status', ['queued', 'processing'])->where('updated_at', '<=', $lease)->eachById(function ($s) use (&$count) {
+            $this->failFinalize($s->getKey());
+            $count++;
+        }, column: 'sign_session_id');
+        PdfSignSession::whereNotIn('status', ['queued', 'processing'])->where('expires_at', '<=', now())->eachById(function ($s) use (&$count) {
+            $this->delete($s);
             $count++;
         }, column: 'sign_session_id');
 
