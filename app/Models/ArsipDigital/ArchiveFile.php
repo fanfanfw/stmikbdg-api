@@ -25,7 +25,7 @@ class ArchiveFile extends ArsipDigitalModel
 
     public function getStorageAvailableAttribute(): bool
     {
-        return $this->storage_availability === 'available';
+        return $this->storage_availability !== 'missing';
     }
 
     public function requestFile()
