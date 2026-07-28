@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Controllers\HealthController;
+use Illuminate\Support\Facades\Route;
+
+Route::get('/health', HealthController::class);
+
 // ? Authentications Routes
 require __DIR__.'/api/authentications.php';
 

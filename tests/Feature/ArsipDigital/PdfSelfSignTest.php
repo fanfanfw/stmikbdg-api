@@ -50,9 +50,28 @@ class PdfSelfSignTest extends ArsipDigitalFeatureTestCase
         Storage::disk('s3')->delete('arsip-digital/testing/source/secret-source.pdf');
 
         $this->actingAsMahasiswa()->postJson('/api/arsip-digital/pdf-sign-sessions', ['file_id' => $fileId])
-            ->assertStatus(500)
-            ->assertJsonPath('message', 'Gagal membaca PDF sumber.')
+            ->assertStatus(410)
+            ->assertJsonPath('message', 'PDF sumber tidak tersedia.')
             ->assertJsonMissingExact(['message' => 'arsip-digital/testing/source/secret-source.pdf']);
+    }
+
+    public function test_unknown_source_is_checked_and_marked_available(): void
+    {
+        $fileId = $this->ownedPdf();
+        DB::table('arsip_digital.files')->where('file_id', $fileId)->update(['storage_availability' => 'unknown']);
+
+        $this->actingAsMahasiswa()->postJson('/api/arsip-digital/pdf-sign-sessions', ['file_id' => $fileId])->assertCreated();
+        $this->assertDatabaseHas('arsip_digital.files', ['file_id' => $fileId, 'storage_availability' => 'available']);
+    }
+
+    public function test_unknown_missing_source_is_marked_missing(): void
+    {
+        $fileId = $this->createActiveArchiveFileForMahasiswa('unknown-missing.pdf');
+        DB::table('arsip_digital.files')->where('file_id', $fileId)->update(['storage_availability' => 'unknown']);
+        Storage::disk('s3')->delete('arsip-digital/testing/source/unknown-missing.pdf');
+
+        $this->actingAsMahasiswa()->postJson('/api/arsip-digital/pdf-sign-sessions', ['file_id' => $fileId])->assertStatus(410);
+        $this->assertDatabaseHas('arsip_digital.files', ['file_id' => $fileId, 'storage_availability' => 'missing']);
     }
 
     public function test_mahasiswa_can_only_create_session_from_owned_pdf(): void

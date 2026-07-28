@@ -9,8 +9,12 @@ class ArchiveFile extends ArsipDigitalModel
     use SoftDeletes;
 
     protected $table = 'arsip_digital.files';
+
     protected $primaryKey = 'file_id';
+
     protected $guarded = ['file_id'];
+
+    protected $appends = ['storage_available'];
 
     protected $casts = [
         'file_size_bytes' => 'integer',
@@ -18,6 +22,11 @@ class ArchiveFile extends ArsipDigitalModel
         'is_current' => 'boolean',
         'metadata' => 'array',
     ];
+
+    public function getStorageAvailableAttribute(): bool
+    {
+        return $this->storage_availability === 'available';
+    }
 
     public function requestFile()
     {

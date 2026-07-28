@@ -8,4 +8,14 @@ memory_limit=${PHP_MEMORY_LIMIT:-512M}
 max_execution_time=${PHP_MAX_EXECUTION_TIME:-180}
 EOF
 
+mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache
+chown -R www-data:www-data storage bootstrap/cache
+chmod -R ug+rwX storage bootstrap/cache
+
+if [ "${1:-}" = "apache2-foreground" ]; then
+    port=${PORT:-8000}
+    printf 'Listen %s\n' "$port" > /etc/apache2/ports.conf
+    sed -ri "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:${port}>/" /etc/apache2/sites-available/000-default.conf
+fi
+
 exec "$@"

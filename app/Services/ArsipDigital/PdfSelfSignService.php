@@ -31,6 +31,9 @@ class PdfSelfSignService
         if ($knownSize !== null && $knownSize > $limit) {
             throw new HttpException(422, "PDF sumber melebihi batas {$limitMb}MB.");
         }
+        if ($source && $source->storage_availability === 'unknown') {
+            $this->resolveAvailability($source);
+        }
         $bytes = $upload ? $this->readUpload($upload, $limit) : $this->readStorage($source->storage_disk, $source->storage_path, $limit);
         $prefix = preg_replace('/^(?:\xEF\xBB\xBF)?\s*/', '', substr($bytes, 0, 1024));
         if (! str_starts_with($prefix, '%PDF-')) {
@@ -56,6 +59,21 @@ class PdfSelfSignService
         }
     }
 
+    private function resolveAvailability(ArchiveFile $source): void
+    {
+        try {
+            if (! Storage::disk($source->storage_disk)->exists($source->storage_path)) {
+                $source->update(['storage_availability' => 'missing']);
+                throw new HttpException(410, 'PDF sumber tidak tersedia.');
+            }
+            $source->update(['storage_availability' => 'available']);
+        } catch (HttpException $e) {
+            throw $e;
+        } catch (\Throwable) {
+            throw new HttpException(503, 'Storage sementara tidak tersedia.');
+        }
+    }
+
     private function readUpload(UploadedFile $upload, int $limit): string
     {
         $stream = @fopen($upload->getRealPath(), 'rb');
@@ -66,10 +84,22 @@ class PdfSelfSignService
     private function readStorage(string $disk, string $path, int $limit): string
     {
         try {
-            return $this->readCapped(Storage::disk($disk)->readStream($path), $limit);
+            $stream = Storage::disk($disk)->readStream($path);
+        } catch (\League\Flysystem\UnableToReadFile $e) {
+            if ($e->reason() === 'File does not exist at path: '.$path) {
+                throw new HttpException(410, 'PDF sumber tidak tersedia.');
+            }
+
+            throw new HttpException(503, 'Storage sementara tidak tersedia.');
         } catch (\Throwable) {
-            throw new HttpException(500, 'Gagal membaca PDF sumber.');
+            throw new HttpException(503, 'Storage sementara tidak tersedia.');
         }
+
+        if (! is_resource($stream)) {
+            throw new HttpException(410, 'PDF sumber tidak tersedia.');
+        }
+
+        return $this->readCapped($stream, $limit);
     }
 
     private function readCapped($stream, int $limit): string

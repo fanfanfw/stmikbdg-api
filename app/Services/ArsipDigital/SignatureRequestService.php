@@ -230,6 +230,9 @@ class SignatureRequestService
             throw new HttpException(422, 'Jumlah file melebihi batas pengaturan.');
         }
         $files = ArchiveFile::whereIn('file_id', $ids)->where('owner_user_id', $student->id)->where('owner_role', 'mahasiswa')->where('status', 'active')->where('is_current', true)->get();
+        if ($files->contains(fn ($file) => ! $file->storage_available)) {
+            throw new HttpException(410, 'PDF sumber tidak tersedia.');
+        }
         $max = $settings['signature_request_max_file_size_mb'] * 1024 * 1024;
         if ($files->count() !== count($ids) || $files->contains(fn ($file) => $file->extension !== 'pdf') || $files->contains(fn ($file) => $file->file_size_bytes > $max) || $files->sum('file_size_bytes') > $settings['signature_request_max_total_size_mb'] * 1024 * 1024) {
             throw new HttpException(422, 'File wajib PDF aktif milik mahasiswa dan memenuhi batas ukuran.');

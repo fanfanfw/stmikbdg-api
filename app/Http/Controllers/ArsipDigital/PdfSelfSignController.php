@@ -32,6 +32,9 @@ class PdfSelfSignController extends Controller
             if ($source && (! $permissions->canViewFile($source, auth()->user(), $role) || $source->extension !== 'pdf')) {
                 throw new HttpException(403, 'PDF arsip bukan milik pengguna.');
             }
+            if ($source?->storage_availability === 'missing') {
+                throw new HttpException(410, 'PDF sumber tidak tersedia.');
+            }
             if ($role === 'admin' && $source || $role !== 'admin' && $request->hasFile('file')) {
                 throw new HttpException(422, 'Sumber PDF tidak sesuai role.');
             }
