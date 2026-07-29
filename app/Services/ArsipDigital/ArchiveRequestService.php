@@ -30,6 +30,14 @@ class ArchiveRequestService
             }
         }
 
+        if (! empty($filters['search'])) {
+            $search = '%'.strtolower($filters['search']).'%';
+            $query->where(function (Builder $query) use ($search): void {
+                $query->whereRaw('LOWER(title) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(description) LIKE ?', [$search]);
+            });
+        }
+
         return $query->orderByDesc('created_at')->orderByDesc('request_id');
     }
 

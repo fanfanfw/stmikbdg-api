@@ -332,10 +332,6 @@ class DistributionBulkUploadService
                 if (! in_array($distribution->status, ['draft', 'published'], true)) {
                     throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution draft atau published.');
                 }
-                if ($distribution->status === 'published' && DistributionRecipient::where('distribution_id', $distribution->distribution_id)->where('download_count', '>', 0)->lockForUpdate()->first()) {
-                    throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
-                }
-
                 $matchedEntries = DistributionBulkUploadEntry::where('bulk_upload_job_id', $job->bulk_upload_job_id)
                     ->where('match_status', 'matched')
                     ->orderBy('bulk_upload_entry_id')
@@ -366,7 +362,7 @@ class DistributionBulkUploadService
                         throw new HttpException(422, 'File distribution hanya dapat dikonfirmasi saat distribution draft atau published.');
                     }
 
-                    if ($recipient->distribution->status === 'published' && $recipient->download_count > 0) {
+                    if ($recipient->distribution->status === 'published' && $recipient->file_id && $recipient->download_count > 0) {
                         throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
                     }
 

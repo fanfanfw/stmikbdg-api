@@ -7,6 +7,27 @@ use Illuminate\Support\Facades\Storage;
 
 class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
 {
+    public function test_user_can_search_own_files_by_display_or_original_filename_case_insensitively(): void
+    {
+        $displayMatchId = $this->createActiveArchiveFileForMahasiswa('source-one.pdf');
+        DB::table('arsip_digital.files')->where('file_id', $displayMatchId)->update(['display_filename' => 'Laporan Akhir.pdf']);
+        $originalMatchId = $this->createActiveArchiveFileForMahasiswa('LAPORAN-source.pdf');
+        $foreignMatchId = $this->createActiveArchiveFileForMahasiswa('laporan-rahasia.pdf');
+        DB::table('arsip_digital.files')->where('file_id', $foreignMatchId)->update([
+            'owner_user_id' => 3,
+            'owner_role' => 'dosen',
+        ]);
+        $this->createActiveArchiveFileForMahasiswa('catatan.pdf');
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/files?search=LaPoRaN')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.files')
+            ->assertJsonFragment(['file_id' => $displayMatchId])
+            ->assertJsonFragment(['file_id' => $originalMatchId])
+            ->assertJsonMissing(['file_id' => $foreignMatchId]);
+    }
+
     public function test_personal_archive_upload_storage_failure_does_not_create_file_row(): void
     {
         $adapter = new class

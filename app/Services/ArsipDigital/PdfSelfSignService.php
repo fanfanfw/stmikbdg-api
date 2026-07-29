@@ -7,6 +7,7 @@ use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\PdfSignSession;
 use Com\Tecnick\Pdf\Tcpdf;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -207,9 +208,16 @@ class PdfSelfSignService
             }
             $session->update(['status' => 'finalized', 'finished_at' => now()]);
             app(AuditLogService::class)->record('pdf_self_sign.finalized', 'pdf_sign_session', $sessionId, 'PDF self-sign difinalisasi.', ['result_sha256' => $session->result_sha256], null, $session->owner_user_id, $session->owner_role);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::error('Pemrosesan PDF self-sign gagal.', [
+                'session_id' => $sessionId,
+                'phase' => 'finalize',
+                'exception' => $e,
+            ]);
             $disk->delete(dirname($session->source_path).'/result.pdf');
-            $this->failFinalize($sessionId);
+            $this->failFinalize($sessionId, $this->finalizeErrorMessage($e, $sessionId), $e);
+
+            throw $e;
         } finally {
             $disk->deleteDirectory($payload);
             foreach (glob($work.'/*') ?: [] as $file) {
@@ -257,13 +265,34 @@ class PdfSelfSignService
         return $pdf->getOutPDFString();
     }
 
-    public function failFinalize(string $id): void
+    public function failFinalize(string $id, ?string $message = null, ?\Throwable $cause = null): void
     {
-        PdfSignSession::whereKey($id)->whereIn('status', ['queued', 'processing'])->update(['status' => 'failed', 'error_message' => 'Pemrosesan PDF gagal.', 'finished_at' => now()]);
+        $message ??= 'Pemrosesan PDF gagal.';
+        PdfSignSession::whereKey($id)->whereIn('status', ['queued', 'processing'])->update(['status' => 'failed', 'error_message' => $message, 'finished_at' => now()]);
         if ($session = PdfSignSession::find($id)) {
             Storage::disk($session->storage_disk)->deleteDirectory(dirname($session->source_path).'/payload');
-            app(AuditLogService::class)->record('pdf_self_sign.failed', 'pdf_sign_session', $id, 'Pemrosesan PDF self-sign gagal.', [], null, $session->owner_user_id, $session->owner_role);
+            app(AuditLogService::class)->record('pdf_self_sign.failed', 'pdf_sign_session', $id, 'Pemrosesan PDF self-sign gagal.', array_filter([
+                'exception_class' => $cause ? $cause::class : null,
+            ]), null, $session->owner_user_id, $session->owner_role);
         }
+    }
+
+    private function finalizeErrorMessage(\Throwable $e, string $sessionId): string
+    {
+        if (! app()->environment('production')) {
+            return $e->getMessage() !== '' ? $e->getMessage() : 'Pemrosesan PDF gagal.';
+        }
+
+        return 'Pemrosesan PDF gagal. ID referensi: '.($this->safeSessionReference($e->getMessage()) ?? $sessionId);
+    }
+
+    private function safeSessionReference(string $message): ?string
+    {
+        if (preg_match('/(?:correlation|request|session)[ _-]?id[=: ]+([A-Za-z0-9-]{6,64})/i', $message, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     public function delete(PdfSignSession $session): void

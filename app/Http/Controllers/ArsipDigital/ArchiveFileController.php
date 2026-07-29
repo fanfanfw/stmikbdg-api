@@ -24,6 +24,7 @@ class ArchiveFileController extends Controller
                 'owner_identifier' => ['sometimes', 'string', 'max:255'],
                 'category_id' => ['sometimes', 'integer'],
                 'extension' => ['sometimes', 'string', 'max:20'],
+                'search' => ['nullable', 'string', 'max:255'],
                 'is_current' => ['sometimes', 'boolean'],
                 'with_deleted' => ['sometimes', 'boolean'],
             ]);

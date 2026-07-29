@@ -8,6 +8,7 @@ use App\Services\ArsipDigital\PdfSelfSignService;
 use Com\Tecnick\Pdf\Tcpdf;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -126,6 +127,33 @@ class PdfSelfSignTest extends ArsipDigitalFeatureTestCase
         Storage::disk('s3')->assertMissing("arsip-digital/tmp/pdf-sign/{$sessionId}/payload");
         $this->actingAsAdmin()->getJson("/api/arsip-digital/pdf-sign-sessions/{$sessionId}")
             ->assertOk()->assertJsonPath('data.session.status', 'finalized');
+    }
+
+    public function test_finalize_exception_marks_failed_logs_and_propagates(): void
+    {
+        Queue::fake();
+        Log::spy();
+        $sessionId = $this->createAdminSession($this->validPdf());
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/pdf-sign-sessions/{$sessionId}/finalize", $this->textPlacement())->assertStatus(202);
+        Storage::disk('s3')->delete("arsip-digital/tmp/pdf-sign/{$sessionId}/source.pdf");
+
+        try {
+            app(PdfSelfSignService::class)->processFinalize($sessionId);
+            $this->fail('Finalize exception was not propagated.');
+        } catch (\Throwable $e) {
+            $this->assertNotSame('', $e->getMessage());
+        }
+
+        $this->assertDatabaseHas('arsip_digital.pdf_sign_sessions', [
+            'sign_session_id' => $sessionId,
+            'status' => 'failed',
+        ]);
+        Log::shouldHaveReceived('error')->once()->withArgs(fn (string $message, array $context) => $message === 'Pemrosesan PDF self-sign gagal.'
+            && $context['session_id'] === $sessionId
+            && $context['phase'] === 'finalize'
+            && $context['exception'] instanceof \Throwable
+            && ! isset($context['payload'])
+            && ! isset($context['signature']));
     }
 
     private function ownedPdf(): int

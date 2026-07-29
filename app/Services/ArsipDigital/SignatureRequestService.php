@@ -135,12 +135,18 @@ class SignatureRequestService
                 return $file;
             }
             $path = "arsip-digital/tmp/signature-requests/{$file->signature_request_id}/{$file->signature_request_file_id}.pdf";
-            if (! Storage::disk('local')->put($path, Storage::disk('local')->get($session->result_path))) {
+            try {
+                $bytes = Storage::disk($session->storage_disk)->get($session->result_path);
+            } catch (\Throwable) {
                 throw new HttpException(500, 'Gagal menyimpan hasil tanda tangan request.');
             }
-            if (hash('sha256', Storage::disk('local')->get($path)) !== $session->result_sha256) {
+            if (! is_string($bytes) || $bytes === '' || ! str_starts_with($bytes, '%PDF') || ! Storage::disk('local')->put($path, $bytes)) {
+                throw new HttpException(500, 'Gagal menyimpan hasil tanda tangan request.');
+            }
+            $hash = hash('sha256', $bytes);
+            if ($hash !== $session->result_sha256) {
                 Storage::disk('local')->delete($path);
-                throw new HttpException(500, 'Hasil tanda tangan request tidak valid.');
+                throw new HttpException(500, 'Gagal menyimpan hasil tanda tangan request.');
             }
             $file->update(['sign_session_id' => null, 'signed_result_disk' => 'local', 'signed_result_path' => $path, 'result_sha256' => $session->result_sha256, 'signed_at' => now()]);
             $this->record('signature_request.file_signed', $file->request, $lecturer->id, 'dosen', ['request_file_id' => $file->signature_request_file_id, 'result_sha256' => $file->result_sha256]);

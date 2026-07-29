@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ArsipDigital\AuditLog;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class AdminAuditLogController extends Controller
 {
@@ -23,6 +24,7 @@ class AdminAuditLogController extends Controller
                 'actor_user_id' => ['sometimes', 'nullable', 'integer'],
                 'date_from' => ['sometimes', 'nullable', 'date'],
                 'date_to' => ['sometimes', 'nullable', 'date'],
+                'search' => ['nullable', 'string', 'max:255'],
                 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
 
@@ -30,7 +32,7 @@ class AdminAuditLogController extends Controller
 
             foreach (['action', 'entity_type', 'entity_id', 'actor_role'] as $field) {
                 if (! empty($filters[$field])) {
-                    $query->where($field, 'ilike', '%' . $filters[$field] . '%');
+                    $query->where($field, 'ilike', '%'.$filters[$field].'%');
                 }
             }
 
@@ -38,12 +40,22 @@ class AdminAuditLogController extends Controller
                 $query->where('actor_user_id', $filters['actor_user_id']);
             }
 
+            if (! empty($filters['search'])) {
+                $search = '%'.strtolower($filters['search']).'%';
+                $query->where(function ($query) use ($search): void {
+                    $query->whereRaw('LOWER(action) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(description) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(entity_type) LIKE ?', [$search])
+                        ->orWhereRaw('LOWER(CAST(entity_id AS TEXT)) LIKE ?', [$search]);
+                });
+            }
+
             if (! empty($filters['date_from'])) {
-                $query->where('created_at', '>=', $filters['date_from']);
+                $query->where('created_at', '>=', Carbon::parse($filters['date_from'])->startOfDay());
             }
 
             if (! empty($filters['date_to'])) {
-                $query->where('created_at', '<=', $filters['date_to']);
+                $query->where('created_at', '<', Carbon::parse($filters['date_to'])->startOfDay()->addDay());
             }
 
             $logs = $query->orderByDesc('created_at')

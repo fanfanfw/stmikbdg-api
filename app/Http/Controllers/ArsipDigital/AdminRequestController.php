@@ -20,6 +20,7 @@ class AdminRequestController extends Controller
                 'target_role' => ['sometimes', 'in:mahasiswa,dosen'],
                 'scope_type' => ['sometimes', 'in:all,filter,specific,segment'],
                 'status' => ['sometimes', 'in:draft,published,closed,archived'],
+                'search' => ['nullable', 'string', 'max:255'],
                 'with_deleted' => ['sometimes', 'boolean'],
             ]);
 

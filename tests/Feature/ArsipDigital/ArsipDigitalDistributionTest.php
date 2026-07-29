@@ -132,6 +132,47 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('message', 'File distribution tidak dapat diganti setelah ada download.');
     }
 
+    public function test_published_distribution_allows_initial_upload_for_other_recipient_after_download(): void
+    {
+        DB::table('users')->insert([
+            'id' => 4,
+            'kd_user' => 'MHS-22010002',
+            'name' => 'Mahasiswa Dua',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('vmahasiswa')->insert([
+            'nim' => '22010002',
+            'nm_mhs' => 'Mahasiswa Dua',
+            'angkatan' => '2022',
+            'prodi' => 'TI',
+            'sts_mhs' => 'aktif',
+        ]);
+
+        $distributionId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/distributions', [
+                'title' => 'Initial upload after download',
+                'target_role' => 'mahasiswa',
+                'scope_type' => 'specific',
+                'target_identifiers' => ['22010001', '22010002'],
+            ])
+            ->assertCreated()
+            ->json('data.distribution.distribution_id');
+
+        $this->actingAsAdmin()->postJson('/api/arsip-digital/admin/distributions/'.$distributionId.'/publish')->assertOk();
+        $recipients = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $distributionId)->pluck('recipient_id', 'identifier');
+        $fileId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipients['22010001'].'/file', ['file' => $this->pdfUpload('first.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.recipient.file_id');
+
+        $this->actingAsMahasiswa()->get('/api/arsip-digital/distribution-files/'.$fileId.'/download')->assertOk();
+        $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipients['22010002'].'/file', ['file' => $this->pdfUpload('second.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->assertJsonPath('data.recipient.delivery_status', 'available');
+    }
+
     public function test_withdraw_blocks_download_and_correction_copies_recipients(): void
     {
         $distributionId = $this->actingAsAdmin()
@@ -246,7 +287,13 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->where('identifier', '22010002')
             ->value('recipient_id');
 
-        Storage::disk('s3')->put('tmp/bulk/22010001.pdf', '%PDF-1.4 bulk');
+        $downloadedFileId = $this->actingAsAdmin()
+            ->post('/api/arsip-digital/admin/distribution-recipients/'.$recipientId.'/file', ['file' => $this->pdfUpload('downloaded.pdf')], ['X-Active-Role' => 'admin'])
+            ->assertCreated()
+            ->json('data.recipient.file_id');
+        $this->actingAsMahasiswa()->get('/api/arsip-digital/distribution-files/'.$downloadedFileId.'/download')->assertOk();
+
+        Storage::disk('s3')->put('tmp/bulk/22010002.pdf', '%PDF-1.4 bulk');
         $jobId = DB::table('arsip_digital.distribution_bulk_upload_jobs')->insertGetId([
             'distribution_id' => $distributionId,
             'uploaded_by_user_id' => 1,
@@ -259,13 +306,13 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         foreach ([
             [
                 'bulk_upload_job_id' => $jobId,
-                'recipient_id' => $recipientId,
-                'identifier' => '22010001',
-                'entry_path' => '22010001.pdf',
-                'original_filename' => '22010001.pdf',
-                'display_filename' => '22010001.pdf',
+                'recipient_id' => $otherRecipientId,
+                'identifier' => '22010002',
+                'entry_path' => '22010002.pdf',
+                'original_filename' => '22010002.pdf',
+                'display_filename' => '22010002.pdf',
                 'temporary_disk' => 's3',
-                'temporary_path' => 'tmp/bulk/22010001.pdf',
+                'temporary_path' => 'tmp/bulk/22010002.pdf',
                 'mime_type' => 'application/pdf',
                 'extension' => 'pdf',
                 'file_size_bytes' => 13,
@@ -311,30 +358,28 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->postJson('/api/arsip-digital/admin/distribution-bulk-upload-jobs/'.$jobId.'/confirm')
             ->assertOk();
 
-        $bulkFileId = DB::table('arsip_digital.distribution_recipients')->where('recipient_id', $recipientId)->value('file_id');
-        $bulkCategory = DB::table('arsip_digital.categories')->where('is_system', true)->where('name', 'Distribusi bulk')->first();
+        $bulkFileId = DB::table('arsip_digital.distribution_recipients')->where('recipient_id', $otherRecipientId)->value('file_id');
+        $bulkCategory = DB::table('arsip_digital.categories')->where('owner_user_id', 4)->where('is_system', true)->where('name', 'Distribusi bulk')->first();
         $this->assertNotNull($bulkCategory);
         $this->assertSame($bulkCategory->category_id, DB::table('arsip_digital.files')->where('file_id', $bulkFileId)->value('category_id'));
 
         $this->assertDatabaseHas('arsip_digital.notifications', [
-            'recipient_user_id' => 2,
+            'recipient_user_id' => 4,
             'recipient_role' => 'mahasiswa',
             'type' => 'distribution_file_available',
             'entity_type' => 'distribution',
             'entity_id' => $distributionId,
         ], 'sqlite');
-        $this->assertDatabaseMissing('arsip_digital.notifications', [
-            'recipient_user_id' => 4,
-            'type' => 'distribution_file_available',
-        ], 'sqlite');
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
             'recipient_id' => $recipientId,
-            'delivery_status' => 'available',
+            'delivery_status' => 'downloaded',
+            'file_id' => $downloadedFileId,
+            'download_count' => 1,
         ], 'sqlite');
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', [
             'recipient_id' => $otherRecipientId,
-            'delivery_status' => 'pending',
-            'file_id' => null,
+            'delivery_status' => 'available',
+            'file_id' => $bulkFileId,
         ], 'sqlite');
     }
 

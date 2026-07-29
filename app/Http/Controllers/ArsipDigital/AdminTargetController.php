@@ -10,7 +10,6 @@ use App\Models\Users\User;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class AdminTargetController extends Controller
 {
@@ -25,7 +24,7 @@ class AdminTargetController extends Controller
                 'angkatan' => ['sometimes', 'array', 'max:20'],
                 'angkatan.*' => ['integer'],
                 'status' => ['sometimes', 'array', 'max:20'],
-                'status.*' => [Rule::in(['active', 'inactive'])],
+                'status.*' => ['string', 'max:20', 'regex:/^[A-Za-z0-9_-]+$/'],
                 'has_account' => ['sometimes', 'boolean'],
                 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
@@ -141,19 +140,26 @@ class AdminTargetController extends Controller
 
     private function applyStatusFilter(Builder $query, array $statuses, string $column): void
     {
-        if (count(array_unique($statuses)) !== 1) {
+        $statuses = array_values(array_unique(array_map(fn ($status): string => trim((string) $status), $statuses)));
+        if ($statuses === [] || (in_array('active', $statuses, true) && in_array('inactive', $statuses, true))) {
             return;
         }
 
-        if ($statuses[0] === 'active') {
+        if ($statuses === ['active']) {
             $query->where($column, 'A');
 
             return;
         }
 
-        $query->where(function (Builder $query) use ($column): void {
-            $query->whereNull($column)->orWhere($column, '!=', 'A');
-        });
+        if ($statuses === ['inactive']) {
+            $query->where(function (Builder $query) use ($column): void {
+                $query->whereNull($column)->orWhere($column, '!=', 'A');
+            });
+
+            return;
+        }
+
+        $query->whereIn($column, array_map('strtoupper', $statuses));
     }
 
     private function accountIdentifiers(string $prefix)

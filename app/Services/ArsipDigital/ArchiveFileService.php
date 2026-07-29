@@ -56,6 +56,14 @@ class ArchiveFileService
             $query->where('extension', strtolower($filters['extension']));
         }
 
+        if (! empty($filters['search'])) {
+            $search = '%'.strtolower($filters['search']).'%';
+            $query->where(function (Builder $query) use ($search): void {
+                $query->whereRaw('LOWER(display_filename) LIKE ?', [$search])
+                    ->orWhereRaw('LOWER(original_filename) LIKE ?', [$search]);
+            });
+        }
+
         if (array_key_exists('is_current', $filters) && $filters['is_current'] !== null) {
             $query->where('is_current', filter_var($filters['is_current'], FILTER_VALIDATE_BOOL));
         } elseif ($role !== 'admin' || empty($filters['with_deleted'])) {

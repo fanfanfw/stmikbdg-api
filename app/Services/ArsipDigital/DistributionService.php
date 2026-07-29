@@ -373,7 +373,7 @@ class DistributionService
                 if (! in_array($distribution->status, ['draft', 'published'], true)) {
                     throw new HttpException(422, 'File distribution hanya dapat diupload saat distribution draft atau published.');
                 }
-                if ($distribution->status === 'published' && DistributionRecipient::where('distribution_id', $distribution->distribution_id)->where('download_count', '>', 0)->lockForUpdate()->first()) {
+                if ($distribution->status === 'published' && $recipient->file_id && $recipient->download_count > 0) {
                     throw new HttpException(422, 'File distribution tidak dapat diganti setelah ada download.');
                 }
                 $recipient->setRelation('distribution', $distribution);

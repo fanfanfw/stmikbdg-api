@@ -26,6 +26,6 @@ class FinalizePdfSignSessionJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        app(PdfSelfSignService::class)->failFinalize($this->sessionId);
+        app(PdfSelfSignService::class)->failFinalize($this->sessionId, cause: $exception);
     }
 }

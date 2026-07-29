@@ -39,6 +39,18 @@ class AdminTargetTest extends ArsipDigitalFeatureTestCase
             ->getJson('/api/arsip-digital/admin/targets?role=mahasiswa&status[]=active&status[]=inactive')
             ->assertOk()
             ->assertJsonPath('data.meta.total', 3);
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/targets?role=mahasiswa&status[]=A')
+            ->assertOk()
+            ->assertJsonPath('data.meta.total', 1)
+            ->assertJsonPath('data.targets.0.identifier', '22010001');
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/targets?role=mahasiswa&status[]=N')
+            ->assertOk()
+            ->assertJsonPath('data.meta.total', 1)
+            ->assertJsonPath('data.targets.0.identifier', '22010002');
     }
 
     public function test_dosen_targets_filter_active_and_inactive_status(): void
