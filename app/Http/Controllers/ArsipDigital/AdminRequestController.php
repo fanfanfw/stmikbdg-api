@@ -24,7 +24,11 @@ class AdminRequestController extends Controller
             ]);
 
             return $this->successfulResponseJSON([
-                'requests' => $requestService->adminQuery($filters)->withCount('assignments')->get()->toArray(),
+                'requests' => $requestService->adminQuery($filters)->selectRaw('*')->withCount([
+                    'assignments',
+                    'assignments as submitted_assignments_count' => fn ($query) => $query->whereIn('status', ['waiting_verification', 'approved', 'rejected']),
+                    'assignments as approved_assignments_count' => fn ($query) => $query->where('status', 'approved'),
+                ])->get()->toArray(),
             ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
@@ -51,11 +55,11 @@ class AdminRequestController extends Controller
         try {
             $roleResolver->resolve($request, ['admin']);
             $archiveRequest = ArchiveRequest::withCount([
-                    'assignments',
-                    'assignments as submitted_assignments_count' => fn ($query) => $query->whereIn('status', ['waiting_verification', 'approved', 'rejected']),
-                    'assignments as approved_assignments_count' => fn ($query) => $query->where('status', 'approved'),
-                    'assignments as waiting_verification_assignments_count' => fn ($query) => $query->where('status', 'waiting_verification'),
-                ])
+                'assignments',
+                'assignments as submitted_assignments_count' => fn ($query) => $query->whereIn('status', ['waiting_verification', 'approved', 'rejected']),
+                'assignments as approved_assignments_count' => fn ($query) => $query->where('status', 'approved'),
+                'assignments as waiting_verification_assignments_count' => fn ($query) => $query->where('status', 'waiting_verification'),
+            ])
                 ->with(['assignments.requestFiles.file'])
                 ->findOrFail($request_id);
 

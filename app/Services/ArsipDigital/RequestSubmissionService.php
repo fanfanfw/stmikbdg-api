@@ -19,6 +19,7 @@ class RequestSubmissionService
         private readonly AuditLogService $auditLog,
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly NotificationService $notifications,
+        private readonly ArchiveCategoryService $categories,
     ) {}
 
     public function upload(RequestAssignment $assignment, UploadedFile $uploadedFile, array $payload, object $user, string $role, $httpRequest = null): RequestFile
@@ -60,8 +61,16 @@ class RequestSubmissionService
                     $this->replaceCurrentRequestFileByName($assignment, $displayFilename, true);
                 }
 
+                $category = $this->categories->systemPersonalCategory(
+                    $assignment->target_user_id,
+                    $assignment->target_role,
+                    $request->title,
+                    $user,
+                    $role
+                );
+
                 $file = ArchiveFile::create([
-                    'category_id' => null,
+                    'category_id' => $category->category_id,
                     'owner_user_id' => $assignment->target_user_id,
                     'owner_role' => $assignment->target_role,
                     'owner_identifier' => $assignment->identifier,

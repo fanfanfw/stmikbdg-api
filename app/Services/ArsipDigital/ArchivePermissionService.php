@@ -9,6 +9,10 @@ class ArchivePermissionService
 {
     public function canManageCategory(Category $category, object $user, string $role): bool
     {
+        if ($category->is_system) {
+            return $role === 'admin';
+        }
+
         if ($role === 'admin') {
             return $category->category_type === 'official'
                 || $category->created_by_user_id === $user->id

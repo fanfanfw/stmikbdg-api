@@ -51,6 +51,34 @@ class ArchiveCategoryService
             ->orderBy('name');
     }
 
+    public function systemPersonalCategory(int $ownerUserId, string $ownerRole, string $title, object $actor, string $actorRole): Category
+    {
+        DB::connection(config('myconfig.database.first_connection'))
+            ->table('users')
+            ->where('id', $ownerUserId)
+            ->lockForUpdate()
+            ->first();
+
+        $category = Category::where('owner_user_id', $ownerUserId)
+            ->where('owner_role', $ownerRole)
+            ->where('category_type', 'personal')
+            ->where('name', $title)
+            ->where('is_system', true)
+            ->lockForUpdate()
+            ->first();
+
+        return $category ?? Category::create([
+            'owner_user_id' => $ownerUserId,
+            'owner_role' => $ownerRole,
+            'category_type' => 'personal',
+            'name' => $title,
+            'visibility' => 'admin_visible',
+            'created_by_user_id' => $actor->id,
+            'created_by_role' => $actorRole,
+            'is_system' => true,
+        ]);
+    }
+
     public function create(array $payload, object $user, string $role): Category
     {
         $categoryType = $payload['category_type'] ?? ($role === 'admin' ? 'official' : 'personal');

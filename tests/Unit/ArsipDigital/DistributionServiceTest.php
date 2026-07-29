@@ -3,6 +3,8 @@
 namespace Tests\Unit\ArsipDigital;
 
 use App\Models\ArsipDigital\DistributionRecipient;
+use App\Services\ArsipDigital\ArchiveCategoryService;
+use App\Services\ArsipDigital\ArchivePermissionService;
 use App\Services\ArsipDigital\ArchiveUploadValidationService;
 use App\Services\ArsipDigital\ArsipDigitalSettingsService;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
@@ -19,7 +21,7 @@ class DistributionServiceTest extends TestCase
     public function test_recipient_visibility_requires_owner_and_available_file(): void
     {
         $service = $this->service();
-        $recipient = new DistributionRecipient();
+        $recipient = new DistributionRecipient;
         $recipient->setRawAttributes([
             'recipient_id' => 10,
             'target_user_id' => 5,
@@ -37,7 +39,7 @@ class DistributionServiceTest extends TestCase
     {
         $this->expectException(HttpException::class);
 
-        $recipient = new DistributionRecipient();
+        $recipient = new DistributionRecipient;
         $recipient->setRawAttributes([
             'recipient_id' => 10,
             'target_user_id' => 5,
@@ -53,7 +55,7 @@ class DistributionServiceTest extends TestCase
     {
         $this->expectException(HttpException::class);
 
-        $recipient = new DistributionRecipient();
+        $recipient = new DistributionRecipient;
         $recipient->setRawAttributes([
             'recipient_id' => 10,
             'target_user_id' => 5,
@@ -67,15 +69,16 @@ class DistributionServiceTest extends TestCase
 
     private function service(): DistributionService
     {
-        $settings = new ArsipDigitalSettingsService();
+        $settings = new ArsipDigitalSettingsService;
 
         return new DistributionService(
-            new RequestTargetPreviewService(new TargetResolverService()),
+            new RequestTargetPreviewService(new TargetResolverService),
             $settings,
             new ArsipDigitalStorageService($settings),
-            new ArchiveUploadValidationService(),
-            new AuditLogService(),
-            new NotificationService(),
+            new ArchiveUploadValidationService,
+            new AuditLogService,
+            new NotificationService,
+            new ArchiveCategoryService(new ArchivePermissionService, new TargetResolverService),
         );
     }
 }

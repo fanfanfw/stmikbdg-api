@@ -20,6 +20,7 @@ class DistributionService
         private readonly ArchiveUploadValidationService $uploadValidation,
         private readonly AuditLogService $auditLog,
         private readonly NotificationService $notifications,
+        private readonly ArchiveCategoryService $categories,
     ) {}
 
     public function adminQuery(array $filters = []): Builder
@@ -387,8 +388,16 @@ class DistributionService
                     $previousFile->save();
                 }
 
+                $category = $this->categories->systemPersonalCategory(
+                    $recipient->target_user_id,
+                    $recipient->target_role,
+                    $distribution->title,
+                    $actor,
+                    $actorRole
+                );
+
                 $file = ArchiveFile::create([
-                    'category_id' => null,
+                    'category_id' => $category->category_id,
                     'owner_user_id' => $recipient->target_user_id,
                     'owner_role' => $recipient->target_role,
                     'owner_identifier' => $recipient->identifier,

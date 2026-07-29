@@ -124,6 +124,18 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
     {
         DB::table('vusers')->insert(['id' => 1, 'kd_user' => 'ADM-ADM001', 'name' => 'Admin Test', 'is_admin' => 1]);
         [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+        $manualCategoryId = DB::table('arsip_digital.categories')->insertGetId([
+            'owner_user_id' => 2,
+            'owner_role' => 'mahasiswa',
+            'category_type' => 'personal',
+            'name' => 'Upload Akta',
+            'visibility' => 'admin_visible',
+            'created_by_user_id' => 2,
+            'created_by_role' => 'mahasiswa',
+            'is_system' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $this->actingAsMahasiswa()
             ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
@@ -139,6 +151,14 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->assertCreated()
             ->assertJsonPath('data.request_file.status', 'waiting_verification')
             ->json('data.request_file');
+
+        $systemCategory = DB::table('arsip_digital.categories')->where('is_system', true)->first();
+        $this->assertNotNull($systemCategory);
+        $this->assertSame('Upload Akta', $systemCategory->name);
+        $this->assertSame('personal', $systemCategory->category_type);
+        $this->assertSame('admin_visible', $systemCategory->visibility);
+        $this->assertNotSame($manualCategoryId, $systemCategory->category_id);
+        $this->assertSame($systemCategory->category_id, DB::table('arsip_digital.files')->where('file_id', $uploadedRequestFile['file_id'])->value('category_id'));
 
         $uploadNotification = DB::table('arsip_digital.notifications')->where('type', 'request_file_submitted')->first();
         $this->assertNotNull($uploadNotification);
@@ -185,6 +205,9 @@ class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.request_file.submission_type', 'reused')
             ->assertJsonPath('data.request_file.request_id', $requestId)
             ->json('data.request_file');
+
+        $this->assertNull(DB::table('arsip_digital.files')->where('file_id', $fileId)->value('category_id'));
+        $this->assertSame(1, DB::table('arsip_digital.categories')->where('is_system', true)->where('name', 'Upload Akta')->count());
 
         $reuseNotification = DB::table('arsip_digital.notifications')->where('type', 'request_file_reused')->first();
         $this->assertNotNull($reuseNotification);

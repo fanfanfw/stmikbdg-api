@@ -45,6 +45,11 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.recipient.delivery_status', 'available')
             ->json('data.recipient.file_id');
 
+        $category = DB::table('arsip_digital.categories')->where('is_system', true)->first();
+        $this->assertSame('Sertifikat Seminar', $category->name);
+        $this->assertSame(2, $category->owner_user_id);
+        $this->assertSame($category->category_id, DB::table('arsip_digital.files')->where('file_id', $fileId)->value('category_id'));
+
         $this->actingAsMahasiswa()
             ->getJson('/api/arsip-digital/distributions')
             ->assertOk()
@@ -305,6 +310,11 @@ class ArsipDigitalDistributionTest extends ArsipDigitalFeatureTestCase
         $this->actingAsAdmin()
             ->postJson('/api/arsip-digital/admin/distribution-bulk-upload-jobs/'.$jobId.'/confirm')
             ->assertOk();
+
+        $bulkFileId = DB::table('arsip_digital.distribution_recipients')->where('recipient_id', $recipientId)->value('file_id');
+        $bulkCategory = DB::table('arsip_digital.categories')->where('is_system', true)->where('name', 'Distribusi bulk')->first();
+        $this->assertNotNull($bulkCategory);
+        $this->assertSame($bulkCategory->category_id, DB::table('arsip_digital.files')->where('file_id', $bulkFileId)->value('category_id'));
 
         $this->assertDatabaseHas('arsip_digital.notifications', [
             'recipient_user_id' => 2,

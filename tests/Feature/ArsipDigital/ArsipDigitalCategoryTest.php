@@ -60,6 +60,36 @@ class ArsipDigitalCategoryTest extends ArsipDigitalFeatureTestCase
             ->assertUnprocessable();
     }
 
+    public function test_non_admin_cannot_rename_or_delete_system_category(): void
+    {
+        $categoryId = DB::table('arsip_digital.categories')->insertGetId([
+            'owner_user_id' => 2,
+            'owner_role' => 'mahasiswa',
+            'category_type' => 'personal',
+            'name' => 'Permintaan Berkas',
+            'visibility' => 'admin_visible',
+            'created_by_user_id' => 2,
+            'created_by_role' => 'mahasiswa',
+            'is_system' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAsMahasiswa()
+            ->putJson('/api/arsip-digital/categories/'.$categoryId, ['name' => 'Nama Baru'])
+            ->assertForbidden();
+
+        $this->actingAsMahasiswa()
+            ->deleteJson('/api/arsip-digital/categories/'.$categoryId)
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('arsip_digital.categories', [
+            'category_id' => $categoryId,
+            'name' => 'Permintaan Berkas',
+            'deleted_at' => null,
+        ], 'sqlite');
+    }
+
     public function test_update_category_rejects_descendant_parent_cycle(): void
     {
         $rootId = $this->actingAsMahasiswa()

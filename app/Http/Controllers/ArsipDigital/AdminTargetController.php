@@ -10,6 +10,7 @@ use App\Models\Users\User;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class AdminTargetController extends Controller
 {
@@ -24,7 +25,7 @@ class AdminTargetController extends Controller
                 'angkatan' => ['sometimes', 'array', 'max:20'],
                 'angkatan.*' => ['integer'],
                 'status' => ['sometimes', 'array', 'max:20'],
-                'status.*' => ['string', 'max:20'],
+                'status.*' => [Rule::in(['active', 'inactive'])],
                 'has_account' => ['sometimes', 'boolean'],
                 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
@@ -65,9 +66,7 @@ class AdminTargetController extends Controller
             $query->whereIn('masuk_tahun', $filters['angkatan']);
         }
 
-        if (! empty($filters['status'])) {
-            $query->whereIn('sts_mhs', array_map('strtoupper', $filters['status']));
-        }
+        $this->applyStatusFilter($query, $filters['status'] ?? [], 'sts_mhs');
 
         if (array_key_exists('has_account', $filters)) {
             $accountIdentifiers = $this->accountIdentifiers('MHS-');
@@ -111,9 +110,7 @@ class AdminTargetController extends Controller
             });
         }
 
-        if (! empty($filters['status'])) {
-            $query->whereIn('sts_dosen', array_map('strtoupper', $filters['status']));
-        }
+        $this->applyStatusFilter($query, $filters['status'] ?? [], 'sts_dosen');
 
         if (array_key_exists('has_account', $filters)) {
             $accountIdentifiers = $this->accountIdentifiers('DSN-');
@@ -139,6 +136,23 @@ class AdminTargetController extends Controller
                 'has_account' => $accounts->has($accountKey),
                 'user_id' => $accounts->get($accountKey),
             ];
+        });
+    }
+
+    private function applyStatusFilter(Builder $query, array $statuses, string $column): void
+    {
+        if (count(array_unique($statuses)) !== 1) {
+            return;
+        }
+
+        if ($statuses[0] === 'active') {
+            $query->where($column, 'A');
+
+            return;
+        }
+
+        $query->where(function (Builder $query) use ($column): void {
+            $query->whereNull($column)->orWhere($column, '!=', 'A');
         });
     }
 

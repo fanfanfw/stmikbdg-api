@@ -6,24 +6,60 @@ use Illuminate\Support\Facades\DB;
 
 class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
 {
+    public function test_admin_request_index_reports_assignment_progress_counts(): void
+    {
+        [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/requests')
+            ->assertOk()
+            ->assertJsonPath('data.requests.0.assignments_count', 1)
+            ->assertJsonPath('data.requests.0.submitted_assignments_count', 0)
+            ->assertJsonPath('data.requests.0.approved_assignments_count', 0);
+
+        $this->actingAsMahasiswa()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('progress.pdf'),
+            ], ['X-Active-Role' => 'mahasiswa'])
+            ->assertCreated();
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/requests')
+            ->assertOk()
+            ->assertJsonPath('data.requests.0.assignments_count', 1)
+            ->assertJsonPath('data.requests.0.submitted_assignments_count', 1)
+            ->assertJsonPath('data.requests.0.approved_assignments_count', 0);
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/approve')
+            ->assertOk();
+
+        $this->actingAsAdmin()
+            ->getJson('/api/arsip-digital/admin/requests')
+            ->assertOk()
+            ->assertJsonPath('data.requests.0.assignments_count', 1)
+            ->assertJsonPath('data.requests.0.submitted_assignments_count', 1)
+            ->assertJsonPath('data.requests.0.approved_assignments_count', 1);
+    }
+
     public function test_admin_monitoring_can_approve_reject_download_and_upload_for_user(): void
     {
         [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
         $requestFileId = $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $assignmentId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
                 'file' => $this->pdfUpload('monitoring.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated()
             ->json('data.request_file.request_file_id');
 
         $this->actingAsAdmin()
-            ->get('/api/arsip-digital/admin/request-files/' . $requestFileId . '/download')
+            ->get('/api/arsip-digital/admin/request-files/'.$requestFileId.'/download')
             ->assertOk()
             ->assertHeader('content-disposition');
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/approve')
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/approve')
             ->assertOk()
             ->assertJsonPath('data.assignment.status', 'approved');
 
@@ -38,13 +74,13 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         [, $rejectedAssignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
         $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $rejectedAssignmentId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$rejectedAssignmentId.'/files/upload', [
                 'file' => $this->pdfUpload('monitoring-reject.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated();
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $rejectedAssignmentId . '/reject', [
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$rejectedAssignmentId.'/reject', [
                 'reason' => 'File buram',
             ])
             ->assertOk()
@@ -76,11 +112,11 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         [, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/approve')
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/approve')
             ->assertUnprocessable();
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/reject', [
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/reject', [
                 'reason' => 'Belum submit',
             ])
             ->assertUnprocessable();
@@ -94,11 +130,11 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         DB::table('arsip_digital.request_assignments')->where('assignment_id', $assignmentId)->update(['status' => 'waiting_verification']);
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/approve')
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/approve')
             ->assertUnprocessable();
 
         $this->actingAsAdmin()
-            ->postJson('/api/arsip-digital/admin/request-assignments/' . $assignmentId . '/reject', [
+            ->postJson('/api/arsip-digital/admin/request-assignments/'.$assignmentId.'/reject', [
                 'reason' => 'File tidak ada',
             ])
             ->assertUnprocessable();
@@ -115,7 +151,7 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->update(['status' => 'waiting_verification']);
 
         $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $withFileId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$withFileId.'/files/upload', [
                 'file' => $this->pdfUpload('bulk-approve.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated();
@@ -155,7 +191,7 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         DB::table('arsip_digital.request_assignments')->where('assignment_id', $withoutFileId)->update(['status' => 'waiting_verification']);
 
         $this->actingAsMahasiswa()
-            ->post('/api/arsip-digital/request-assignments/' . $withFileId . '/files/upload', [
+            ->post('/api/arsip-digital/request-assignments/'.$withFileId.'/files/upload', [
                 'file' => $this->pdfUpload('bulk-reject.pdf'),
             ], ['X-Active-Role' => 'mahasiswa'])
             ->assertCreated();
@@ -197,7 +233,7 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
                 'target_user_id' => 2,
                 'target_role' => 'mahasiswa',
                 'identifier' => $identifier,
-                'name_snapshot' => 'Mahasiswa ' . $identifier,
+                'name_snapshot' => 'Mahasiswa '.$identifier,
                 'status' => 'not_submitted',
                 'is_late' => false,
                 'created_at' => now(),
@@ -206,7 +242,7 @@ class ArsipDigitalAdminMonitoringTest extends ArsipDigitalFeatureTestCase
         }
 
         $this->actingAsAdmin()
-            ->getJson('/api/arsip-digital/admin/requests/' . $requestId . '/assignments?per_page=2&page=2')
+            ->getJson('/api/arsip-digital/admin/requests/'.$requestId.'/assignments?per_page=2&page=2')
             ->assertOk()
             ->assertJsonCount(2, 'data.assignments')
             ->assertJsonPath('data.meta.current_page', 2)
