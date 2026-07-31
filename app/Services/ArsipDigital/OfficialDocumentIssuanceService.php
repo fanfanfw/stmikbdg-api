@@ -30,6 +30,8 @@ class OfficialDocumentIssuanceService
         $documentType = $payload['document_type'];
         $semester = $documentType === 'khs' ? (int) $payload['semester'] : null;
         $documentNumber = trim($payload['document_number']);
+        $replacesDocumentId = isset($payload['replaces_document_id']) ? (int) $payload['replaces_document_id'] : null;
+        $replacementReason = isset($payload['replacement_reason']) ? trim($payload['replacement_reason']) : null;
         $snapshot = $this->prepareSnapshot(
             $this->academicData->transcriptForStudent((int) $payload['mhs_id']),
             $documentType,
@@ -51,9 +53,21 @@ class OfficialDocumentIssuanceService
         ]);
 
         try {
-            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $request, $verificationToken): OfficialDocument {
+            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $request, $verificationToken, $replacesDocumentId, $replacementReason): OfficialDocument {
                 if (OfficialDocument::where('document_number', $documentNumber)->lockForUpdate()->exists()) {
                     throw new HttpException(409, 'Nomor dokumen resmi sudah digunakan.');
+                }
+
+                $replacedDocument = $replacesDocumentId
+                    ? OfficialDocument::whereKey($replacesDocumentId)->lockForUpdate()->firstOrFail()
+                    : null;
+                if ($replacedDocument && (
+                    $replacedDocument->status !== 'issued'
+                    || $replacedDocument->document_type !== $documentType
+                    || $replacedDocument->subject_user_id !== $target['target_user_id']
+                    || $replacedDocument->semester !== $semester
+                )) {
+                    throw new HttpException(409, 'Dokumen pengganti harus memiliki pemilik dan jenis yang sama serta masih aktif.');
                 }
 
                 $category = $this->categories->systemPersonalCategory(
@@ -113,6 +127,63 @@ class OfficialDocumentIssuanceService
                     'issued_by_user_id' => $actor->id,
                     'issued_at' => $issuedAt,
                 ]);
+
+                if ($replacedDocument) {
+                    $replacedAt = now();
+                    $replacedDocument->update([
+                        'status' => 'replaced',
+                        'replaced_by_document_id' => $document->official_document_id,
+                        'replaced_at' => $replacedAt,
+                        'replacement_reason' => $replacementReason,
+                    ]);
+                    ArchiveFile::whereKey($replacedDocument->file_id)->update([
+                        'status' => 'replaced',
+                        'is_current' => false,
+                        'updated_at' => $replacedAt,
+                    ]);
+                    $oldDistribution = Distribution::where('official_document_id', $replacedDocument->official_document_id)->lockForUpdate()->first();
+                    if ($oldDistribution && $oldDistribution->status === 'published') {
+                        $oldDistribution->update([
+                            'status' => 'closed',
+                            'withdrawn_at' => $replacedAt,
+                            'withdrawn_by_user_id' => $actor->id,
+                            'withdrawal_reason' => $replacementReason,
+                        ]);
+                        DistributionRecipient::where('distribution_id', $oldDistribution->distribution_id)->update([
+                            'delivery_status' => 'revoked',
+                            'updated_at' => $replacedAt,
+                        ]);
+                    }
+                    Notification::create([
+                        'recipient_user_id' => $replacedDocument->subject_user_id,
+                        'recipient_role' => 'mahasiswa',
+                        'type' => 'official_document_replaced',
+                        'title' => 'Dokumen akademik resmi diganti',
+                        'message' => 'Dokumen '.$replacedDocument->document_number.' telah diganti oleh '.$document->document_number.'.',
+                        'entity_type' => 'official_document',
+                        'entity_id' => $replacedDocument->official_document_id,
+                        'data' => [
+                            'official_document_id' => $replacedDocument->official_document_id,
+                            'replaced_by_document_id' => $document->official_document_id,
+                            'reason' => $replacementReason,
+                        ],
+                    ]);
+                    AuditLog::create([
+                        'actor_user_id' => $actor->id,
+                        'actor_role' => $actorRole,
+                        'action' => 'official_document.replaced',
+                        'entity_type' => 'official_document',
+                        'entity_id' => (string) $replacedDocument->official_document_id,
+                        'description' => 'Dokumen akademik resmi diganti.',
+                        'ip_address' => $request->ip(),
+                        'user_agent' => $request->userAgent(),
+                        'metadata' => [
+                            'replaced_by_document_id' => $document->official_document_id,
+                            'reason' => $replacementReason,
+                        ],
+                        'created_at' => $replacedAt,
+                    ]);
+                }
 
                 $audit = AuditLog::create([
                     'actor_user_id' => $actor->id,

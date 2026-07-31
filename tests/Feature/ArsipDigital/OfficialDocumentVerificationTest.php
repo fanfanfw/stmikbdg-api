@@ -11,6 +11,8 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
 {
     private const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
+    private const REPLACEMENT_TOKEN = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+
     public function test_public_can_verify_issued_document_with_token(): void
     {
         $documentId = $this->issueDocument();
@@ -68,7 +70,47 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
             ->assertStatus(409);
     }
 
-    private function issueDocument(): int
+    public function test_admin_can_replace_document_and_old_qr_becomes_invalid(): void
+    {
+        $oldDocumentId = $this->issueDocument();
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/academic-documents/'.$oldDocumentId.'/distribute')
+            ->assertCreated();
+
+        $newDocumentId = $this->issueDocument('TRX/QR/002', self::REPLACEMENT_TOKEN, [
+            'replaces_document_id' => $oldDocumentId,
+            'replacement_reason' => 'Nilai mata kuliah telah diperbaiki.',
+        ]);
+
+        $this->getJson('/api/arsip-digital/verify/'.self::TOKEN)
+            ->assertOk()
+            ->assertJsonPath('data.valid', false)
+            ->assertJsonPath('data.status', 'replaced')
+            ->assertJsonPath('data.replacement_reason', 'Nilai mata kuliah telah diperbaiki.')
+            ->assertJsonPath('data.replaced_by_document_number', 'TRX/QR/002');
+
+        $this->getJson('/api/arsip-digital/verify/'.self::REPLACEMENT_TOKEN)
+            ->assertOk()
+            ->assertJsonPath('data.valid', true)
+            ->assertJsonPath('data.document_number', 'TRX/QR/002');
+
+        $this->assertDatabaseHas('arsip_digital.official_documents', [
+            'official_document_id' => $oldDocumentId,
+            'status' => 'replaced',
+            'replaced_by_document_id' => $newDocumentId,
+        ]);
+        $this->assertDatabaseHas('arsip_digital.notifications', [
+            'recipient_user_id' => 2,
+            'type' => 'official_document_replaced',
+            'entity_id' => $oldDocumentId,
+        ]);
+        $this->assertDatabaseHas('arsip_digital.audit_logs', [
+            'action' => 'official_document.replaced',
+            'entity_id' => (string) $oldDocumentId,
+        ]);
+    }
+
+    private function issueDocument(string $number = 'TRX/QR/001', string $token = self::TOKEN, array $extra = []): int
     {
         $academic = Mockery::mock(AcademicDocumentDataService::class);
         $academic->shouldReceive('transcriptForStudent')->once()->with(99)->andReturn([
@@ -79,14 +121,15 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
         $this->app->instance(AcademicDocumentDataService::class, $academic);
 
         $tokens = Mockery::mock(OfficialDocumentTokenService::class);
-        $tokens->shouldReceive('generate')->once()->andReturn(self::TOKEN);
+        $tokens->shouldReceive('generate')->once()->andReturn($token);
         $this->app->instance(OfficialDocumentTokenService::class, $tokens);
 
         return $this->actingAsAdmin()
             ->postJson('/api/arsip-digital/admin/academic-documents', [
                 'document_type' => 'transcript',
-                'document_number' => 'TRX/QR/001',
+                'document_number' => $number,
                 'mhs_id' => 99,
+                ...$extra,
             ])
             ->assertCreated()
             ->json('data.document.official_document_id');

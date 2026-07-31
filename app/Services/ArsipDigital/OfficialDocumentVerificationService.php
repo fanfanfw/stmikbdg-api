@@ -13,7 +13,7 @@ class OfficialDocumentVerificationService
             throw new HttpException(404, 'Dokumen tidak ditemukan.');
         }
 
-        $document = OfficialDocument::with('file')
+        $document = OfficialDocument::with(['file', 'replacedBy'])
             ->where('verification_token_hash', hash('sha256', $token))
             ->first();
 
@@ -38,7 +38,9 @@ class OfficialDocumentVerificationService
             ],
             'issued_at' => $document->issued_at?->toIso8601String(),
             'revoked_at' => $document->revoked_at?->toIso8601String(),
-            'revocation_reason' => $document->isVerifiable() ? null : $document->revocation_reason,
+            'revocation_reason' => $document->status === 'revoked' ? $document->revocation_reason : null,
+            'replacement_reason' => $document->status === 'replaced' ? $document->replacement_reason : null,
+            'replaced_by_document_number' => $document->status === 'replaced' ? $document->replacedBy?->document_number : null,
             'file_checksum_sha256' => $document->file_checksum_sha256,
         ];
     }

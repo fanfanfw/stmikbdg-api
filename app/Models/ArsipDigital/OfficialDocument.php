@@ -22,7 +22,14 @@ class OfficialDocument extends ArsipDigitalModel
         'issued_at' => 'datetime',
         'revoked_at' => 'datetime',
         'revoked_by_user_id' => 'integer',
+        'replaced_by_document_id' => 'integer',
+        'replaced_at' => 'datetime',
     ];
+
+    public function replacedBy()
+    {
+        return $this->belongsTo(self::class, 'replaced_by_document_id', 'official_document_id');
+    }
 
     public function distribution()
     {

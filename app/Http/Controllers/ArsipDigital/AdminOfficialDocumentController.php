@@ -66,6 +66,8 @@ class AdminOfficialDocumentController extends Controller
                 'document_number' => ['required', 'string', 'max:100'],
                 'mhs_id' => ['required', 'integer', 'min:1'],
                 'semester' => ['required_if:document_type,khs', 'nullable', 'integer', 'min:1', 'max:20'],
+                'replaces_document_id' => ['nullable', 'integer', 'min:1'],
+                'replacement_reason' => ['required_with:replaces_document_id', 'nullable', 'string', 'min:5', 'max:1000'],
             ]);
 
             $document = $issuanceService->issue($payload, auth()->user(), $role, $request);
