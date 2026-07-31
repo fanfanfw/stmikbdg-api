@@ -6,6 +6,74 @@ use Illuminate\Support\Facades\DB;
 
 class ArsipDigitalRequestWorkflowTest extends ArsipDigitalFeatureTestCase
 {
+    public function test_only_admin_can_create_preview_and_monitor_requests(): void
+    {
+        $payload = [
+            'title' => 'Dokumen Akademik',
+            'target_role' => 'mahasiswa',
+            'scope_type' => 'specific',
+            'target_identifiers' => ['22010001'],
+        ];
+
+        $this->actingAsMahasiswa()
+            ->postJson('/api/arsip-digital/admin/requests/preview-targets', $payload)
+            ->assertForbidden();
+
+        $this->actingAsDosen()
+            ->postJson('/api/arsip-digital/admin/requests', $payload)
+            ->assertForbidden();
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/admin/requests')
+            ->assertForbidden();
+    }
+
+    public function test_user_submission_requires_matching_assignment_owner_and_role(): void
+    {
+        [$requestId, $assignmentId] = $this->createPublishedRequestForMahasiswa(true);
+
+        $this->actingAsDosen()
+            ->post('/api/arsip-digital/request-assignments/'.$assignmentId.'/files/upload', [
+                'file' => $this->pdfUpload('lintas-role.pdf'),
+            ], ['X-Active-Role' => 'dosen'])
+            ->assertForbidden();
+
+        $this->actingAsDosen()
+            ->getJson('/api/arsip-digital/requests/'.$requestId)
+            ->assertNotFound();
+
+        $this->actingAsMahasiswa()
+            ->getJson('/api/arsip-digital/requests/'.$requestId)
+            ->assertOk()
+            ->assertJsonPath('data.request.request_id', $requestId);
+    }
+
+    public function test_admin_can_target_dosen_without_creating_user_to_user_request(): void
+    {
+        $payload = [
+            'title' => 'Berkas Dosen',
+            'target_role' => 'dosen',
+            'scope_type' => 'specific',
+            'target_identifiers' => ['DSN001'],
+            'max_files' => 1,
+        ];
+
+        $requestId = $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/requests', $payload)
+            ->assertCreated()
+            ->json('data.request.request_id');
+
+        $this->actingAsAdmin()
+            ->postJson('/api/arsip-digital/admin/requests/'.$requestId.'/publish')
+            ->assertOk()
+            ->assertJsonPath('data.request.assignments.0.target_role', 'dosen');
+
+        $this->actingAsDosen()
+            ->getJson('/api/arsip-digital/requests/'.$requestId)
+            ->assertOk()
+            ->assertJsonPath('data.request.request_id', $requestId);
+    }
+
     public function test_admin_request_create_preview_and_publish_generates_assignment(): void
     {
         $payload = [

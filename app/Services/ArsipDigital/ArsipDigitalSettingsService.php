@@ -16,11 +16,6 @@ class ArsipDigitalSettingsService
             'mahasiswa' => 50,
             'dosen' => 50,
         ],
-        'signature_request_max_files' => 10,
-        'signature_request_max_file_size_mb' => 10,
-        'signature_request_max_total_size_mb' => 50,
-        'signature_request_expiry_days' => 7,
-        'signature_request_cooldown_hours' => 24,
     ];
 
     public function getDefaults(): array

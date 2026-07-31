@@ -10,12 +10,9 @@ use App\Http\Controllers\ArsipDigital\AdminTargetController;
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
-use App\Http\Controllers\ArsipDigital\LecturerSignatureRequestController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
-use App\Http\Controllers\ArsipDigital\PdfSelfSignController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
 use App\Http\Controllers\ArsipDigital\SegmentController;
-use App\Http\Controllers\ArsipDigital\SignatureRequestController;
 use App\Http\Controllers\ArsipDigital\UserDistributionController;
 use App\Http\Controllers\ArsipDigital\UserRequestController;
 use Illuminate\Support\Facades\Route;
@@ -47,28 +44,6 @@ Route::prefix('/arsip-digital')
         Route::get('/files/{file_id}/download', [ArchiveFileController::class, 'download']);
         Route::delete('/files/{file_id}', [ArchiveFileController::class, 'destroy']);
         Route::post('/files/{file_id}/restore', [ArchiveFileController::class, 'restore']);
-
-        Route::post('/pdf-sign-sessions', [PdfSelfSignController::class, 'store']);
-        Route::post('/pdf-sign-sessions/{session_id}/finalize', [PdfSelfSignController::class, 'finalize']);
-        Route::get('/pdf-sign-sessions/{session_id}', [PdfSelfSignController::class, 'show']);
-        Route::get('/pdf-sign-sessions/{session_id}/download', [PdfSelfSignController::class, 'download']);
-        Route::post('/pdf-sign-sessions/{session_id}/save', [PdfSelfSignController::class, 'save']);
-
-        Route::get('/signature-request-config', [SignatureRequestController::class, 'config']);
-        Route::get('/signature-request-lecturers', [SignatureRequestController::class, 'directory']);
-        Route::get('/signature-requests', [SignatureRequestController::class, 'index']);
-        Route::post('/signature-requests', [SignatureRequestController::class, 'store']);
-        Route::get('/signature-requests/{signature_request_id}', [SignatureRequestController::class, 'show']);
-        Route::put('/signature-requests/{signature_request_id}', [SignatureRequestController::class, 'update']);
-        Route::delete('/signature-requests/{signature_request_id}', [SignatureRequestController::class, 'destroy']);
-        Route::get('/signature-request-files/{signature_request_file_id}/{kind}', [SignatureRequestController::class, 'download'])->whereIn('kind', ['source', 'result']);
-        Route::get('/lecturer/signature-request-availability', [LecturerSignatureRequestController::class, 'availability']);
-        Route::put('/lecturer/signature-request-availability', [LecturerSignatureRequestController::class, 'setAvailability']);
-        Route::post('/lecturer/signature-requests/bulk', [LecturerSignatureRequestController::class, 'bulk']);
-        Route::post('/lecturer/signature-requests/{signature_request_id}/accept', [LecturerSignatureRequestController::class, 'accept']);
-        Route::post('/lecturer/signature-requests/{signature_request_id}/reject', [LecturerSignatureRequestController::class, 'reject']);
-        Route::post('/lecturer/signature-request-files/{signature_request_file_id}/session', [LecturerSignatureRequestController::class, 'createSession']);
-        Route::post('/lecturer/signature-requests/{signature_request_id}/send', [LecturerSignatureRequestController::class, 'send']);
 
         Route::get('/admin/requests', [AdminRequestController::class, 'index']);
         Route::get('/admin/targets', [AdminTargetController::class, 'index']);
