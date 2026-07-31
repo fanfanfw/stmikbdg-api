@@ -15,12 +15,18 @@ class Distribution extends ArsipDigitalModel
     protected $guarded = ['distribution_id'];
 
     protected $casts = [
+        'official_document_id' => 'integer',
         'target_filters' => 'array',
         'target_identifiers' => 'array',
         'target_segment_ids' => 'array',
         'published_at' => 'datetime',
         'withdrawn_at' => 'datetime',
     ];
+
+    public function officialDocument()
+    {
+        return $this->belongsTo(OfficialDocument::class, 'official_document_id', 'official_document_id');
+    }
 
     public function originalDistribution()
     {

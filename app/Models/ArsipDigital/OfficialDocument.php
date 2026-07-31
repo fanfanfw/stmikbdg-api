@@ -24,6 +24,11 @@ class OfficialDocument extends ArsipDigitalModel
         'revoked_by_user_id' => 'integer',
     ];
 
+    public function distribution()
+    {
+        return $this->hasOne(Distribution::class, 'official_document_id', 'official_document_id');
+    }
+
     public function file()
     {
         return $this->belongsTo(ArchiveFile::class, 'file_id', 'file_id');

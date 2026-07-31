@@ -4,6 +4,9 @@ namespace App\Services\ArsipDigital;
 
 use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\AuditLog;
+use App\Models\ArsipDigital\Distribution;
+use App\Models\ArsipDigital\DistributionRecipient;
+use App\Models\ArsipDigital\Notification;
 use App\Models\ArsipDigital\OfficialDocument;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -172,6 +175,30 @@ class OfficialDocumentIssuanceService
                 'is_current' => false,
                 'updated_at' => $revokedAt,
             ]);
+
+            $distribution = Distribution::where('official_document_id', $locked->official_document_id)->lockForUpdate()->first();
+            if ($distribution && $distribution->status === 'published') {
+                $distribution->update([
+                    'status' => 'closed',
+                    'withdrawn_at' => $revokedAt,
+                    'withdrawn_by_user_id' => $actor->id,
+                    'withdrawal_reason' => trim($reason),
+                ]);
+                DistributionRecipient::where('distribution_id', $distribution->distribution_id)->update([
+                    'delivery_status' => 'revoked',
+                    'updated_at' => $revokedAt,
+                ]);
+                Notification::create([
+                    'recipient_user_id' => $locked->subject_user_id,
+                    'recipient_role' => 'mahasiswa',
+                    'type' => 'official_document_revoked',
+                    'title' => 'Dokumen akademik resmi dicabut',
+                    'message' => 'Dokumen '.$locked->document_number.' dicabut: '.trim($reason),
+                    'entity_type' => 'official_document',
+                    'entity_id' => $locked->official_document_id,
+                    'data' => ['official_document_id' => $locked->official_document_id, 'reason' => trim($reason)],
+                ]);
+            }
 
             AuditLog::create([
                 'actor_user_id' => $actor->id,

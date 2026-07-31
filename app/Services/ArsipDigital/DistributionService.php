@@ -239,11 +239,13 @@ class DistributionService
                 'delivery_status' => 'revoked',
                 'updated_at' => now(),
             ]);
-            ArchiveFile::whereIn('file_id', $recipients->pluck('file_id')->filter()->unique())->update([
-                'status' => 'revoked',
-                'is_current' => false,
-                'updated_at' => now(),
-            ]);
+            ArchiveFile::whereIn('file_id', $recipients->pluck('file_id')->filter()->unique())
+                ->where('source_type', '!=', 'official')
+                ->update([
+                    'status' => 'revoked',
+                    'is_current' => false,
+                    'updated_at' => now(),
+                ]);
             $this->notifications->sendToManyUsers($recipients->map(fn ($recipient) => [
                 'target_user_id' => $recipient->target_user_id,
                 'target_role' => $recipient->target_role,

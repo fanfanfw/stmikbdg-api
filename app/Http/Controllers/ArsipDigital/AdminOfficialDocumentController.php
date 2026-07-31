@@ -5,6 +5,7 @@ namespace App\Http\Controllers\ArsipDigital;
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use App\Models\ArsipDigital\OfficialDocument;
+use App\Services\ArsipDigital\OfficialDocumentDistributionService;
 use App\Services\ArsipDigital\OfficialDocumentIssuanceService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +26,7 @@ class AdminOfficialDocumentController extends Controller
             ]);
 
             $documents = OfficialDocument::query()
-                ->with('file')
+                ->with(['file', 'distribution'])
                 ->when($filters['document_type'] ?? null, fn (Builder $query, string $type) => $query->where('document_type', $type))
                 ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $query->where('status', $status))
                 ->when($filters['search'] ?? null, function (Builder $query, string $search): void {
@@ -79,6 +80,27 @@ class AdminOfficialDocumentController extends Controller
         }
     }
 
+    public function distribute(
+        Request $request,
+        int $official_document_id,
+        RoleResolverService $roleResolver,
+        OfficialDocumentDistributionService $distributionService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $document = OfficialDocument::findOrFail($official_document_id);
+            $distribution = $distributionService->distribute($document, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(
+                ['distribution' => $distribution->toArray()],
+                'Dokumen akademik resmi berhasil didistribusikan.',
+                201
+            );
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function revoke(
         Request $request,
         int $official_document_id,
@@ -106,7 +128,7 @@ class AdminOfficialDocumentController extends Controller
     {
         try {
             $roleResolver->resolve($request, ['admin']);
-            $document = OfficialDocument::with('file')->findOrFail($official_document_id);
+            $document = OfficialDocument::with(['file', 'distribution'])->findOrFail($official_document_id);
 
             return $this->successfulResponseJSON(['document' => $document->toArray()]);
         } catch (\Exception $e) {
