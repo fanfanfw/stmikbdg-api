@@ -50,7 +50,7 @@ class AdminTargetController extends Controller
     private function mahasiswaTargets(array $filters)
     {
         $query = MahasiswaView::query()
-            ->select(['nim', 'nm_mhs', 'masuk_tahun', 'sts_mhs'])
+            ->select(['mhs_id', 'nim', 'nm_mhs', 'masuk_tahun', 'sts_mhs'])
             ->whereNotNull('nim');
 
         if (! empty($filters['search'])) {
@@ -84,6 +84,7 @@ class AdminTargetController extends Controller
             $accountKey = 'MHS-'.$identifier;
 
             return [
+                'mhs_id' => $item->mhs_id,
                 'role' => 'mahasiswa',
                 'identifier' => $identifier,
                 'name' => trim((string) $item->nm_mhs),

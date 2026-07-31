@@ -4,6 +4,7 @@ use App\Http\Controllers\ArsipDigital\AdminAuditLogController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionBulkUploadController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
+use App\Http\Controllers\ArsipDigital\AdminOfficialDocumentController;
 use App\Http\Controllers\ArsipDigital\AdminRequestAssignmentController;
 use App\Http\Controllers\ArsipDigital\AdminRequestController;
 use App\Http\Controllers\ArsipDigital\AdminTargetController;
@@ -27,6 +28,10 @@ Route::prefix('/arsip-digital')
         Route::post('/notifications/{notification_id}/read', [NotificationController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
+        Route::get('/admin/academic-documents', [AdminOfficialDocumentController::class, 'index']);
+        Route::post('/admin/academic-documents', [AdminOfficialDocumentController::class, 'store']);
+        Route::get('/admin/academic-documents/{official_document_id}', [AdminOfficialDocumentController::class, 'show'])
+            ->whereNumber('official_document_id');
         Route::get('/admin/academic-documents/students/{mhs_id}/transcript', [FoundationController::class, 'transcript'])
             ->whereNumber('mhs_id');
         Route::get('/admin/settings', [FoundationController::class, 'settings']);

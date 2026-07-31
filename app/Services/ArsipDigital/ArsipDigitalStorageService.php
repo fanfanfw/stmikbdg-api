@@ -47,6 +47,30 @@ class ArsipDigitalStorageService
         ];
     }
 
+    public function uploadPrivateBytes(string $bytes, string $filename, string $sourceType, array $context = [], ?string $disk = null): array
+    {
+        $disk = $disk ?: $this->settings->getDefaults()['storage_disk'];
+        $uuid = (string) Str::uuid();
+        $safeFilename = $this->safeFilename($filename);
+        $directory = $this->directory($sourceType, $context, $uuid);
+        $storagePath = trim($directory.'/'.$uuid.'_'.$safeFilename, '/');
+
+        if (Storage::disk($disk)->put($storagePath, $bytes, ['visibility' => 'private']) === false) {
+            throw new HttpException(500, 'Gagal menyimpan file arsip digital ke storage.');
+        }
+
+        return [
+            'storage_disk' => $disk,
+            'storage_path' => $storagePath,
+            'original_filename' => $filename,
+            'display_filename' => $safeFilename,
+            'mime_type' => 'application/pdf',
+            'extension' => 'pdf',
+            'file_size_bytes' => strlen($bytes),
+            'checksum_sha256' => hash('sha256', $bytes),
+        ];
+    }
+
     public function downloadPrivate(string $disk, string $path, ?string $downloadName = null): StreamedResponse
     {
         $stream = Storage::disk($disk)->readStream($path);
@@ -98,6 +122,13 @@ class ArsipDigitalStorageService
                 $environment,
                 $context['distribution_id'] ?? 'unassigned',
                 $context['recipient_id'] ?? 'unassigned',
+                $uuid
+            ),
+            'official' => sprintf(
+                'arsip-digital/%s/official/%s/%s/%s',
+                $environment,
+                $context['document_type'] ?? 'document',
+                $context['owner_user_id'] ?? 'unassigned',
                 $uuid
             ),
             default => sprintf(

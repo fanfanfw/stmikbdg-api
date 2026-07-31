@@ -27,6 +27,7 @@ class AdminTargetTest extends ArsipDigitalFeatureTestCase
             ->getJson('/api/arsip-digital/admin/targets?role=mahasiswa&status[]=active')
             ->assertOk()
             ->assertJsonPath('data.meta.total', 1)
+            ->assertJsonPath('data.targets.0.mhs_id', 99)
             ->assertJsonPath('data.targets.0.identifier', '22010001');
 
         $this->actingAsAdmin()
