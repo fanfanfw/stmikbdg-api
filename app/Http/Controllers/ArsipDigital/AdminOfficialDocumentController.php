@@ -79,6 +79,29 @@ class AdminOfficialDocumentController extends Controller
         }
     }
 
+    public function revoke(
+        Request $request,
+        int $official_document_id,
+        RoleResolverService $roleResolver,
+        OfficialDocumentIssuanceService $issuanceService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['admin']);
+            $payload = $request->validate([
+                'reason' => ['required', 'string', 'min:5', 'max:1000'],
+            ]);
+            $document = OfficialDocument::findOrFail($official_document_id);
+            $document = $issuanceService->revoke($document, $payload['reason'], auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(
+                ['document' => $document->toArray()],
+                'Dokumen akademik resmi berhasil dicabut.'
+            );
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function show(Request $request, int $official_document_id, RoleResolverService $roleResolver)
     {
         try {

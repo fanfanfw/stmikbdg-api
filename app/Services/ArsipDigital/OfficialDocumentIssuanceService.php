@@ -19,6 +19,7 @@ class OfficialDocumentIssuanceService
         private readonly ArsipDigitalStorageService $storage,
         private readonly ArchiveCategoryService $categories,
         private readonly TargetResolverService $targets,
+        private readonly OfficialDocumentTokenService $tokens,
     ) {}
 
     public function issue(array $payload, object $actor, string $actorRole, Request $request): OfficialDocument
@@ -37,7 +38,9 @@ class OfficialDocumentIssuanceService
             throw new HttpException(422, $target['error']);
         }
 
-        $pdfBytes = $this->pdf->render($documentType, $documentNumber, $snapshot, $semester);
+        $verificationToken = $this->tokens->generate();
+        $verificationUrl = rtrim((string) config('app.url'), '/').'/api/arsip-digital/verify/'.$verificationToken;
+        $pdfBytes = $this->pdf->render($documentType, $documentNumber, $snapshot, $semester, $verificationUrl);
         $filename = $this->pdf->filename($documentType, $target['identifier'], $semester);
         $stored = $this->storage->uploadPrivateBytes($pdfBytes, $filename, 'official', [
             'document_type' => $documentType,
@@ -45,7 +48,7 @@ class OfficialDocumentIssuanceService
         ]);
 
         try {
-            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $request): OfficialDocument {
+            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $request, $verificationToken): OfficialDocument {
                 if (OfficialDocument::where('document_number', $documentNumber)->lockForUpdate()->exists()) {
                     throw new HttpException(409, 'Nomor dokumen resmi sudah digunakan.');
                 }
@@ -102,6 +105,7 @@ class OfficialDocumentIssuanceService
                     'template_version' => OfficialDocumentPdfService::TEMPLATE_VERSION,
                     'file_id' => $file->file_id,
                     'file_checksum_sha256' => $stored['checksum_sha256'],
+                    'verification_token_hash' => hash('sha256', $verificationToken),
                     'status' => 'issued',
                     'issued_by_user_id' => $actor->id,
                     'issued_at' => $issuedAt,
@@ -145,6 +149,49 @@ class OfficialDocumentIssuanceService
             $this->storage->deletePrivate($stored['storage_disk'], $stored['storage_path']);
             throw $e;
         }
+    }
+
+    public function revoke(OfficialDocument $document, string $reason, object $actor, string $actorRole, Request $request): OfficialDocument
+    {
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($document, $reason, $actor, $actorRole, $request): OfficialDocument {
+            $locked = OfficialDocument::whereKey($document->official_document_id)->lockForUpdate()->firstOrFail();
+            if ($locked->status !== 'issued') {
+                throw new HttpException(409, 'Dokumen resmi sudah tidak aktif.');
+            }
+
+            $revokedAt = now();
+            $locked->fill([
+                'status' => 'revoked',
+                'revoked_at' => $revokedAt,
+                'revoked_by_user_id' => $actor->id,
+                'revocation_reason' => trim($reason),
+            ])->save();
+
+            ArchiveFile::whereKey($locked->file_id)->update([
+                'status' => 'revoked',
+                'is_current' => false,
+                'updated_at' => $revokedAt,
+            ]);
+
+            AuditLog::create([
+                'actor_user_id' => $actor->id,
+                'actor_role' => $actorRole,
+                'action' => 'official_document.revoked',
+                'entity_type' => 'official_document',
+                'entity_id' => (string) $locked->official_document_id,
+                'description' => 'Dokumen akademik resmi dicabut.',
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'metadata' => [
+                    'document_number' => $locked->document_number,
+                    'file_id' => $locked->file_id,
+                    'reason' => trim($reason),
+                ],
+                'created_at' => $revokedAt,
+            ]);
+
+            return $locked->fresh('file');
+        }, 3);
     }
 
     private function prepareSnapshot(array $snapshot, string $documentType, ?int $semester): array

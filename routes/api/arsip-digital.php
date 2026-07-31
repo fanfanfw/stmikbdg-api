@@ -32,6 +32,8 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/academic-documents', [AdminOfficialDocumentController::class, 'store']);
         Route::get('/admin/academic-documents/{official_document_id}', [AdminOfficialDocumentController::class, 'show'])
             ->whereNumber('official_document_id');
+        Route::post('/admin/academic-documents/{official_document_id}/revoke', [AdminOfficialDocumentController::class, 'revoke'])
+            ->whereNumber('official_document_id');
         Route::get('/admin/academic-documents/students/{mhs_id}/transcript', [FoundationController::class, 'transcript'])
             ->whereNumber('mhs_id');
         Route::get('/admin/settings', [FoundationController::class, 'settings']);

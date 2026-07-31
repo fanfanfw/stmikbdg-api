@@ -10,6 +10,8 @@ class OfficialDocument extends ArsipDigitalModel
 
     protected $guarded = ['official_document_id'];
 
+    protected $hidden = ['verification_token_hash'];
+
     protected $casts = [
         'semester' => 'integer',
         'subject_user_id' => 'integer',
@@ -18,10 +20,17 @@ class OfficialDocument extends ArsipDigitalModel
         'snapshot_captured_at' => 'datetime',
         'issued_by_user_id' => 'integer',
         'issued_at' => 'datetime',
+        'revoked_at' => 'datetime',
+        'revoked_by_user_id' => 'integer',
     ];
 
     public function file()
     {
         return $this->belongsTo(ArchiveFile::class, 'file_id', 'file_id');
+    }
+
+    public function isVerifiable(): bool
+    {
+        return $this->status === 'issued' && $this->verification_token_hash !== null;
     }
 }

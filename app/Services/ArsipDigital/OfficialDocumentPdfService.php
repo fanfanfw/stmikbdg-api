@@ -9,7 +9,7 @@ class OfficialDocumentPdfService
 {
     public const TEMPLATE_VERSION = 'official-academic-v1';
 
-    public function render(string $documentType, string $documentNumber, array $snapshot, ?int $semester = null): string
+    public function render(string $documentType, string $documentNumber, array $snapshot, ?int $semester = null, ?string $verificationUrl = null): string
     {
         $records = collect($snapshot['records'] ?? []);
         if ($documentType === 'khs') {
@@ -60,6 +60,23 @@ class OfficialDocumentPdfService
         $pdf->addPage();
         $pdf->page->addContent($font['out']);
         $pdf->addHTMLCell(html: $html, posx: 15, posy: 15, width: 180);
+        if ($verificationUrl !== null) {
+            $pdf->page->addContent($pdf->getBarcode(
+                type: 'QRCODE,H',
+                code: $verificationUrl,
+                posx: 155,
+                posy: 245,
+                width: 35,
+                height: 35,
+                padding: [0, 0, 0, 0],
+            ));
+            $pdf->addHTMLCell(
+                html: '<div style="font-size:7pt;text-align:center">Scan untuk verifikasi</div>',
+                posx: 150,
+                posy: 281,
+                width: 45,
+            );
+        }
         $bytes = $pdf->getOutPDFString();
 
         if (! str_starts_with($bytes, '%PDF-')) {
