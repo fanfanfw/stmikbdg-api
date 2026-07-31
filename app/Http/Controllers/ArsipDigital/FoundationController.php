@@ -4,6 +4,7 @@ namespace App\Http\Controllers\ArsipDigital;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
+use App\Services\ArsipDigital\AcademicDocumentDataService;
 use App\Services\ArsipDigital\ArchiveSummaryService;
 use App\Services\ArsipDigital\ArsipDigitalSettingsService;
 use App\Services\ArsipDigital\AuditLogService;
@@ -22,6 +23,23 @@ class FoundationController extends Controller
 
             return $this->successfulResponseJSON(
                 $summaryService->summaryFor(auth()->user(), $role)
+            );
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function transcript(
+        Request $request,
+        int $mhsId,
+        RoleResolverService $roleResolver,
+        AcademicDocumentDataService $academicDocumentDataService
+    ) {
+        try {
+            $roleResolver->resolve($request, ['admin']);
+
+            return $this->successfulResponseJSON(
+                $academicDocumentDataService->transcriptForStudent($mhsId)
             );
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);

@@ -27,7 +27,10 @@ Route::prefix('/arsip-digital')
         Route::post('/notifications/{notification_id}/read', [NotificationController::class, 'markRead']);
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
+        Route::get('/admin/academic-documents/students/{mhs_id}/transcript', [FoundationController::class, 'transcript'])
+            ->whereNumber('mhs_id');
         Route::get('/admin/settings', [FoundationController::class, 'settings']);
+
         Route::put('/admin/settings', [FoundationController::class, 'updateSettings']);
 
         Route::get('/categories', [CategoryController::class, 'index']);
