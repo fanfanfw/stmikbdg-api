@@ -21,12 +21,22 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
             ->assertOk()
             ->assertJsonPath('data.valid', true)
             ->assertJsonPath('data.status', 'issued')
+            ->assertJsonPath('data.status_label', 'Aktif — sudah diterbitkan')
+            ->assertJsonPath('data.document_type_label', 'Transkrip Nilai')
             ->assertJsonPath('data.document_number', 'TRX/QR/001')
-            ->assertJsonPath('data.student.nim', '****0001');
+            ->assertJsonPath('data.semester_summary', 'Semester 1')
+            ->assertJsonPath('data.student.nim', '****0001')
+            ->assertJsonPath('data.student.program_studi', 'TI')
+            ->assertJsonPath('data.academic_summary.jumlah_mata_kuliah', 1)
+            ->assertJsonPath('data.academic_summary.total_sks', 3)
+            ->assertJsonPath('data.signer.nama', 'Dosen Test, M.T.');
 
         $this->get('/api/arsip-digital/verify/'.self::TOKEN)
             ->assertOk()
             ->assertSeeText('Dokumen Terverifikasi')
+            ->assertSeeText('Aktif — sudah diterbitkan')
+            ->assertSeeText('Semester 1')
+            ->assertSeeText('Nilai mata kuliah, IPK, dan data pribadi lengkap tidak ditampilkan')
             ->assertSeeText('TRX/QR/001');
 
         $document = DB::table('arsip_digital.official_documents')->where('official_document_id', $documentId)->first();
@@ -113,9 +123,10 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
     private function issueDocument(string $number = 'TRX/QR/001', string $token = self::TOKEN, array $extra = []): int
     {
         $academic = Mockery::mock(AcademicDocumentDataService::class);
-        $academic->shouldReceive('transcriptForStudent')->once()->with(99)->andReturn([
+        $academic->shouldReceive('documentForStudent')->once()->with(99, 'transcript', null)->andReturn([
             'student' => ['mhs_id' => 99, 'nim' => '22010001', 'nama' => 'Mahasiswa Test', 'angkatan' => '2022', 'prodi' => 'TI', 'status' => 'A'],
             'records' => [['mk_id' => 10, 'kd_mk' => 'TI101', 'nm_mk' => 'Algoritma', 'semester' => 1, 'sks' => 3, 'nilai' => 'A', 'mutu' => 4]],
+            'summary' => ['jumlah_mata_kuliah' => 1, 'total_sks' => 3, 'total_semua_ip' => 4.0],
             'source' => ['system' => 'simak', 'dataset' => 'vnilaiakhir'],
         ]);
         $this->app->instance(AcademicDocumentDataService::class, $academic);
@@ -129,6 +140,8 @@ class OfficialDocumentVerificationTest extends ArsipDigitalFeatureTestCase
                 'document_type' => 'transcript',
                 'document_number' => $number,
                 'mhs_id' => 99,
+                'signer_user_id' => 3,
+                'signer_title' => 'Ketua Program Studi',
                 ...$extra,
             ])
             ->assertCreated()

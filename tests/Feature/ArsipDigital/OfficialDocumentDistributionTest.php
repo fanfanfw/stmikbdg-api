@@ -116,7 +116,7 @@ class OfficialDocumentDistributionTest extends ArsipDigitalFeatureTestCase
     private function issueDocument(string $number): int
     {
         $academic = Mockery::mock(AcademicDocumentDataService::class);
-        $academic->shouldReceive('transcriptForStudent')->once()->with(99)->andReturn([
+        $academic->shouldReceive('documentForStudent')->once()->with(99, 'transcript', null)->andReturn([
             'student' => ['mhs_id' => 99, 'nim' => '22010001', 'nama' => 'Mahasiswa Test', 'angkatan' => '2022', 'prodi' => 'TI', 'status' => 'A'],
             'records' => [['mk_id' => 10, 'kd_mk' => 'TI101', 'nm_mk' => 'Algoritma', 'semester' => 1, 'sks' => 3, 'nilai' => 'A', 'mutu' => 4]],
             'source' => ['system' => 'simak', 'dataset' => 'vnilaiakhir'],
@@ -128,6 +128,8 @@ class OfficialDocumentDistributionTest extends ArsipDigitalFeatureTestCase
                 'document_type' => 'transcript',
                 'document_number' => $number,
                 'mhs_id' => 99,
+                'signer_user_id' => 3,
+                'signer_title' => 'Ketua Program Studi',
             ])
             ->assertCreated()
             ->json('data.document.official_document_id');

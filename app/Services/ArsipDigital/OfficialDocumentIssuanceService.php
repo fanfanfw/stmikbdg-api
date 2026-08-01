@@ -23,6 +23,7 @@ class OfficialDocumentIssuanceService
         private readonly ArchiveCategoryService $categories,
         private readonly TargetResolverService $targets,
         private readonly OfficialDocumentTokenService $tokens,
+        private readonly OfficialDocumentSignerService $signers,
     ) {}
 
     public function issue(array $payload, object $actor, string $actorRole, Request $request): OfficialDocument
@@ -32,12 +33,13 @@ class OfficialDocumentIssuanceService
         $documentNumber = trim($payload['document_number']);
         $replacesDocumentId = isset($payload['replaces_document_id']) ? (int) $payload['replaces_document_id'] : null;
         $replacementReason = isset($payload['replacement_reason']) ? trim($payload['replacement_reason']) : null;
-        $snapshot = $this->prepareSnapshot(
-            $this->academicData->transcriptForStudent((int) $payload['mhs_id']),
+        $snapshot = $this->academicData->documentForStudent(
+            (int) $payload['mhs_id'],
             $documentType,
             $semester
         );
         $target = $this->targets->resolve('mahasiswa', (string) $snapshot['student']['nim']);
+        $signer = $this->signers->snapshot((int) $payload['signer_user_id'], $payload['signer_title']);
 
         if (! $target['valid']) {
             throw new HttpException(422, $target['error']);
@@ -45,7 +47,7 @@ class OfficialDocumentIssuanceService
 
         $verificationToken = $this->tokens->generate();
         $verificationUrl = rtrim((string) config('app.url'), '/').'/api/arsip-digital/verify/'.$verificationToken;
-        $pdfBytes = $this->pdf->render($documentType, $documentNumber, $snapshot, $semester, $verificationUrl);
+        $pdfBytes = $this->pdf->render($documentType, $documentNumber, $snapshot, $semester, $verificationUrl, false, $signer);
         $filename = $this->pdf->filename($documentType, $target['identifier'], $semester);
         $stored = $this->storage->uploadPrivateBytes($pdfBytes, $filename, 'official', [
             'document_type' => $documentType,
@@ -53,7 +55,7 @@ class OfficialDocumentIssuanceService
         ]);
 
         try {
-            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $request, $verificationToken, $replacesDocumentId, $replacementReason): OfficialDocument {
+            return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($actor, $actorRole, $documentNumber, $documentType, $semester, $snapshot, $stored, $target, $signer, $request, $verificationToken, $replacesDocumentId, $replacementReason): OfficialDocument {
                 if (OfficialDocument::where('document_number', $documentNumber)->lockForUpdate()->exists()) {
                     throw new HttpException(409, 'Nomor dokumen resmi sudah digunakan.');
                 }
@@ -125,6 +127,9 @@ class OfficialDocumentIssuanceService
                     'verification_token_hash' => hash('sha256', $verificationToken),
                     'status' => 'issued',
                     'issued_by_user_id' => $actor->id,
+                    'signer_user_id' => $signer['user_id'],
+                    'signer_name_snapshot' => $signer['name'],
+                    'signer_title_snapshot' => $signer['title'],
                     'issued_at' => $issuedAt,
                 ]);
 
@@ -290,21 +295,5 @@ class OfficialDocumentIssuanceService
 
             return $locked->fresh('file');
         }, 3);
-    }
-
-    private function prepareSnapshot(array $snapshot, string $documentType, ?int $semester): array
-    {
-        if ($documentType === 'khs') {
-            $snapshot['records'] = collect($snapshot['records'] ?? [])
-                ->where('semester', $semester)
-                ->values()
-                ->all();
-        }
-
-        if (empty($snapshot['records'])) {
-            throw new HttpException(422, 'Data akademik untuk dokumen tidak tersedia.');
-        }
-
-        return $snapshot;
     }
 }

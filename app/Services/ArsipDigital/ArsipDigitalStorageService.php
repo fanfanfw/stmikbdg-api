@@ -88,6 +88,29 @@ class ArsipDigitalStorageService
         }, $downloadName ?: basename($path));
     }
 
+    public function streamPdfPrivate(string $disk, string $path, ?string $filename = null, bool $download = false): StreamedResponse
+    {
+        $stream = Storage::disk($disk)->readStream($path);
+
+        if ($stream === false) {
+            abort(404, 'File tidak ditemukan di storage.');
+        }
+
+        $filename = $filename ?: basename($path);
+        $disposition = $download ? 'attachment' : 'inline';
+
+        return response()->stream(function () use ($stream): void {
+            fpassthru($stream);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => $disposition.'; filename="'.$filename.'"',
+        ]);
+    }
+
     public function deletePrivate(string $disk, string $path): void
     {
         Storage::disk($disk)->delete($path);

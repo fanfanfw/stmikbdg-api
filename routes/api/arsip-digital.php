@@ -29,8 +29,15 @@ Route::prefix('/arsip-digital')
         Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
         Route::get('/admin/academic-documents', [AdminOfficialDocumentController::class, 'index']);
+        Route::get('/admin/academic-documents/signers', [AdminOfficialDocumentController::class, 'signers']);
+        Route::get('/admin/academic-documents/next-number', [AdminOfficialDocumentController::class, 'nextNumber']);
+        Route::post('/admin/academic-documents/preview', [AdminOfficialDocumentController::class, 'previewDraft']);
         Route::post('/admin/academic-documents', [AdminOfficialDocumentController::class, 'store']);
         Route::get('/admin/academic-documents/{official_document_id}', [AdminOfficialDocumentController::class, 'show'])
+            ->whereNumber('official_document_id');
+        Route::get('/admin/academic-documents/{official_document_id}/preview', [AdminOfficialDocumentController::class, 'preview'])
+            ->whereNumber('official_document_id');
+        Route::get('/admin/academic-documents/{official_document_id}/download', [AdminOfficialDocumentController::class, 'download'])
             ->whereNumber('official_document_id');
         Route::post('/admin/academic-documents/{official_document_id}/distribute', [AdminOfficialDocumentController::class, 'distribute'])
             ->whereNumber('official_document_id');
