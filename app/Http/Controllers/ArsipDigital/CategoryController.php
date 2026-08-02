@@ -147,7 +147,7 @@ class CategoryController extends Controller
     ) {
         try {
             $role = $roleResolver->resolve($request, ['admin']);
-            $category = $categoryService->restore($category_id);
+            $category = $categoryService->restore($category_id, auth()->user(), $role);
 
             $auditLogService->record(
                 'category.restored',

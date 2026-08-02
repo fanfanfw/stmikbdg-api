@@ -11,6 +11,8 @@ use App\Http\Controllers\ArsipDigital\AdminTargetController;
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
+use App\Http\Controllers\ArsipDigital\InstitutionalCategoryController;
+use App\Http\Controllers\ArsipDigital\InstitutionalUnitController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
 use App\Http\Controllers\ArsipDigital\SegmentController;
@@ -48,6 +50,17 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/settings', [FoundationController::class, 'settings']);
 
         Route::put('/admin/settings', [FoundationController::class, 'updateSettings']);
+
+        Route::get('/admin/institutional-units', [InstitutionalUnitController::class, 'index']);
+        Route::post('/admin/institutional-units', [InstitutionalUnitController::class, 'store']);
+        Route::put('/admin/institutional-units/{unit_id}', [InstitutionalUnitController::class, 'update'])->whereNumber('unit_id');
+        Route::delete('/admin/institutional-units/{unit_id}', [InstitutionalUnitController::class, 'destroy'])->whereNumber('unit_id');
+        Route::post('/admin/institutional-units/{unit_id}/restore', [InstitutionalUnitController::class, 'restore'])->whereNumber('unit_id');
+        Route::get('/admin/institutional-categories', [InstitutionalCategoryController::class, 'index']);
+        Route::post('/admin/institutional-categories', [InstitutionalCategoryController::class, 'store']);
+        Route::put('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'update'])->whereNumber('category_id');
+        Route::delete('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'destroy'])->whereNumber('category_id');
+        Route::post('/admin/institutional-categories/{category_id}/restore', [InstitutionalCategoryController::class, 'restore'])->whereNumber('category_id');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);

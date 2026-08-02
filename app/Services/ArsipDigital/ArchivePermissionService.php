@@ -14,7 +14,7 @@ class ArchivePermissionService
         }
 
         if ($role === 'admin') {
-            return $category->category_type === 'official'
+            return in_array($category->category_type, ['official', 'institutional'], true)
                 || $category->created_by_user_id === $user->id
                 || $category->owner_user_id === $user->id;
         }
