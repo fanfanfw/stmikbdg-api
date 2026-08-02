@@ -133,9 +133,70 @@ class InstitutionalArchiveService
         });
     }
 
-    public function auditDownload(InstitutionalArchive $archive, object $actor): void
+    public function uploadVersion(int $id, UploadedFile $uploaded, string $reason, object $actor): InstitutionalArchive
     {
-        $this->audit('institutional_archive.downloaded_by_admin', $archive, $actor, ['file_id' => $archive->current_file_id]);
+        $defaults = $this->settings->getDefaults();
+        $this->validation->validateUploadedFile($uploaded, $defaults['default_max_file_size_mb'], $defaults['default_allowed_extensions']);
+        $stored = $this->storage->uploadPrivate($uploaded, 'institutional', ['owner_user_id' => $actor->id]);
+
+        try {
+            return $this->transaction(function () use ($id, $stored, $reason, $actor): InstitutionalArchive {
+                $archive = InstitutionalArchive::whereKey($id)->lockForUpdate()->firstOrFail();
+                $current = ArchiveFile::whereKey($archive->current_file_id)->where('institutional_archive_id', $id)->where('is_current', true)->firstOrFail();
+                $maxVersion = (int) ArchiveFile::where('institutional_archive_id', $id)->max('version_number');
+
+                // Deferred archive trigger validates final pointer; immediate file trigger requires clearing it before retirement.
+                $archive->current_file_id = null;
+                $archive->save();
+                $current->fill(['is_current' => false, 'status' => 'replaced'])->save();
+                $file = ArchiveFile::create([...$stored, 'category_id' => $archive->category_id, 'owner_user_id' => $actor->id, 'owner_role' => 'admin', 'owner_identifier' => (string) ($actor->kd_user ?? $actor->id), 'owner_name_snapshot' => $actor->name ?? null, 'uploaded_by_user_id' => $actor->id, 'uploaded_by_role' => 'admin', 'source_type' => 'institutional', 'institutional_archive_id' => $id, 'version_group_uuid' => $current->version_group_uuid, 'version_number' => $maxVersion + 1, 'is_current' => true, 'status' => 'active', 'storage_availability' => 'available', 'metadata' => ['version_reason' => trim($reason)]]);
+                $archive->fill(['current_file_id' => $file->file_id, 'updated_by_user_id' => $actor->id])->save();
+                $this->audit('institutional_archive.file_version_uploaded', $archive, $actor, ['file_id' => $file->file_id, 'previous_file_id' => $current->file_id, 'version_number' => $file->version_number, 'reason' => trim($reason)]);
+
+                return $this->find($id);
+            });
+        } catch (\Throwable $e) {
+            try {
+                $this->storage->deletePrivate($stored['storage_disk'], $stored['storage_path']);
+            } catch (\Throwable $cleanup) {
+                Log::error('Institutional archive version cleanup failed.', ['disk' => $stored['storage_disk'], 'exception' => $cleanup::class]);
+            }
+            throw $e;
+        }
+    }
+
+    public function versions(int $id, int $perPage): LengthAwarePaginator
+    {
+        InstitutionalArchive::findOrFail($id);
+        $paginator = ArchiveFile::where('institutional_archive_id', $id)
+            ->orderByDesc('version_number')->orderByDesc('file_id')->paginate($perPage);
+        $paginator->setCollection($paginator->getCollection()->map(fn (ArchiveFile $file): array => [
+            'file_id' => $file->file_id,
+            'display_filename' => $file->display_filename,
+            'mime_type' => $file->mime_type,
+            'extension' => $file->extension,
+            'file_size_bytes' => $file->file_size_bytes,
+            'checksum_sha256' => $file->checksum_sha256,
+            'version_number' => $file->version_number,
+            'is_current' => $file->is_current,
+            'status' => $file->status,
+            'storage_availability' => $file->storage_availability,
+            'uploaded_by_user_id' => $file->uploaded_by_user_id,
+            'created_at' => $file->created_at,
+            'version_reason' => $file->metadata['version_reason'] ?? null,
+        ]));
+
+        return $paginator;
+    }
+
+    public function version(int $id, int $fileId): ArchiveFile
+    {
+        return ArchiveFile::whereKey($fileId)->where('institutional_archive_id', $id)->where('source_type', 'institutional')->firstOrFail();
+    }
+
+    public function auditDownload(InstitutionalArchive $archive, object $actor, ?ArchiveFile $file = null): void
+    {
+        $this->audit('institutional_archive.downloaded_by_admin', $archive, $actor, ['file_id' => $file?->file_id ?? $archive->current_file_id, 'version_number' => $file?->version_number]);
     }
 
     private function normalize(array $payload, ?InstitutionalArchive $existing = null): array

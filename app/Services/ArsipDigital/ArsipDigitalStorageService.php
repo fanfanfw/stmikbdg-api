@@ -73,6 +73,10 @@ class ArsipDigitalStorageService
 
     public function downloadPrivate(string $disk, string $path, ?string $downloadName = null): StreamedResponse
     {
+        if (! Storage::disk($disk)->exists($path)) {
+            abort(404, 'File tidak ditemukan di storage.');
+        }
+
         $stream = Storage::disk($disk)->readStream($path);
 
         if ($stream === false) {

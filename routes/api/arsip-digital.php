@@ -67,6 +67,9 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'show'])->whereNumber('id');
         Route::put('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'update'])->whereNumber('id');
         Route::post('/admin/institutional-archives/{id}/move', [InstitutionalArchiveController::class, 'move'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/versions', [InstitutionalArchiveController::class, 'uploadVersion'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/versions', [InstitutionalArchiveController::class, 'versions'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/versions/{fileId}/download', [InstitutionalArchiveController::class, 'downloadVersion'])->whereNumber('id')->whereNumber('fileId');
         Route::get('/admin/institutional-archives/{id}/preview', [InstitutionalArchiveController::class, 'preview'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/download', [InstitutionalArchiveController::class, 'download'])->whereNumber('id');
 

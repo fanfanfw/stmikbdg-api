@@ -6,9 +6,12 @@ use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Distribution;
 use App\Models\ArsipDigital\InstitutionalArchive;
 use App\Models\ArsipDigital\InstitutionalUnit;
+use App\Services\ArsipDigital\InstitutionalArchiveService;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use PDOException;
 use RuntimeException;
 use Tests\TestCase;
@@ -23,12 +26,25 @@ class InstitutionalArchiveMigrationTest extends TestCase
 
     private string $activeDatabase;
 
+    private array $originalConfig;
+
+    private ?string $storageRoot = null;
+
+    private array $childPids = [];
+
+    private array $temporarySignals = [];
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->connection = config('myconfig.database.first_connection');
-        $active = config('database.connections.'.$this->connection);
+        $this->originalConfig = [
+            'connection' => config('database.connections.'.$this->connection),
+            'first_connection' => config('myconfig.database.first_connection'),
+            's3' => config('filesystems.disks.s3'),
+        ];
+        $active = $this->originalConfig['connection'];
         if (($active['driver'] ?? null) !== 'pgsql') {
             throw new RuntimeException('Institutional archive migration tests require configured first PostgreSQL connection.');
         }
@@ -59,25 +75,42 @@ class InstitutionalArchiveMigrationTest extends TestCase
 
     protected function tearDown(): void
     {
-        DB::disconnect($this->connection);
-        DB::purge($this->connection);
-
-        if (isset($this->database)) {
-            if (! str_starts_with($this->database, 'arsip_migration_test_') || $this->database === $this->activeDatabase) {
-                throw new RuntimeException('Refusing unsafe temporary PostgreSQL database cleanup.');
+        $cleanupFailure = null;
+        try {
+            $this->terminateChildren();
+            foreach ($this->temporarySignals as $path) {
+                @unlink($path);
+            }
+            if ($this->storageRoot !== null) {
+                $this->removeDirectory($this->storageRoot);
             }
 
-            try {
+            DB::disconnect($this->connection);
+            DB::purge($this->connection);
+            if (isset($this->database)) {
+                if (! str_starts_with($this->database, 'arsip_migration_test_') || $this->database === $this->activeDatabase) {
+                    throw new RuntimeException('Refusing unsafe temporary PostgreSQL database cleanup.');
+                }
                 $maintenance = DB::connection($this->maintenanceConnection);
                 $maintenance->statement('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = ? AND pid <> pg_backend_pid()', [$this->database]);
                 $maintenance->statement('DROP DATABASE "'.$this->database.'"');
-            } catch (QueryException $exception) {
-                throw new RuntimeException('Failed to clean temporary PostgreSQL database: '.$exception->getCode(), 0, $exception);
             }
+        } catch (\Throwable $exception) {
+            $cleanupFailure = $exception;
+        } finally {
+            DB::purge($this->maintenanceConnection);
+            config([
+                'database.connections.'.$this->connection => $this->originalConfig['connection'],
+                'myconfig.database.first_connection' => $this->originalConfig['first_connection'],
+                'filesystems.disks.s3' => $this->originalConfig['s3'],
+            ]);
+            Storage::forgetDisk('s3');
+            parent::tearDown();
         }
 
-        DB::purge($this->maintenanceConnection);
-        parent::tearDown();
+        if ($cleanupFailure) {
+            throw new RuntimeException('Failed to clean temporary PostgreSQL test resources: '.$cleanupFailure->getCode(), 0, $cleanupFailure);
+        }
     }
 
     public function test_fresh_migration_has_expected_postgresql_schema_and_preserves_old_values(): void
@@ -319,6 +352,111 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_archives'));
     }
 
+    public function test_real_postgresql_service_version_waits_for_archive_lock_and_serializes_two_contenders(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archive = $this->seedArchiveThroughService();
+        DB::disconnect($this->connection);
+        DB::disconnect($this->maintenanceConnection);
+        $locker = null;
+        $signals = [];
+        $gates = [];
+        $children = [];
+        try {
+            foreach ([2, 3] as $version) {
+                $signal = sys_get_temp_dir().'/arsip_version_'.bin2hex(random_bytes(8));
+                $gate = $signal.'.gate';
+                $signals[] = $signal;
+                $gates[] = $gate;
+                $this->temporarySignals[] = $signal;
+                $this->temporarySignals[] = $gate;
+                $pid = pcntl_fork();
+                $this->assertNotSame(-1, $pid);
+                if ($pid === 0) {
+                    try {
+                        while (! is_file($gate)) {
+                            usleep(10000);
+                        }
+                        DB::purge($this->connection);
+                        app(InstitutionalArchiveService::class)->uploadVersion($archive, UploadedFile::fake()->createWithContent("v$version.pdf", "%PDF-1.4 v$version"), "Version $version", $this->actor());
+                        file_put_contents($signal, 'ok');
+                        exit(0);
+                    } catch (\Throwable $exception) {
+                        file_put_contents($signal, 'error:'.$exception::class);
+                        exit(1);
+                    }
+                }
+                $this->childPids[$pid] = true;
+                $children[] = [$pid, $signal];
+            }
+            $locker = DB::connection($this->connection);
+            $locker->beginTransaction();
+            $locker->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->lockForUpdate()->first();
+            foreach ($gates as $gate) {
+                touch($gate);
+            }
+            $blocked = false;
+            $deadline = microtime(true) + 5;
+            do {
+                usleep(50000);
+                $blocked = DB::connection($this->maintenanceConnection)->table('pg_stat_activity')->where('datname', $this->database)->where('wait_event_type', 'Lock')->count() >= 2;
+            } while (! $blocked && microtime(true) < $deadline);
+            $this->assertTrue($blocked, 'Two production service contenders never exposed PostgreSQL lock waits.');
+            foreach ($signals as $signal) {
+                $this->assertFileDoesNotExist($signal);
+            }
+            $locker->commit();
+            foreach ($children as [$pid, $signal]) {
+                $this->waitForChild($pid, $signal);
+            }
+        } finally {
+            if ($locker && $locker->transactionLevel() > 0) {
+                $locker->rollBack();
+            }
+            foreach ([...$signals, ...$gates] as $signal) {
+                @unlink($signal);
+            }
+        }
+
+        $files = DB::connection($this->connection)->table('arsip_digital.files')->where('institutional_archive_id', $archive)->orderBy('version_number')->get();
+        $this->assertSame([1, 2, 3], $files->pluck('version_number')->all());
+        $this->assertSame(1, $files->where('is_current', true)->where('status', 'active')->count());
+        $this->assertSame(2, $files->where('is_current', false)->where('status', 'replaced')->count());
+        $this->assertSame(3, $files->where('file_id', DB::connection($this->connection)->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->value('current_file_id'))->first()->version_number);
+        $this->assertSame(2, DB::connection($this->connection)->table('arsip_digital.audit_logs')->where('action', 'institutional_archive.file_version_uploaded')->count());
+        $this->assertCount(3, Storage::disk('s3')->allFiles());
+        foreach ($files as $file) {
+            $this->assertTrue(Storage::disk($file->storage_disk)->exists($file->storage_path), "Version {$file->version_number} object missing.");
+        }
+        $this->assertDatabaseObjectExists('index', 'files_institutional_archive_current_unique');
+    }
+
+    public function test_real_postgresql_service_audit_failure_rolls_back_transition_and_cleans_new_object(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archive = $this->seedArchiveThroughService();
+        $before = Storage::disk('s3')->allFiles();
+        DB::connection($this->connection)->unprepared("CREATE FUNCTION arsip_digital.fail_version_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'institutional_archive.file_version_uploaded' THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_version_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_version_audit()");
+
+        try {
+            app(InstitutionalArchiveService::class)->uploadVersion($archive, UploadedFile::fake()->createWithContent('failed.pdf', '%PDF-1.4 failed'), 'Failure', $this->actor());
+            $this->fail('Audit failure must escape production service transaction.');
+        } catch (QueryException $exception) {
+            $this->assertSame('P0001', $exception->errorInfo[0] ?? $exception->getCode());
+        }
+
+        $files = DB::connection($this->connection)->table('arsip_digital.files')->where('institutional_archive_id', $archive)->get();
+        $this->assertCount(1, $files);
+        $this->assertTrue((bool) $files->first()->is_current);
+        $this->assertSame('active', $files->first()->status);
+        $this->assertSame($files->first()->file_id, DB::connection($this->connection)->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->value('current_file_id'));
+        $this->assertSame(0, DB::connection($this->connection)->table('arsip_digital.audit_logs')->where('action', 'institutional_archive.file_version_uploaded')->count());
+        $this->assertSame($before, Storage::disk('s3')->allFiles());
+        $this->assertTrue(Storage::disk($files->first()->storage_disk)->exists($files->first()->storage_path));
+    }
+
     public function test_models_expose_foundation_relations_and_casts(): void
     {
         $this->assertSame('boolean', (new InstitutionalUnit)->getCasts()['is_active']);
@@ -330,6 +468,88 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $distribution = new Distribution;
         $this->assertSame('datetime', $distribution->getCasts()['expires_at']);
         $this->assertSame(InstitutionalArchive::class, get_class($distribution->institutionalArchive()->getRelated()));
+    }
+
+    private function seedArchiveThroughService(): int
+    {
+        config(['myconfig.database.first_connection' => $this->connection]);
+        $db = DB::connection($this->connection);
+        $db->table('arsip_digital.settings')->where('key', 'archive_defaults')->update(['value' => json_encode(['default_max_file_size_mb' => 10, 'default_allowed_extensions' => ['pdf'], 'storage_disk' => 's3'])]);
+        $unit = $db->table('arsip_digital.institutional_units')->insertGetId(['name' => 'Concurrency', 'created_by_user_id' => 1], 'unit_id');
+
+        return app(InstitutionalArchiveService::class)->create(UploadedFile::fake()->createWithContent('v1.pdf', '%PDF-1.4 v1'), ['title' => 'Concurrent archive', 'unit_id' => $unit], $this->actor())->institutional_archive_id;
+    }
+
+    private function configureSharedLocalStorage(): void
+    {
+        $this->storageRoot = sys_get_temp_dir().'/arsip_storage_'.bin2hex(random_bytes(8));
+        if (! mkdir($this->storageRoot, 0700, true) && ! is_dir($this->storageRoot)) {
+            throw new RuntimeException('Unable to create temporary storage root.');
+        }
+        config(['filesystems.disks.s3' => ['driver' => 'local', 'root' => $this->storageRoot, 'throw' => true]]);
+        Storage::forgetDisk('s3');
+    }
+
+    private function actor(): object
+    {
+        return (object) ['id' => 1, 'kd_user' => 'ADM-1', 'name' => 'Admin'];
+    }
+
+    private function waitForChild(int $pid, string $signal): void
+    {
+        $deadline = microtime(true) + 10;
+        do {
+            $result = pcntl_waitpid($pid, $status, WNOHANG);
+            if ($result === $pid) {
+                unset($this->childPids[$pid]);
+                $this->assertSame(0, pcntl_wexitstatus($status), is_file($signal) ? file_get_contents($signal) : 'Child exited without signal.');
+                $this->assertSame('ok', file_get_contents($signal));
+
+                return;
+            }
+            usleep(50000);
+        } while (microtime(true) < $deadline);
+        $this->stopChild($pid);
+        $this->fail('Version contender exceeded 10 second timeout.');
+    }
+
+    private function terminateChildren(): void
+    {
+        foreach (array_keys($this->childPids) as $pid) {
+            $this->stopChild($pid);
+        }
+    }
+
+    private function stopChild(int $pid): void
+    {
+        if (! isset($this->childPids[$pid])) {
+            return;
+        }
+        posix_kill($pid, SIGTERM);
+        $deadline = microtime(true) + 1;
+        do {
+            if (pcntl_waitpid($pid, $status, WNOHANG) === $pid) {
+                unset($this->childPids[$pid]);
+
+                return;
+            }
+            usleep(50000);
+        } while (microtime(true) < $deadline);
+        posix_kill($pid, SIGKILL);
+        pcntl_waitpid($pid, $status);
+        unset($this->childPids[$pid]);
+    }
+
+    private function removeDirectory(string $directory): void
+    {
+        if (! is_dir($directory)) {
+            return;
+        }
+        $items = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($directory, \FilesystemIterator::SKIP_DOTS), \RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($items as $item) {
+            $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
+        }
+        rmdir($directory);
     }
 
     private function migrateFresh(): void

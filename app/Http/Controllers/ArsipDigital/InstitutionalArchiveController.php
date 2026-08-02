@@ -4,6 +4,7 @@ namespace App\Http\Controllers\ArsipDigital;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
+use App\Services\ArsipDigital\ArsipDigitalStorageService;
 use App\Services\ArsipDigital\InstitutionalArchiveService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
@@ -77,6 +78,49 @@ class InstitutionalArchiveController extends Controller
             $payload = $request->validate(['category_id' => ['nullable', 'integer']]);
 
             return $this->successfulResponseJSON(['archive' => $archives->move($id, $payload['category_id'] ?? null, auth()->user())], 'Arsip berhasil dipindahkan.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function uploadVersion(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['file' => ['required', 'file'], 'reason' => ['required', 'string', 'max:1000', 'not_regex:/^\\s*$/']]);
+
+            return $this->successfulResponseJSON(['archive' => $archives->uploadVersion($id, $request->file('file'), $payload['reason'], auth()->user())], 'Versi baru berhasil diupload.', 201);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function versions(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100']]);
+            $result = $archives->versions($id, $payload['per_page'] ?? 20);
+
+            return $this->successfulResponseJSON(['versions' => $result->items(), 'pagination' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'per_page' => $result->perPage(), 'total' => $result->total()]]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function downloadVersion(Request $request, int $id, int $fileId, RoleResolverService $roles, InstitutionalArchiveService $archives, ArsipDigitalStorageService $storage)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $archive = $archives->find($id);
+            $file = $archives->version($id, $fileId);
+            $response = $storage->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+            $archives->auditDownload($archive, auth()->user(), $file);
+            $response->headers->set('Content-Type', $file->mime_type ?: 'application/octet-stream');
+            $response->headers->set('X-Content-Type-Options', 'nosniff');
+            $response->headers->set('Cache-Control', 'private, no-store');
+
+            return $response;
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
