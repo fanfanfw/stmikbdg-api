@@ -48,6 +48,10 @@ class ArchivePermissionService
 
     public function canViewFile(ArchiveFile $file, object $user, string $role): bool
     {
+        if ($file->source_type === 'institutional') {
+            return false;
+        }
+
         if ($role === 'admin') {
             return true;
         }

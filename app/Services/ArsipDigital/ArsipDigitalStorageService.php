@@ -113,7 +113,9 @@ class ArsipDigitalStorageService
 
     public function deletePrivate(string $disk, string $path): void
     {
-        Storage::disk($disk)->delete($path);
+        if (Storage::disk($disk)->delete($path) === false) {
+            throw new \RuntimeException('Private storage object cleanup failed.');
+        }
     }
 
     public function safeFilename(string $filename): string
@@ -145,6 +147,12 @@ class ArsipDigitalStorageService
                 $environment,
                 $context['distribution_id'] ?? 'unassigned',
                 $context['recipient_id'] ?? 'unassigned',
+                $uuid
+            ),
+            'institutional' => sprintf(
+                'arsip-digital/%s/institutional/%s/%s',
+                $environment,
+                $context['owner_user_id'] ?? 'unassigned',
                 $uuid
             ),
             'official' => sprintf(

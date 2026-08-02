@@ -25,7 +25,8 @@ class ArchiveFileService
 
     public function queryFor(object $user, string $role, array $filters = []): Builder
     {
-        $query = ArchiveFile::query()->with(['category', 'requestFile.request']);
+        $query = ArchiveFile::query()->with(['category', 'requestFile.request'])
+            ->where('source_type', '<>', 'institutional');
 
         if ($role === 'admin') {
             if (! empty($filters['with_deleted'])) {

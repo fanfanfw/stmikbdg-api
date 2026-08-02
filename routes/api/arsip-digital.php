@@ -11,6 +11,7 @@ use App\Http\Controllers\ArsipDigital\AdminTargetController;
 use App\Http\Controllers\ArsipDigital\ArchiveFileController;
 use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
+use App\Http\Controllers\ArsipDigital\InstitutionalArchiveController;
 use App\Http\Controllers\ArsipDigital\InstitutionalCategoryController;
 use App\Http\Controllers\ArsipDigital\InstitutionalUnitController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
@@ -61,6 +62,13 @@ Route::prefix('/arsip-digital')
         Route::put('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'update'])->whereNumber('category_id');
         Route::delete('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'destroy'])->whereNumber('category_id');
         Route::post('/admin/institutional-categories/{category_id}/restore', [InstitutionalCategoryController::class, 'restore'])->whereNumber('category_id');
+        Route::get('/admin/institutional-archives', [InstitutionalArchiveController::class, 'index']);
+        Route::post('/admin/institutional-archives', [InstitutionalArchiveController::class, 'store']);
+        Route::get('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'show'])->whereNumber('id');
+        Route::put('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'update'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/move', [InstitutionalArchiveController::class, 'move'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/preview', [InstitutionalArchiveController::class, 'preview'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/download', [InstitutionalArchiveController::class, 'download'])->whereNumber('id');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);
