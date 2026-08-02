@@ -37,4 +37,9 @@ class ArchiveFile extends ArsipDigitalModel
     {
         return $this->belongsTo(Category::class, 'category_id', 'category_id');
     }
+
+    public function institutionalArchive()
+    {
+        return $this->belongsTo(InstitutionalArchive::class, 'institutional_archive_id', 'institutional_archive_id');
+    }
 }
