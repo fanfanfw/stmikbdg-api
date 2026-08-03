@@ -89,9 +89,13 @@ class InstitutionalArchiveService
         }
     }
 
-    public function find(int $id): InstitutionalArchive
+    public function find(int $id, bool $withDeleted = false): InstitutionalArchive
     {
-        $archive = InstitutionalArchive::with(['unit', 'category', 'currentFile'])->findOrFail($id);
+        $query = InstitutionalArchive::with(['unit', 'category', 'currentFile']);
+        if ($withDeleted) {
+            $query->withTrashed();
+        }
+        $archive = $query->findOrFail($id);
         $archive->currentFile?->makeHidden(['storage_disk', 'storage_path']);
 
         return $archive;
@@ -194,9 +198,127 @@ class InstitutionalArchiveService
         return ArchiveFile::whereKey($fileId)->where('institutional_archive_id', $id)->where('source_type', 'institutional')->firstOrFail();
     }
 
+    public function trash(array $filters): LengthAwarePaginator
+    {
+        $sorts = ['deleted_at', 'title', 'document_date', 'created_at'];
+        $sort = $filters['sort'] ?? 'deleted_at';
+        $query = InstitutionalArchive::onlyTrashed()->with(['unit', 'category', 'currentFile']);
+        if ($search = trim($filters['search'] ?? '')) {
+            $term = '%'.mb_strtolower($search).'%';
+            $query->where(fn ($q) => $q->whereRaw('lower(title) like ?', [$term])->orWhereRaw('lower(coalesce(document_number, \'\')) like ?', [$term]));
+        }
+        foreach (['unit_id', 'document_year'] as $field) {
+            if (array_key_exists($field, $filters)) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+        $paginator = $query->orderBy($sort, $filters['direction'] ?? 'desc')->orderByDesc('institutional_archive_id')->paginate($filters['per_page'] ?? 25);
+        $paginator->setCollection($paginator->getCollection()->map(fn (InstitutionalArchive $archive): array => [
+            'institutional_archive_id' => $archive->institutional_archive_id,
+            'title' => $archive->title,
+            'document_number' => $archive->document_number,
+            'document_year' => $archive->document_year,
+            'document_date' => $archive->document_date,
+            'unit' => $archive->unit ? ['unit_id' => $archive->unit->unit_id, 'name' => $archive->unit->name] : null,
+            'category' => $archive->category ? ['category_id' => $archive->category->category_id, 'name' => $archive->category->name] : null,
+            'current_file' => $archive->currentFile ? ['display_filename' => $archive->currentFile->display_filename, 'file_size_bytes' => $archive->currentFile->file_size_bytes] : null,
+            'deleted_by_user_id' => $archive->deleted_by_user_id,
+            'deleted_at' => $archive->deleted_at,
+            'delete_reason' => $archive->delete_reason,
+        ]));
+
+        return $paginator;
+    }
+
+    public function delete(int $id, string $reason, object $actor): InstitutionalArchive
+    {
+        return $this->transaction(function () use ($id, $reason, $actor): InstitutionalArchive {
+            $archive = InstitutionalArchive::whereKey($id)->lockForUpdate()->firstOrFail();
+            $archive->fill(['status' => 'deleted', 'deleted_by_user_id' => $actor->id, 'delete_reason' => trim($reason), 'deleted_at' => now(), 'updated_by_user_id' => $actor->id])->save();
+            $this->audit('institutional_archive.deleted', $archive, $actor, ['reason' => trim($reason), 'before' => ['status' => 'active'], 'after' => ['status' => 'deleted']]);
+
+            return $this->find($id, true);
+        });
+    }
+
+    public function restore(int $id, object $actor): InstitutionalArchive
+    {
+        return $this->transaction(function () use ($id, $actor): InstitutionalArchive {
+            $archive = InstitutionalArchive::onlyTrashed()->whereKey($id)->lockForUpdate()->firstOrFail();
+            $this->assertDocumentNumberUnique($archive->only(['document_number', 'document_year', 'unit_id']), $id);
+            $reason = $archive->delete_reason;
+            $archive->fill(['status' => 'active', 'deleted_by_user_id' => null, 'delete_reason' => null, 'deleted_at' => null, 'updated_by_user_id' => $actor->id])->save();
+            $this->audit('institutional_archive.restored', $archive, $actor, ['delete_reason' => $reason, 'before' => ['status' => 'deleted'], 'after' => ['status' => 'active']]);
+
+            return $this->find($id);
+        });
+    }
+
+    public function timeline(int $id, int $perPage): LengthAwarePaginator
+    {
+        InstitutionalArchive::withTrashed()->findOrFail($id);
+        $allowed = ['institutional_archive.created', 'institutional_archive.metadata_updated', 'institutional_archive.file_version_uploaded', 'institutional_archive.moved', 'institutional_archive.deleted', 'institutional_archive.restored', 'institutional_archive.downloaded_by_admin'];
+        $paginator = AuditLog::where('entity_type', 'institutional_archive')->where('entity_id', (string) $id)->whereIn('action', $allowed)->orderByDesc('created_at')->orderByDesc('audit_log_id')->paginate($perPage);
+        $labels = [
+            'institutional_archive.created' => 'Arsip dibuat', 'institutional_archive.metadata_updated' => 'Metadata diperbarui',
+            'institutional_archive.file_version_uploaded' => 'Versi baru diupload', 'institutional_archive.moved' => 'Folder dipindahkan',
+            'institutional_archive.deleted' => 'Arsip dihapus', 'institutional_archive.restored' => 'Arsip dipulihkan',
+            'institutional_archive.downloaded_by_admin' => 'Arsip diunduh',
+        ];
+        $paginator->setCollection($paginator->getCollection()->map(function (AuditLog $log) use ($labels): array {
+            $metadata = is_array($log->metadata) ? $log->metadata : [];
+            $reason = $this->safeScalar($metadata['reason'] ?? $metadata['delete_reason'] ?? null);
+
+            return [
+                'audit_log_id' => $log->audit_log_id, 'action' => $log->action, 'label' => $labels[$log->action],
+                'actor_user_id' => $log->actor_user_id, 'actor_role' => $log->actor_role, 'occurred_at' => $log->created_at,
+                'reason' => $reason, 'changed_fields' => $this->safeChangedFields($metadata['changed_fields'] ?? null),
+                'before' => $this->safeAuditState($metadata['before'] ?? null), 'after' => $this->safeAuditState($metadata['after'] ?? null),
+                'version_number' => is_int($metadata['version_number'] ?? null) ? $metadata['version_number'] : null,
+                'before_category_id' => is_int($metadata['before_category_id'] ?? null) ? $metadata['before_category_id'] : null,
+                'after_category_id' => is_int($metadata['after_category_id'] ?? null) ? $metadata['after_category_id'] : null,
+            ];
+        }));
+
+        return $paginator;
+    }
+
     public function auditDownload(InstitutionalArchive $archive, object $actor, ?ArchiveFile $file = null): void
     {
         $this->audit('institutional_archive.downloaded_by_admin', $archive, $actor, ['file_id' => $file?->file_id ?? $archive->current_file_id, 'version_number' => $file?->version_number]);
+    }
+
+    private function safeScalar(mixed $value): string|int|float|bool|null
+    {
+        return is_scalar($value) ? $value : null;
+    }
+
+    private function safeChangedFields(mixed $value): array
+    {
+        $allowed = ['title', 'document_number', 'document_year', 'document_date', 'received_date', 'unit_id', 'category_id', 'description', 'access_level', 'retention_note', 'tags', 'status'];
+
+        return is_array($value) ? array_values(array_intersect($allowed, array_filter($value, 'is_string'))) : [];
+    }
+
+    private function safeAuditState(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+        $allowed = ['title', 'document_number', 'document_year', 'document_date', 'received_date', 'unit_id', 'category_id', 'description', 'access_level', 'retention_note', 'tags', 'status'];
+        $safe = [];
+        foreach ($allowed as $field) {
+            if (! array_key_exists($field, $value)) {
+                continue;
+            }
+            if ($field === 'tags') {
+                $safe[$field] = is_array($value[$field]) ? array_values(array_filter($value[$field], 'is_string')) : [];
+            } elseif (is_scalar($value[$field]) || $value[$field] === null) {
+                $safe[$field] = $value[$field];
+            }
+        }
+
+        return $safe;
     }
 
     private function normalize(array $payload, ?InstitutionalArchive $existing = null): array

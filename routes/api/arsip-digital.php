@@ -62,6 +62,7 @@ Route::prefix('/arsip-digital')
         Route::put('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'update'])->whereNumber('category_id');
         Route::delete('/admin/institutional-categories/{category_id}', [InstitutionalCategoryController::class, 'destroy'])->whereNumber('category_id');
         Route::post('/admin/institutional-categories/{category_id}/restore', [InstitutionalCategoryController::class, 'restore'])->whereNumber('category_id');
+        Route::get('/admin/institutional-archives/trash', [InstitutionalArchiveController::class, 'trash']);
         Route::get('/admin/institutional-archives', [InstitutionalArchiveController::class, 'index']);
         Route::post('/admin/institutional-archives', [InstitutionalArchiveController::class, 'store']);
         Route::get('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'show'])->whereNumber('id');
@@ -72,6 +73,9 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/institutional-archives/{id}/versions/{fileId}/download', [InstitutionalArchiveController::class, 'downloadVersion'])->whereNumber('id')->whereNumber('fileId');
         Route::get('/admin/institutional-archives/{id}/preview', [InstitutionalArchiveController::class, 'preview'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/download', [InstitutionalArchiveController::class, 'download'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/timeline', [InstitutionalArchiveController::class, 'timeline'])->whereNumber('id');
+        Route::delete('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'destroy'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/restore', [InstitutionalArchiveController::class, 'restore'])->whereNumber('id');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);

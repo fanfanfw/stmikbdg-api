@@ -35,6 +35,55 @@ class InstitutionalArchiveController extends Controller
         }
     }
 
+    public function trash(Request $request, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'unit_id' => ['sometimes', 'integer'], 'document_year' => ['sometimes', 'integer', 'min:1900', 'max:2100'], 'sort' => ['sometimes', 'in:deleted_at,title,document_date,created_at'], 'direction' => ['sometimes', 'in:asc,desc'], 'page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100']]);
+            $result = $archives->trash($payload);
+
+            return $this->successfulResponseJSON(['archives' => $result->items(), 'pagination' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'per_page' => $result->perPage(), 'total' => $result->total()]]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function destroy(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['reason' => ['required', 'string', 'max:1000', 'not_regex:/^\\s*$/']]);
+
+            return $this->successfulResponseJSON(['archive' => $archives->delete($id, $payload['reason'], auth()->user())], 'Arsip dipindahkan ke sampah.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function restore(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+
+            return $this->successfulResponseJSON(['archive' => $archives->restore($id, auth()->user())], 'Arsip berhasil dipulihkan.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function timeline(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100']]);
+            $result = $archives->timeline($id, $payload['per_page'] ?? 20);
+
+            return $this->successfulResponseJSON(['activities' => $result->items(), 'pagination' => ['current_page' => $result->currentPage(), 'last_page' => $result->lastPage(), 'per_page' => $result->perPage(), 'total' => $result->total()]]);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function store(Request $request, RoleResolverService $roles, InstitutionalArchiveService $archives)
     {
         try {
@@ -87,6 +136,7 @@ class InstitutionalArchiveController extends Controller
     {
         try {
             $roles->resolve($request, ['admin']);
+            $archives->find($id);
             $payload = $request->validate(['file' => ['required', 'file'], 'reason' => ['required', 'string', 'max:1000', 'not_regex:/^\\s*$/']]);
 
             return $this->successfulResponseJSON(['archive' => $archives->uploadVersion($id, $request->file('file'), $payload['reason'], auth()->user())], 'Versi baru berhasil diupload.', 201);

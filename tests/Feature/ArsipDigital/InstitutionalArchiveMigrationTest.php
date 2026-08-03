@@ -457,6 +457,36 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertTrue(Storage::disk($files->first()->storage_disk)->exists($files->first()->storage_path));
     }
 
+    public function test_real_postgresql_phase_five_delete_restore_audit_failures_rollback_and_number_stays_reserved(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archiveId = $this->seedArchiveThroughService();
+        $service = app(InstitutionalArchiveService::class);
+        $db = DB::connection($this->connection);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->update(['document_number' => 'PHASE5-001', 'document_year' => 2026]);
+        $db->unprepared("CREATE FUNCTION arsip_digital.fail_lifecycle_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action IN ('institutional_archive.deleted','institutional_archive.restored') THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_lifecycle_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_lifecycle_audit()");
+        try {
+            $service->delete($archiveId, 'Fail', $this->actor());
+            $this->fail('Delete audit failure must rollback.');
+        } catch (QueryException $e) {
+            $this->assertSame('P0001', $e->errorInfo[0]);
+        }
+        $this->assertSame('active', $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->value('status'));
+        $db->unprepared('DROP TRIGGER fail_lifecycle_audit ON arsip_digital.audit_logs; DROP FUNCTION arsip_digital.fail_lifecycle_audit()');
+        $service->delete($archiveId, 'Historical', $this->actor());
+        $row = $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->first();
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.institutional_archives')->insert($this->archive($row->unit_id, ['document_number' => $row->document_number, 'document_year' => $row->document_year])));
+        $db->unprepared("CREATE FUNCTION arsip_digital.fail_restore_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'institutional_archive.restored' THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_restore_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_restore_audit()");
+        try {
+            $service->restore($archiveId, $this->actor());
+            $this->fail('Restore audit failure must rollback.');
+        } catch (QueryException $e) {
+            $this->assertSame('P0001', $e->errorInfo[0]);
+        }
+        $this->assertSame('deleted', $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->value('status'));
+    }
+
     public function test_models_expose_foundation_relations_and_casts(): void
     {
         $this->assertSame('boolean', (new InstitutionalUnit)->getCasts()['is_active']);
