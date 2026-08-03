@@ -13,6 +13,7 @@ use App\Http\Controllers\ArsipDigital\CategoryController;
 use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\InstitutionalArchiveController;
 use App\Http\Controllers\ArsipDigital\InstitutionalCategoryController;
+use App\Http\Controllers\ArsipDigital\InstitutionalDistributionController;
 use App\Http\Controllers\ArsipDigital\InstitutionalUnitController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
@@ -76,6 +77,13 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/institutional-archives/{id}/timeline', [InstitutionalArchiveController::class, 'timeline'])->whereNumber('id');
         Route::delete('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'destroy'])->whereNumber('id');
         Route::post('/admin/institutional-archives/{id}/restore', [InstitutionalArchiveController::class, 'restore'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/distributions/preview-targets', [InstitutionalDistributionController::class, 'preview'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/distributions', [InstitutionalDistributionController::class, 'store'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/distributions', [InstitutionalDistributionController::class, 'index'])->whereNumber('id');
+        Route::get('/admin/institutional-distributions/{distributionId}', [InstitutionalDistributionController::class, 'show'])->whereNumber('distributionId');
+        Route::post('/admin/institutional-distributions/{distributionId}/publish', [InstitutionalDistributionController::class, 'publish'])->whereNumber('distributionId');
+        Route::post('/admin/institutional-distributions/{distributionId}/withdraw', [InstitutionalDistributionController::class, 'withdraw'])->whereNumber('distributionId');
+        Route::get('/admin/institutional-distributions/{distributionId}/recipients', [InstitutionalDistributionController::class, 'recipients'])->whereNumber('distributionId');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);
@@ -136,7 +144,10 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/distribution-bulk-upload-jobs/{bulk_upload_job_id}/cancel', [AdminDistributionBulkUploadController::class, 'cancel']);
 
         Route::get('/distributions', [UserDistributionController::class, 'index']);
+        Route::get('/distribution-files/{file_id}/preview', [UserDistributionController::class, 'preview']);
         Route::get('/distribution-files/{file_id}/download', [UserDistributionController::class, 'download']);
+        Route::get('/distribution-recipients/{recipient_id}/preview', [UserDistributionController::class, 'previewRecipient']);
+        Route::get('/distribution-recipients/{recipient_id}/download', [UserDistributionController::class, 'downloadRecipient']);
 
         Route::get('/admin/export-jobs', [AdminExportJobController::class, 'index']);
         Route::post('/admin/export-jobs', [AdminExportJobController::class, 'store']);

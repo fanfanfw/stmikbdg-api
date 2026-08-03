@@ -6,8 +6,11 @@ use App\Models\ArsipDigital\ArchiveFile;
 use App\Models\ArsipDigital\Distribution;
 use App\Models\ArsipDigital\InstitutionalArchive;
 use App\Models\ArsipDigital\InstitutionalUnit;
+use App\Services\ArsipDigital\DistributionService;
 use App\Services\ArsipDigital\InstitutionalArchiveService;
+use App\Services\ArsipDigital\InstitutionalDistributionService;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -239,7 +242,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame($fileA, $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveA)->value('current_file_id'));
 
         $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archiveA, 'source_file_id' => $fileA]));
-        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archiveA])));
+        $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archiveA]));
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['source_file_id' => $fileA])));
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archiveB, 'source_file_id' => $fileA])));
 
@@ -487,6 +490,186 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame('deleted', $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->value('status'));
     }
 
+    public function test_distribution_draft_source_trigger_migration_allows_draft_rejects_invalid_source_and_rolls_back_fail_closed(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        $archive = $this->archiveId($this->unit('Draft trigger'));
+        $current = $this->fileId('institutional', $archive);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => $current]);
+        $draft = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id');
+        $this->assertNotNull($draft);
+        $other = $this->archiveId($this->unit('Other'));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $other, 'source_file_id' => $current])));
+        try {
+            Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
+            $this->fail('Rollback must fail while institutional drafts have null source.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('drafts with null source', $exception->getMessage());
+        }
+        $this->assertTrue($db->table('arsip_digital.distributions')->where('distribution_id', $draft)->exists());
+        $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => $current]);
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null])));
+        $this->assertSame(0, Artisan::call('migrate', ['--database' => $this->connection, '--force' => true]));
+        $this->assertNotNull($db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id'));
+    }
+
+    public function test_real_postgresql_concurrent_distribution_publish_and_download_are_serialized_without_duplicates(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archiveId = $this->seedArchiveThroughService();
+        $db = DB::connection($this->connection);
+        $db->statement('CREATE TABLE users (id bigint PRIMARY KEY, kd_user varchar(255), name varchar(255), password varchar(255), created_at timestamp, updated_at timestamp)');
+        $db->statement('CREATE TABLE vmahasiswa (mhs_id bigint, nim varchar(255), nm_mhs varchar(255), angkatan varchar(255), prodi varchar(255), sts_mhs varchar(255))');
+        $db->table('users')->insert(['id' => 2, 'kd_user' => 'MHS-22010001', 'name' => 'Student']);
+        $db->table('vmahasiswa')->insert(['mhs_id' => 2, 'nim' => '22010001', 'nm_mhs' => 'Student', 'angkatan' => '2022', 'prodi' => 'TI', 'sts_mhs' => 'aktif']);
+        $archive = InstitutionalArchive::findOrFail($archiveId);
+        $request = Request::create('/phase6-race', 'POST');
+        $objects = Storage::disk('s3')->allFiles();
+
+        for ($iteration = 1; $iteration <= 3; $iteration++) {
+            $draft = app(InstitutionalDistributionService::class)->create($archive, ['title' => "Race $iteration", 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
+            $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, function () use ($draft): void {
+                app(InstitutionalDistributionService::class)->publish($draft, $this->actor(), 'admin', Request::create('/phase6-race/publish', 'POST'));
+            });
+
+            $recipient = $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->first();
+            $this->assertSame(1, $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->count());
+            $this->assertSame(1, $db->table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.published')->where('entity_id', (string) $draft->distribution_id)->count());
+            $this->assertSame(1, $db->table('arsip_digital.notifications')->where('entity_id', $recipient->recipient_id)->count());
+            $this->assertSame($archive->current_file_id, $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('source_file_id'));
+
+            $this->runLockedChildren('arsip_digital.distribution_recipients', 'recipient_id', $recipient->recipient_id, 2, function () use ($recipient): void {
+                app(DistributionService::class)->markDownloaded(\App\Models\ArsipDigital\DistributionRecipient::findOrFail($recipient->recipient_id), (object) ['id' => 2], 'mahasiswa', Request::create('/phase6-race/download', 'GET'));
+            });
+            $tracked = $db->table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->first();
+            $this->assertSame(2, $tracked->download_count);
+            $this->assertNotNull($tracked->first_downloaded_at);
+            $this->assertNotNull($tracked->last_downloaded_at);
+            $this->assertGreaterThanOrEqual($tracked->first_downloaded_at, $tracked->last_downloaded_at);
+            $this->assertSame(2, $db->table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->where('entity_id', (string) $recipient->recipient_id)->count());
+        }
+
+        $this->assertSame($objects, Storage::disk('s3')->allFiles());
+        $this->assertSame(1, $db->table('arsip_digital.files')->where('institutional_archive_id', $archiveId)->count());
+    }
+
+    public function test_real_postgresql_delete_publish_and_withdraw_download_boundaries_serialize_safely(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archiveId = $this->seedArchiveThroughService();
+        $db = DB::connection($this->connection);
+        $db->statement('CREATE TABLE users (id bigint PRIMARY KEY, kd_user varchar(255), name varchar(255), password varchar(255), created_at timestamp, updated_at timestamp)');
+        $db->statement('CREATE TABLE vmahasiswa (mhs_id bigint, nim varchar(255), nm_mhs varchar(255), angkatan varchar(255), prodi varchar(255), sts_mhs varchar(255))');
+        $db->table('users')->insert(['id' => 2, 'kd_user' => 'MHS-22010001', 'name' => 'Student']);
+        $db->table('vmahasiswa')->insert(['mhs_id' => 2, 'nim' => '22010001', 'nm_mhs' => 'Student']);
+        $service = app(InstitutionalDistributionService::class);
+        $request = Request::create('/phase6-boundary', 'POST');
+        $draft = $service->create(InstitutionalArchive::findOrFail($archiveId), ['title' => 'Delete race', 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
+        $this->runLockedChildren('arsip_digital.institutional_archives', 'institutional_archive_id', $archiveId, 2, [
+            fn () => app(InstitutionalArchiveService::class)->delete($archiveId, 'Race', $this->actor()),
+            function () use ($draft): void {
+                try {
+                    app(InstitutionalDistributionService::class)->publish($draft, $this->actor(), 'admin', Request::create('/publish', 'POST'));
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+                }
+            },
+        ]);
+        $deleted = $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archiveId)->where('status', 'deleted')->exists();
+        $this->assertTrue($deleted);
+        $status = $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('status');
+        $this->assertContains($status, ['draft', 'published']);
+        $this->assertFalse(app(DistributionService::class)->userQuery((object) ['id' => 2], 'mahasiswa')->whereKey($draft->distribution_id)->exists());
+
+        app(InstitutionalArchiveService::class)->restore($archiveId, $this->actor());
+        $published = $service->publish($draft->fresh(), $this->actor(), 'admin', $request);
+        $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
+        $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, [
+            fn () => app(InstitutionalDistributionService::class)->withdraw($published, 'Race', $this->actor(), 'admin', Request::create('/withdraw', 'POST')),
+            function () use ($recipient): void {
+                try {
+                    app(DistributionService::class)->markDownloaded($recipient, (object) ['id' => 2], 'mahasiswa', Request::create('/download', 'GET'));
+                } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+                }
+            },
+        ]);
+        $tracked = $db->table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->first();
+        $this->assertSame('closed', $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('status'));
+        $this->assertSame('revoked', $tracked->delivery_status);
+        $this->assertContains($tracked->download_count, [0, 1]);
+        $this->assertSame($tracked->download_count, $db->table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->where('entity_id', (string) $recipient->recipient_id)->count());
+    }
+
+    public function test_real_postgresql_distribution_audit_failures_roll_back_publish_withdraw_and_tracking(): void
+    {
+        $this->migrateFresh();
+        $this->configureSharedLocalStorage();
+        $archiveId = $this->seedArchiveThroughService();
+        $db = DB::connection($this->connection);
+        $db->statement('CREATE TABLE users (id bigint PRIMARY KEY, kd_user varchar(255), name varchar(255), password varchar(255), created_at timestamp, updated_at timestamp)');
+        $db->statement('CREATE TABLE vmahasiswa (mhs_id bigint, nim varchar(255), nm_mhs varchar(255), angkatan varchar(255), prodi varchar(255), sts_mhs varchar(255))');
+        $db->table('users')->insert(['id' => 2, 'kd_user' => 'MHS-22010001', 'name' => 'Student']);
+        $db->table('vmahasiswa')->insert(['mhs_id' => 2, 'nim' => '22010001', 'nm_mhs' => 'Student']);
+        $service = app(InstitutionalDistributionService::class);
+        $request = Request::create('/phase6-audit', 'POST');
+        $draft = $service->create(InstitutionalArchive::findOrFail($archiveId), ['title' => 'Audit', 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
+        $db->unprepared("CREATE FUNCTION arsip_digital.fail_distribution_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action IN ('institutional_distribution.published','institutional_distribution.withdrawn','institutional_distribution.downloaded') THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()");
+        try {
+            $service->publish($draft, $this->actor(), 'admin', $request);
+            $this->fail('Publish audit failure must rollback.');
+        } catch (QueryException) {
+        }
+        $this->assertSame('draft', $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('status'));
+        $this->assertSame(0, $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->count());
+        $this->assertSame(0, $db->table('arsip_digital.notifications')->count());
+        $this->assertCount(1, Storage::disk('s3')->allFiles());
+        $db->unprepared('DROP TRIGGER fail_distribution_audit ON arsip_digital.audit_logs');
+        $published = $service->publish($draft, $this->actor(), 'admin', $request);
+        $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
+        $db->unprepared('CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()');
+        try {
+            $service->withdraw($published, 'Failed', $this->actor(), 'admin', $request);
+            $this->fail('Withdraw audit failure must rollback.');
+        } catch (QueryException) {
+        }
+        $this->assertSame('published', $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('status'));
+        $this->assertSame('available', $db->table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->value('delivery_status'));
+        try {
+            app(DistributionService::class)->markDownloaded($recipient, (object) ['id' => 2], 'mahasiswa', $request);
+            $this->fail('Download audit failure must rollback.');
+        } catch (QueryException) {
+        }
+        $tracked = $db->table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->first();
+        $this->assertSame(0, $tracked->download_count);
+        $this->assertNull($tracked->first_downloaded_at);
+        $this->assertNull($tracked->last_downloaded_at);
+    }
+
+    public function test_distribution_pin_survives_version_replacement_and_repin_is_rejected(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        $archive = $this->archiveId($this->unit('Pinned'));
+        $v1 = $this->fileId('institutional', $archive);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => $v1]);
+        $distribution = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id');
+        $db->table('arsip_digital.distributions')->where('distribution_id', $distribution)->update(['source_file_id' => $v1, 'status' => 'published', 'published_at' => now()]);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => null]);
+        $db->table('arsip_digital.files')->where('file_id', $v1)->update(['is_current' => false, 'status' => 'replaced']);
+        $v2 = $this->fileId('institutional', $archive);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => $v2]);
+        $db->table('arsip_digital.distributions')->where('distribution_id', $distribution)->update(['status' => 'closed', 'withdrawn_at' => now(), 'withdrawn_by_user_id' => 1, 'withdrawal_reason' => 'Superseded']);
+        $this->assertSame($v1, $db->table('arsip_digital.distributions')->where('distribution_id', $distribution)->value('source_file_id'));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $distribution)->update(['source_file_id' => $v2]));
+        $other = $this->archiveId($this->unit('Other pin'));
+        $otherFile = $this->fileId('institutional', $other);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $other)->update(['current_file_id' => $otherFile]);
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $distribution)->update(['source_file_id' => $otherFile]));
+    }
+
     public function test_models_expose_foundation_relations_and_casts(): void
     {
         $this->assertSame('boolean', (new InstitutionalUnit)->getCasts()['is_active']);
@@ -508,6 +691,66 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $unit = $db->table('arsip_digital.institutional_units')->insertGetId(['name' => 'Concurrency', 'created_by_user_id' => 1], 'unit_id');
 
         return app(InstitutionalArchiveService::class)->create(UploadedFile::fake()->createWithContent('v1.pdf', '%PDF-1.4 v1'), ['title' => 'Concurrent archive', 'unit_id' => $unit], $this->actor())->institutional_archive_id;
+    }
+
+    private function runLockedChildren(string $table, string $key, int $id, int $count, callable|array $operation): void
+    {
+        DB::disconnect($this->connection);
+        DB::disconnect($this->maintenanceConnection);
+        $signals = [];
+        $gates = [];
+        $children = [];
+        $locker = null;
+        try {
+            for ($index = 0; $index < $count; $index++) {
+                $signal = sys_get_temp_dir().'/arsip_phase6_'.bin2hex(random_bytes(8));
+                $gate = $signal.'.gate';
+                array_push($signals, $signal);
+                array_push($gates, $gate);
+                array_push($this->temporarySignals, $signal, $gate);
+                $pid = pcntl_fork();
+                $this->assertNotSame(-1, $pid);
+                if ($pid === 0) {
+                    try {
+                        while (! is_file($gate)) {
+                            usleep(10000);
+                        }
+                        DB::purge($this->connection);
+                        (is_array($operation) ? $operation[$index] : $operation)();
+                        file_put_contents($signal, 'ok');
+                        exit(0);
+                    } catch (\Throwable $exception) {
+                        file_put_contents($signal, 'error:'.$exception::class.':'.$exception->getCode());
+                        exit(1);
+                    }
+                }
+                $this->childPids[$pid] = true;
+                $children[] = [$pid, $signal];
+            }
+            $locker = DB::connection($this->connection);
+            $locker->beginTransaction();
+            $this->assertNotNull($locker->table($table)->where($key, $id)->lockForUpdate()->first());
+            foreach ($gates as $gate) {
+                touch($gate);
+            }
+            $deadline = microtime(true) + 5;
+            do {
+                usleep(50000);
+                $blocked = DB::connection($this->maintenanceConnection)->table('pg_stat_activity')->where('datname', $this->database)->where('wait_event_type', 'Lock')->count() >= $count;
+            } while (! $blocked && microtime(true) < $deadline);
+            $this->assertTrue($blocked, "$count production contenders never exposed PostgreSQL lock waits.");
+            $locker->commit();
+            foreach ($children as [$pid, $signal]) {
+                $this->waitForChild($pid, $signal);
+            }
+        } finally {
+            if ($locker && $locker->transactionLevel() > 0) {
+                $locker->rollBack();
+            }
+            foreach ([...$signals, ...$gates] as $path) {
+                @unlink($path);
+            }
+        }
     }
 
     private function configureSharedLocalStorage(): void

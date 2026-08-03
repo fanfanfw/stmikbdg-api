@@ -71,6 +71,25 @@ class ArsipDigitalStorageService
         ];
     }
 
+    public function openPrivateStream(string $disk, string $path)
+    {
+        if (! Storage::disk($disk)->exists($path) || ($stream = Storage::disk($disk)->readStream($path)) === false) {
+            abort(404, 'File tidak ditemukan di storage.');
+        }
+
+        return $stream;
+    }
+
+    public function downloadOpenedStream($stream, string $downloadName): StreamedResponse
+    {
+        return response()->streamDownload(function () use ($stream): void {
+            fpassthru($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, $downloadName);
+    }
+
     public function downloadPrivate(string $disk, string $path, ?string $downloadName = null): StreamedResponse
     {
         if (! Storage::disk($disk)->exists($path)) {

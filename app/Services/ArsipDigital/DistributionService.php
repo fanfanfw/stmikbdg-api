@@ -3,6 +3,7 @@
 namespace App\Services\ArsipDigital;
 
 use App\Models\ArsipDigital\ArchiveFile;
+use App\Models\ArsipDigital\AuditLog;
 use App\Models\ArsipDigital\Distribution;
 use App\Models\ArsipDigital\DistributionRecipient;
 use Illuminate\Database\Eloquent\Builder;
@@ -51,16 +52,24 @@ class DistributionService
     public function userQuery(object $user, string $role): Builder
     {
         return Distribution::where('status', 'published')
+            ->where(function (Builder $query): void {
+                $query->whereNull('institutional_archive_id')
+                    ->orWhere(function (Builder $query): void {
+                        $query->whereHas('institutionalArchive', function (Builder $query): void {
+                            $query->where('status', 'active')->whereNull('deleted_at');
+                        })->where(function (Builder $query): void {
+                            $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                        });
+                    });
+            })
             ->whereHas('recipients', function (Builder $query) use ($user, $role): void {
                 $query->where('target_user_id', $user->id)
                     ->where('target_role', $role)
-                    ->whereIn('delivery_status', ['available', 'downloaded'])
                     ->whereNotNull('file_id');
             })
-            ->with(['recipients' => function ($query) use ($user, $role): void {
+            ->with(['institutionalArchive.unit', 'recipients' => function ($query) use ($user, $role): void {
                 $query->where('target_user_id', $user->id)
                     ->where('target_role', $role)
-                    ->whereIn('delivery_status', ['available', 'downloaded'])
                     ->whereNotNull('file_id')
                     ->with('file');
             }])
@@ -476,19 +485,34 @@ class DistributionService
 
     public function findDownloadableRecipientByFile(int $fileId, object $user, string $role): DistributionRecipient
     {
-        $recipient = DistributionRecipient::where('file_id', $fileId)
+        return $this->findDownloadableRecipientQuery(DistributionRecipient::where('file_id', $fileId), $user, $role);
+    }
+
+    public function findDownloadableRecipient(int $recipientId, object $user, string $role): DistributionRecipient
+    {
+        return $this->findDownloadableRecipientQuery(DistributionRecipient::whereKey($recipientId), $user, $role);
+    }
+
+    private function findDownloadableRecipientQuery(Builder $query, object $user, string $role): DistributionRecipient
+    {
+        $recipient = $query
             ->where('target_user_id', $user->id)
             ->where('target_role', $role)
             ->with(['distribution', 'file'])
             ->first();
 
-        if ($recipient?->distribution?->status === 'closed') {
-            throw new HttpException(410, 'Distribution sudah ditarik.');
-        }
         if (! $recipient) {
             throw new HttpException(404, 'File distribution belum tersedia.');
         }
-
+        if ($recipient->distribution?->status === 'closed') {
+            throw new HttpException(410, 'Distribution sudah ditarik.');
+        }
+        if ($recipient?->distribution?->expires_at && now()->greaterThanOrEqualTo($recipient->distribution->expires_at)) {
+            throw new HttpException(410, 'Distribution sudah kedaluwarsa.');
+        }
+        if ($recipient?->distribution?->institutional_archive_id && ! $recipient->distribution->institutionalArchive()->where('status', 'active')->whereNull('deleted_at')->exists()) {
+            throw new HttpException(410, 'Arsip sumber sudah tidak tersedia.');
+        }
         $this->assertRecipientVisibleToUser($recipient, $user, $role);
 
         return $recipient;
@@ -507,7 +531,7 @@ class DistributionService
 
     public function markDownloaded(DistributionRecipient $recipient, object $actor, string $actorRole, $httpRequest = null): DistributionRecipient
     {
-        $recipient = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($recipient): DistributionRecipient {
+        $recipient = DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($recipient, $actor, $actorRole, $httpRequest): DistributionRecipient {
             $distribution = Distribution::whereKey($recipient->distribution_id)->lockForUpdate()->firstOrFail();
             $recipient = DistributionRecipient::with('file')->whereKey($recipient->recipient_id)->lockForUpdate()->firstOrFail();
             $recipient->setRelation('distribution', $distribution);
@@ -517,6 +541,12 @@ class DistributionService
             if ($distribution->status !== 'published') {
                 throw new HttpException(404, 'File distribution belum tersedia.');
             }
+            if ($distribution->expires_at && now()->greaterThanOrEqualTo($distribution->expires_at)) {
+                throw new HttpException(410, 'Distribution sudah kedaluwarsa.');
+            }
+            if ($distribution->institutional_archive_id && ! $distribution->institutionalArchive()->where('status', 'active')->whereNull('deleted_at')->exists()) {
+                throw new HttpException(410, 'Arsip sumber sudah tidak tersedia.');
+            }
             $now = now();
             $recipient->increment('download_count');
             $recipient->update([
@@ -524,20 +554,21 @@ class DistributionService
                 'first_downloaded_at' => $recipient->first_downloaded_at ?: $now,
                 'last_downloaded_at' => $now,
             ]);
+            AuditLog::create([
+                'actor_user_id' => $actor->id,
+                'actor_role' => $actorRole,
+                'action' => $distribution->institutional_archive_id ? 'institutional_distribution.downloaded' : 'distribution_file.downloaded',
+                'entity_type' => 'distribution_recipient',
+                'entity_id' => (string) $recipient->recipient_id,
+                'description' => 'User download file distribution arsip digital.',
+                'ip_address' => $httpRequest?->ip(),
+                'user_agent' => $httpRequest?->userAgent(),
+                'metadata' => ['distribution_id' => $recipient->distribution_id, 'file_id' => $recipient->file_id],
+                'created_at' => $now,
+            ]);
 
             return $recipient;
         });
-
-        $this->auditLog->record(
-            'distribution_file.downloaded',
-            'distribution_recipient',
-            $recipient->recipient_id,
-            'User download file distribution arsip digital.',
-            ['distribution_id' => $recipient->distribution_id, 'file_id' => $recipient->file_id],
-            $httpRequest,
-            $actor->id,
-            $actorRole
-        );
 
         return $recipient->fresh(['distribution', 'file']);
     }

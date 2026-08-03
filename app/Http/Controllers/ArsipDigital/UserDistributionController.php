@@ -17,10 +17,29 @@ class UserDistributionController extends Controller
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
 
             $distributions = $distributionService->userQuery(auth()->user(), $role)->get();
-            $distributions->each(fn ($distribution) => $distribution->setAttribute(
-                'files',
-                $distribution->recipients->pluck('file')->filter()->values()->all()
-            ));
+            $distributions->each(function ($distribution): void {
+                $expired = $distribution->expires_at && now()->greaterThanOrEqualTo($distribution->expires_at);
+                $withdrawn = $distribution->status === 'closed';
+                $sourceDeleted = $distribution->institutional_archive_id && (! $distribution->institutionalArchive || $distribution->institutionalArchive->status !== 'active');
+                $distribution->setAttribute('availability_status', $withdrawn ? 'withdrawn' : ($expired ? 'expired' : ($sourceDeleted ? 'unavailable' : 'available')));
+                $distribution->institutionalArchive?->setVisible(['institutional_archive_id', 'title', 'document_number', 'document_date', 'unit']);
+                $distribution->institutionalArchive?->unit?->setVisible(['unit_id', 'name']);
+                $files = $distribution->recipients->filter->file->map(function ($recipient) {
+                    return [
+                        'recipient_id' => $recipient->recipient_id,
+                        'file_id' => $recipient->file_id,
+                        'display_filename' => $recipient->file->display_filename,
+                        'original_filename' => $recipient->file->original_filename,
+                        'mime_type' => $recipient->file->mime_type,
+                        'file_size_bytes' => $recipient->file->file_size_bytes,
+                    ];
+                })->values()->all();
+                $distribution->setAttribute('files', ($withdrawn || $expired || $sourceDeleted) ? [] : $files);
+                if ($distribution->institutional_archive_id) {
+                    $distribution->recipients->each(fn ($recipient) => $recipient->setVisible(['recipient_id', 'target_role', 'identifier', 'delivery_status', 'file_id', 'download_count', 'first_downloaded_at', 'last_downloaded_at']));
+                    $distribution->setVisible(['distribution_id', 'title', 'description', 'status', 'published_at', 'expires_at', 'availability_status', 'institutional_archive', 'recipients', 'files']);
+                }
+            });
 
             return $this->successfulResponseJSON(['distributions' => $distributions->toArray()]);
         } catch (\Exception $e) {
@@ -28,20 +47,78 @@ class UserDistributionController extends Controller
         }
     }
 
-    public function download(
+    public function preview(
         Request $request,
-        int $file_id,
+        int $recipient_id,
         RoleResolverService $roleResolver,
         DistributionService $distributionService,
         ArsipDigitalStorageService $storageService
     ) {
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
-            $recipient = $distributionService->findDownloadableRecipientByFile($file_id, auth()->user(), $role);
-            $recipient = $distributionService->markDownloaded($recipient, auth()->user(), $role, $request);
+            $recipient = $distributionService->findDownloadableRecipientByFile($recipient_id, auth()->user(), $role);
             $file = $recipient->file;
 
-            return $storageService->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+            return $storageService->streamPdfPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function previewRecipient(
+        Request $request,
+        int $recipient_id,
+        RoleResolverService $roleResolver,
+        DistributionService $distributionService,
+        ArsipDigitalStorageService $storageService
+    ) {
+        try {
+            $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
+            $file = $distributionService->findDownloadableRecipient($recipient_id, auth()->user(), $role)->file;
+
+            return $storageService->streamPdfPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function downloadRecipient(
+        Request $request,
+        int $recipient_id,
+        RoleResolverService $roleResolver,
+        DistributionService $distributionService,
+        ArsipDigitalStorageService $storageService
+    ) {
+        return $this->downloadResolved($request, $recipient_id, true, $roleResolver, $distributionService, $storageService);
+    }
+
+    public function download(
+        Request $request,
+        int $recipient_id,
+        RoleResolverService $roleResolver,
+        DistributionService $distributionService,
+        ArsipDigitalStorageService $storageService
+    ) {
+        return $this->downloadResolved($request, $recipient_id, false, $roleResolver, $distributionService, $storageService);
+    }
+
+    private function downloadResolved(Request $request, int $id, bool $byRecipient, RoleResolverService $roleResolver, DistributionService $distributionService, ArsipDigitalStorageService $storageService)
+    {
+        try {
+            $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
+            $recipient = $byRecipient
+                ? $distributionService->findDownloadableRecipient($id, auth()->user(), $role)
+                : $distributionService->findDownloadableRecipientByFile($id, auth()->user(), $role);
+            $file = $recipient->file;
+            $stream = $storageService->openPrivateStream($file->storage_disk, $file->storage_path);
+            try {
+                $distributionService->markDownloaded($recipient, auth()->user(), $role, $request);
+            } catch (\Throwable $e) {
+                fclose($stream);
+                throw $e;
+            }
+
+            return $storageService->downloadOpenedStream($stream, $file->display_filename);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
