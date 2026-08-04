@@ -514,6 +514,15 @@ class DistributionService
             throw new HttpException(410, 'Arsip sumber sudah tidak tersedia.');
         }
         $this->assertRecipientVisibleToUser($recipient, $user, $role);
+        if ($recipient->distribution?->institutional_archive_id && (
+            $recipient->distribution->status !== 'published'
+            || ! $recipient->distribution->source_file_id
+            || $recipient->file_id !== $recipient->distribution->source_file_id
+            || $recipient->file?->institutional_archive_id !== $recipient->distribution->institutional_archive_id
+            || $recipient->file?->source_type !== 'institutional'
+        )) {
+            throw new HttpException(404, 'File distribution belum tersedia.');
+        }
 
         return $recipient;
     }

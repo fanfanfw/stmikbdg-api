@@ -142,8 +142,15 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
         $recipient = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->first();
         $this->actingAsDosen()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/download")->assertNotFound();
-        $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/preview")->assertOk();
+        $downloadAudits = DB::table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->count();
+        $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/preview")
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('cache-control', 'no-store, private')
+            ->assertHeader('x-content-type-options', 'nosniff')
+            ->assertHeader('content-disposition', 'inline; filename="lembaga.pdf"');
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', ['recipient_id' => $recipient->recipient_id, 'download_count' => 0]);
+        $this->assertSame($downloadAudits, DB::table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->count());
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/download")->assertOk();
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-files/$this->fileId/download")->assertOk();
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', ['recipient_id' => $recipient->recipient_id, 'download_count' => 2, 'delivery_status' => 'downloaded']);

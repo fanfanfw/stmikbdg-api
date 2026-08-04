@@ -77,8 +77,23 @@ class UserDistributionController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
             $file = $distributionService->findDownloadableRecipient($recipient_id, auth()->user(), $role)->file;
+            if (! in_array($file->mime_type, ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
+                abort(415, 'Format file tidak mendukung preview browser.');
+            }
+            $stream = $storageService->openPrivateStream($file->storage_disk, $file->storage_path);
 
-            return $storageService->streamPdfPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+            return response()->stream(function () use ($stream): void {
+                fpassthru($stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            }, 200, [
+                'Content-Type' => $file->mime_type,
+                'Content-Disposition' => 'inline; filename="'.$storageService->safeFilename($file->display_filename).'"',
+                'Cache-Control' => 'private, no-store',
+                'Pragma' => 'no-cache',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
