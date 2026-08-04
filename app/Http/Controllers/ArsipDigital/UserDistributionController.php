@@ -16,7 +16,9 @@ class UserDistributionController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
 
-            $distributions = $distributionService->userQuery(auth()->user(), $role)->get();
+            $perPage = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1']])['per_page'] ?? 20;
+            $paginator = $distributionService->userQuery(auth()->user(), $role)->paginate($perPage);
+            $distributions = collect($paginator->items());
             $distributions->each(function ($distribution): void {
                 $expired = $distribution->expires_at && now()->greaterThanOrEqualTo($distribution->expires_at);
                 $withdrawn = $distribution->status === 'closed';
@@ -41,7 +43,7 @@ class UserDistributionController extends Controller
                 }
             });
 
-            return $this->successfulResponseJSON(['distributions' => $distributions->toArray()]);
+            return $this->successfulResponseJSON(['distributions' => $distributions->toArray(), 'meta' => ['current_page' => $paginator->currentPage(), 'last_page' => $paginator->lastPage(), 'total' => $paginator->total()]]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

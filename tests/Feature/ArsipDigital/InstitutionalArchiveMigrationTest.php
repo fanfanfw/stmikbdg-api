@@ -336,6 +336,8 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $unit = $this->unit('A');
         $archive = $this->archiveId($unit);
 
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
         try {
             Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
             $this->fail('Rollback must fail while institutional data exists.');
@@ -498,9 +500,16 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $current = $this->fileId('institutional', $archive);
         $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => $current]);
         $draft = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id');
+        $published = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => $current, 'status' => 'published', 'published_at' => now()]), 'distribution_id');
+        $closed = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => $current, 'status' => 'closed', 'published_at' => now(), 'withdrawn_at' => now(), 'withdrawn_by_user_id' => 1, 'withdrawal_reason' => 'Closed']), 'distribution_id');
         $this->assertNotNull($draft);
         $other = $this->archiveId($this->unit('Other'));
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $other, 'source_file_id' => $current])));
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        foreach ([$published, $closed] as $immutable) {
+            $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['source_file_id' => null]));
+            $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['status' => 'draft']));
+        }
         try {
             Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
             $this->fail('Rollback must fail while institutional drafts have null source.');
@@ -532,7 +541,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         for ($iteration = 1; $iteration <= 3; $iteration++) {
             $draft = app(InstitutionalDistributionService::class)->create($archive, ['title' => "Race $iteration", 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
             $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, function () use ($draft): void {
-                app(InstitutionalDistributionService::class)->publish($draft, $this->actor(), 'admin', Request::create('/phase6-race/publish', 'POST'));
+                app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/phase6-race/publish', 'POST'));
             });
 
             $recipient = $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->first();
@@ -573,7 +582,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
             fn () => app(InstitutionalArchiveService::class)->delete($archiveId, 'Race', $this->actor()),
             function () use ($draft): void {
                 try {
-                    app(InstitutionalDistributionService::class)->publish($draft, $this->actor(), 'admin', Request::create('/publish', 'POST'));
+                    app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/publish', 'POST'));
                 } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
                 }
             },
@@ -585,7 +594,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertFalse(app(DistributionService::class)->userQuery((object) ['id' => 2], 'mahasiswa')->whereKey($draft->distribution_id)->exists());
 
         app(InstitutionalArchiveService::class)->restore($archiveId, $this->actor());
-        $published = $service->publish($draft->fresh(), $this->actor(), 'admin', $request);
+        $published = $service->publish($draft->fresh(), InstitutionalArchive::findOrFail($archiveId)->current_file_id, $this->actor(), 'admin', $request);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
         $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, [
             fn () => app(InstitutionalDistributionService::class)->withdraw($published, 'Race', $this->actor(), 'admin', Request::create('/withdraw', 'POST')),
@@ -618,7 +627,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $draft = $service->create(InstitutionalArchive::findOrFail($archiveId), ['title' => 'Audit', 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
         $db->unprepared("CREATE FUNCTION arsip_digital.fail_distribution_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action IN ('institutional_distribution.published','institutional_distribution.withdrawn','institutional_distribution.downloaded') THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()");
         try {
-            $service->publish($draft, $this->actor(), 'admin', $request);
+            $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request);
             $this->fail('Publish audit failure must rollback.');
         } catch (QueryException) {
         }
@@ -627,7 +636,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame(0, $db->table('arsip_digital.notifications')->count());
         $this->assertCount(1, Storage::disk('s3')->allFiles());
         $db->unprepared('DROP TRIGGER fail_distribution_audit ON arsip_digital.audit_logs');
-        $published = $service->publish($draft, $this->actor(), 'admin', $request);
+        $published = $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
         $db->unprepared('CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()');
         try {
@@ -646,6 +655,33 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame(0, $tracked->download_count);
         $this->assertNull($tracked->first_downloaded_at);
         $this->assertNull($tracked->last_downloaded_at);
+    }
+
+    public function test_distribution_source_and_lifecycle_are_immutable_after_publish(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        $archive = $this->archiveId($this->unit('Immutable'));
+        $v1 = $this->fileId('institutional', $archive);
+        $db->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->update(['current_file_id' => $v1]);
+
+        $draft = $db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id');
+        $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => $v1, 'status' => 'published', 'published_at' => now()]);
+        $this->assertSame($v1, $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->value('source_file_id'));
+
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => null]));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['status' => 'draft']));
+        $this->expectDatabaseViolation(function () use ($db, $draft, $v1): void {
+            $db->transaction(function () use ($db, $draft, $v1): void {
+                $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['status' => 'draft']);
+                $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => null]);
+                $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => $v1, 'status' => 'published']);
+            });
+        });
+
+        $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['status' => 'closed']);
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => null]));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['status' => 'draft']));
     }
 
     public function test_distribution_pin_survives_version_replacement_and_repin_is_rejected(): void

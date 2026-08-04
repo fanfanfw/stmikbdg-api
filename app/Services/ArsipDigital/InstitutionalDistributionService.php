@@ -56,11 +56,15 @@ class InstitutionalDistributionService
         });
     }
 
-    public function publish(Distribution $distribution, object $actor, string $role, Request $request): Distribution
+    public function publish(Distribution $distribution, int $expectedSourceFileId, object $actor, string $role, Request $request): Distribution
     {
-        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($distribution, $actor, $role, $request): Distribution {
+        return DB::connection(config('myconfig.database.first_connection'))->transaction(function () use ($distribution, $expectedSourceFileId, $actor, $role, $request): Distribution {
             $distribution = Distribution::whereKey($distribution->distribution_id)->lockForUpdate()->firstOrFail();
             if ($distribution->status === 'published') {
+                if ($distribution->source_file_id !== $expectedSourceFileId) {
+                    throw new HttpException(409, 'Versi sumber tidak cocok dengan distribusi yang sudah dipublish.');
+                }
+
                 return $distribution->loadCount('recipients');
             }
             if ($distribution->status !== 'draft' || ! $distribution->institutional_archive_id) {
@@ -68,6 +72,9 @@ class InstitutionalDistributionService
             }
             $archive = InstitutionalArchive::whereKey($distribution->institutional_archive_id)->lockForUpdate()->first();
             $this->assertActiveArchive($archive);
+            if ($archive->current_file_id !== $expectedSourceFileId) {
+                throw new HttpException(409, 'Versi sumber berubah. Muat ulang distribusi sebelum publish.');
+            }
             if ($distribution->expires_at && now()->greaterThanOrEqualTo($distribution->expires_at)) {
                 throw new HttpException(422, 'Batas waktu harus setelah waktu sekarang.');
             }
@@ -134,8 +141,16 @@ class InstitutionalDistributionService
 
     public function distributionDto(Distribution $distribution): array
     {
+        $file = $distribution->status === 'draft'
+            ? $distribution->institutionalArchive?->currentFile
+            : $distribution->sourceFile;
+
         return collect($distribution->only(['distribution_id', 'institutional_archive_id', 'source_file_id', 'title', 'description', 'target_role', 'scope_type', 'expires_at', 'status', 'published_at', 'withdrawn_at', 'withdrawal_reason', 'created_at']))
-            ->merge(['recipients_count' => $distribution->recipients_count ?? $distribution->recipients()->count()])->all();
+            ->merge([
+                'source_file_id' => $file?->file_id,
+                'source_file' => $file ? $file->only(['file_id', 'version_number', 'display_filename']) : null,
+                'recipients_count' => $distribution->recipients_count ?? $distribution->recipients()->count(),
+            ])->all();
     }
 
     public function recipientDto(DistributionRecipient $recipient): array

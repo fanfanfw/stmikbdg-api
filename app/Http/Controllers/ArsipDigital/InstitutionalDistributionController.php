@@ -42,7 +42,8 @@ class InstitutionalDistributionController extends Controller
         try {
             $roles->resolve($request, ['admin']);
             InstitutionalArchive::withTrashed()->findOrFail($id);
-            $items = Distribution::where('institutional_archive_id', $id)->withCount('recipients')->orderByDesc('distribution_id')->paginate(min((int) $request->input('per_page', 20), 100));
+            $perPage = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1']])['per_page'] ?? 20;
+            $items = Distribution::where('institutional_archive_id', $id)->with(['institutionalArchive.currentFile', 'sourceFile'])->withCount('recipients')->orderByDesc('distribution_id')->paginate($perPage);
 
             return $this->successfulResponseJSON(['distributions' => collect($items->items())->map(fn ($item) => $service->distributionDto($item))->all(), 'meta' => ['current_page' => $items->currentPage(), 'last_page' => $items->lastPage(), 'total' => $items->total()]]);
         } catch (\Exception $e) {
@@ -54,7 +55,7 @@ class InstitutionalDistributionController extends Controller
     {
         try {
             $roles->resolve($request, ['admin']);
-            $item = $this->find($distributionId)->load(['institutionalArchive.unit', 'sourceFile'])->loadCount('recipients');
+            $item = $this->find($distributionId)->load(['institutionalArchive.unit', 'institutionalArchive.currentFile', 'sourceFile'])->loadCount('recipients');
 
             return $this->successfulResponseJSON(['distribution' => $service->distributionDto($item)]);
         } catch (\Exception $e) {
@@ -79,7 +80,8 @@ class InstitutionalDistributionController extends Controller
     {
         try {
             $role = $roles->resolve($request, ['admin']);
-            $item = $service->publish($this->find($distributionId), auth()->user(), $role, $request);
+            $expectedSourceFileId = $request->validate(['source_file_id' => ['required', 'integer', 'min:1']])['source_file_id'];
+            $item = $service->publish($this->find($distributionId), $expectedSourceFileId, auth()->user(), $role, $request);
 
             return $this->successfulResponseJSON(['distribution' => $service->distributionDto($item)], 'Distribusi dipublish.');
         } catch (\Exception $e) {

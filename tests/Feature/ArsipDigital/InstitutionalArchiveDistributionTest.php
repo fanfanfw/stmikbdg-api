@@ -35,7 +35,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $draft = $this->draft();
         $adminB = $this->adminUser(9);
         $this->actingAs($adminB, 'api')->withHeader('X-Active-Role', 'admin')->getJson("/api/arsip-digital/admin/institutional-distributions/$draft")->assertOk()->assertJsonPath('data.distribution.distribution_id', $draft);
-        $this->actingAs($adminB, 'api')->withHeader('X-Active-Role', 'admin')->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
+        $this->actingAs($adminB, 'api')->withHeader('X-Active-Role', 'admin')->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
         $this->assertDatabaseHas('arsip_digital.audit_logs', ['action' => 'institutional_distribution.published', 'actor_user_id' => 9]);
     }
 
@@ -45,14 +45,14 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
             $payload = $this->targets($role, $identifiers);
             $preview = $this->actingAsAdmin()->postJson($this->base().'/preview-targets', $payload)->assertOk()->assertJsonPath('data.preview.total_valid', 1)->json('data.preview.valid_targets');
             $draft = $this->draft($payload);
-            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk()->assertJsonPath('data.distribution.recipients_count', 1);
+            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk()->assertJsonPath('data.distribution.recipients_count', 1);
             $actual = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->pluck('identifier')->all();
             $this->assertSame(collect($preview)->pluck('identifier')->all(), $actual);
         }
 
         $duplicate = $this->targets('mahasiswa', ['22010001', '22010001']);
         $draft = $this->draft($duplicate);
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk()->assertJsonPath('data.distribution.recipients_count', 1);
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk()->assertJsonPath('data.distribution.recipients_count', 1);
     }
 
     public function test_filter_segment_and_preview_over_one_hundred_have_exact_publish_parity(): void
@@ -68,7 +68,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
             $this->assertGreaterThan(100, $preview['total_valid']);
             $this->assertCount(100, $preview['valid_targets']);
             $draft = $this->draft($payload);
-            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk()->assertJsonPath('data.distribution.recipients_count', $preview['total_valid']);
+            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk()->assertJsonPath('data.distribution.recipients_count', $preview['total_valid']);
         }
     }
 
@@ -76,18 +76,39 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
     {
         foreach ([[], ['UNKNOWN'], ['22010001', 'UNKNOWN']] as $identifiers) {
             $draft = $this->draft($this->targets('mahasiswa', $identifiers));
-            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertUnprocessable();
+            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertUnprocessable();
             $this->assertDatabaseHas('arsip_digital.distributions', ['distribution_id' => $draft, 'status' => 'draft', 'source_file_id' => null]);
             $this->assertSame(0, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->count());
         }
+    }
+
+    public function test_draft_exposes_authoritative_source_and_stale_publish_is_rejected(): void
+    {
+        $draft = $this->draft();
+        $this->actingAsAdmin()->getJson("/api/arsip-digital/admin/institutional-distributions/$draft")
+            ->assertOk()
+            ->assertJsonPath('data.distribution.source_file_id', $this->fileId)
+            ->assertJsonPath('data.distribution.source_file.file_id', $this->fileId)
+            ->assertJsonPath('data.distribution.source_file.version_number', 1)
+            ->assertJsonPath('data.distribution.source_file.display_filename', 'lembaga.pdf');
+
+        $stale = $this->fileId;
+        $this->actingAsAdmin()->post("/api/arsip-digital/admin/institutional-archives/$this->archiveId/versions", ['file' => $this->pdfUpload('v2.pdf'), 'reason' => 'V2'], ['Accept' => 'application/json'])->assertCreated();
+        $current = DB::table('arsip_digital.institutional_archives')->where('institutional_archive_id', $this->archiveId)->value('current_file_id');
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $stale])->assertStatus(409);
+        $this->assertDatabaseHas('arsip_digital.distributions', ['distribution_id' => $draft, 'status' => 'draft', 'source_file_id' => null]);
+        $this->assertSame(0, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->count());
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $current])->assertOk();
+        $this->assertDatabaseHas('arsip_digital.distributions', ['distribution_id' => $draft, 'status' => 'published', 'source_file_id' => $current]);
     }
 
     public function test_publish_pins_exact_version_reuses_source_and_is_idempotent(): void
     {
         $beforeObjects = Storage::disk('s3')->allFiles();
         $draft = $this->draft();
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId + 999])->assertStatus(409);
         $this->actingAsAdmin()->post("/api/arsip-digital/admin/institutional-archives/$this->archiveId/versions", ['file' => $this->pdfUpload('v2.pdf'), 'reason' => 'V2'], ['Accept' => 'application/json'])->assertCreated();
         $this->assertDatabaseHas('arsip_digital.distributions', ['distribution_id' => $draft, 'source_file_id' => $this->fileId]);
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', ['distribution_id' => $draft, 'file_id' => $this->fileId]);
@@ -106,7 +127,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
                 $this->actingAsAdmin()->postJson($this->base(), $this->targets() + ['title' => 'Expiry', 'expires_at' => $expiry])->assertUnprocessable();
             }
             $draft = $this->draft($this->targets(), '2026-08-04T10:00:00+00:00');
-            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
+            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
             $recipient = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->value('recipient_id');
             Carbon::setTestNow('2026-08-04 10:00:00 UTC');
             $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient/download")->assertGone();
@@ -118,7 +139,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
     public function test_recipient_isolation_tracking_preview_missing_and_payload_privacy(): void
     {
         $draft = $this->draft();
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
         $recipient = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->first();
         $this->actingAsDosen()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/download")->assertNotFound();
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/preview")->assertOk();
@@ -126,8 +147,15 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/download")->assertOk();
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-files/$this->fileId/download")->assertOk();
         $this->assertDatabaseHas('arsip_digital.distribution_recipients', ['recipient_id' => $recipient->recipient_id, 'download_count' => 2, 'delivery_status' => 'downloaded']);
-        $response = $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions')->assertOk()->assertJsonMissing(['storage_path', 'storage_disk', 'checksum_sha256', 'target_user_id', 'created_by_user_id']);
-        $this->assertSame([$recipient->recipient_id], collect($response->json('data.distributions.0.recipients'))->pluck('recipient_id')->all());
+        $second = $this->draft();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$second/publish", ['source_file_id' => $this->fileId])->assertOk();
+        $pageOne = $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions?per_page=1&page=1')->assertOk()->assertJsonMissing(['storage_path', 'storage_disk', 'checksum_sha256', 'target_user_id', 'created_by_user_id'])->assertJsonPath('data.meta.current_page', 1)->assertJsonPath('data.meta.last_page', 2)->assertJsonPath('data.meta.total', 2);
+        $pageTwo = $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions?per_page=1&page=2')->assertOk()->assertJsonPath('data.meta.current_page', 2);
+        $this->assertSame($second, $pageOne->json('data.distributions.0.distribution_id'));
+        $this->assertSame($draft, $pageTwo->json('data.distributions.0.distribution_id'));
+        $this->assertSame([$recipient->recipient_id], collect($pageTwo->json('data.distributions.0.recipients'))->pluck('recipient_id')->all());
+        $this->actingAsDosen()->getJson('/api/arsip-digital/distributions')->assertOk()->assertJsonCount(0, 'data.distributions');
+        $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions?per_page=101')->assertUnprocessable();
         Storage::disk('s3')->delete(DB::table('arsip_digital.files')->where('file_id', $this->fileId)->value('storage_path'));
         $count = DB::table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->value('download_count');
         $audits = DB::table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->count();
@@ -140,7 +168,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
     public function test_withdraw_requires_reason_is_repeat_safe_and_preserves_source(): void
     {
         $draft = $this->draft();
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertOk();
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertOk();
         $recipient = DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->value('recipient_id');
         $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/withdraw", [])->assertUnprocessable();
         $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/withdraw", ['reason' => ' Diganti '])->assertOk();
@@ -156,7 +184,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         Carbon::setTestNow('2026-08-03 10:00:00 UTC');
         try {
             $distribution = $this->draft($this->targets(), '2026-08-04T10:00:00+00:00');
-            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$distribution/publish")->assertOk();
+            $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$distribution/publish", ['source_file_id' => $this->fileId])->assertOk();
             $this->assertSame([$distribution], collect($this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions')->assertOk()->json('data.distributions'))->pluck('distribution_id')->all());
 
             $this->actingAsAdmin()->deleteJson("/api/arsip-digital/admin/institutional-archives/$this->archiveId", ['reason' => 'Hapus sementara'])->assertOk();
@@ -179,7 +207,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $draft = $this->draft();
         $this->actingAsAdmin()->deleteJson("/api/arsip-digital/admin/institutional-archives/$this->archiveId", ['reason' => 'Hapus'])->assertOk();
         $this->actingAsAdmin()->postJson($this->base(), $this->targets() + ['title' => 'No'])->assertNotFound();
-        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish")->assertStatus(409);
+        $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", ['source_file_id' => $this->fileId])->assertStatus(409);
         $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-archives/$this->archiveId/restore")->assertOk();
         $this->draft();
     }
