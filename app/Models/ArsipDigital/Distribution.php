@@ -18,6 +18,7 @@ class Distribution extends ArsipDigitalModel
         'official_document_id' => 'integer',
         'institutional_archive_id' => 'integer',
         'source_file_id' => 'integer',
+        'target_count' => 'integer',
         'target_filters' => 'array',
         'target_identifiers' => 'array',
         'target_segment_ids' => 'array',

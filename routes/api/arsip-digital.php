@@ -86,10 +86,13 @@ Route::prefix('/arsip-digital')
         Route::post('/admin/institutional-archives/{id}/distributions/preview-targets', [InstitutionalDistributionController::class, 'preview'])->whereNumber('id');
         Route::post('/admin/institutional-archives/{id}/distributions', [InstitutionalDistributionController::class, 'store'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/distributions', [InstitutionalDistributionController::class, 'index'])->whereNumber('id');
-        Route::get('/admin/institutional-distributions/{distributionId}', [InstitutionalDistributionController::class, 'show'])->whereNumber('distributionId');
+        Route::get('/admin/institutional-distributions/{distributionId}/targets', [InstitutionalDistributionController::class, 'draftTargets'])->whereNumber('distributionId');
+        Route::get('/admin/institutional-distributions/{distributionId}/recipients', [InstitutionalDistributionController::class, 'recipients'])->whereNumber('distributionId');
         Route::post('/admin/institutional-distributions/{distributionId}/publish', [InstitutionalDistributionController::class, 'publish'])->whereNumber('distributionId');
         Route::post('/admin/institutional-distributions/{distributionId}/withdraw', [InstitutionalDistributionController::class, 'withdraw'])->whereNumber('distributionId');
-        Route::get('/admin/institutional-distributions/{distributionId}/recipients', [InstitutionalDistributionController::class, 'recipients'])->whereNumber('distributionId');
+        Route::get('/admin/institutional-distributions/{distributionId}', [InstitutionalDistributionController::class, 'show'])->whereNumber('distributionId');
+        Route::put('/admin/institutional-distributions/{distributionId}', [InstitutionalDistributionController::class, 'update'])->whereNumber('distributionId');
+        Route::delete('/admin/institutional-distributions/{distributionId}', [InstitutionalDistributionController::class, 'destroy'])->whereNumber('distributionId');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);

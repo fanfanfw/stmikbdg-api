@@ -63,12 +63,53 @@ class InstitutionalDistributionController extends Controller
         }
     }
 
+    public function draftTargets(Request $request, int $distributionId, RoleResolverService $roles, InstitutionalDistributionService $service)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+
+            return $this->successfulResponseJSON($service->draftTargets($this->find($distributionId)));
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function update(Request $request, int $distributionId, RoleResolverService $roles, InstitutionalDistributionService $service)
+    {
+        try {
+            $role = $roles->resolve($request, ['admin']);
+            $payload = array_merge($this->targets($request), $request->validate(['title' => ['required', 'string', 'max:255'], 'description' => ['nullable', 'string'], 'expires_at' => ['nullable', 'date_format:Y-m-d\\TH:i:sP', 'after:now'], 'expected_updated_at' => ['required', 'date']]));
+            $item = $service->update($this->find($distributionId), $payload, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON(['distribution' => $service->distributionDto($item)], 'Draft distribusi diperbarui.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function destroy(Request $request, int $distributionId, RoleResolverService $roles, InstitutionalDistributionService $service)
+    {
+        try {
+            $role = $roles->resolve($request, ['admin']);
+            $payload = $request->validate(['expected_updated_at' => ['required', 'date'], 'reason' => ['nullable', 'string', 'max:2000']]);
+            $service->cancel($this->find($distributionId), $payload['expected_updated_at'], $payload['reason'] ?? null, auth()->user(), $role, $request);
+
+            return $this->successfulResponseJSON([], 'Draft distribusi dibatalkan.');
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
     public function recipients(Request $request, int $distributionId, RoleResolverService $roles, InstitutionalDistributionService $service)
     {
         try {
             $roles->resolve($request, ['admin']);
             $item = $this->find($distributionId);
-            $rows = $item->recipients()->orderBy('identifier')->paginate(min((int) $request->input('per_page', 50), 100));
+            if ($item->status === 'draft') {
+                throw new \Symfony\Component\HttpKernel\Exception\HttpException(409, 'Draft belum memiliki penerima. Gunakan endpoint target draft.');
+            }
+            $pagination = $request->validate(['per_page' => ['nullable', 'integer', 'min:1', 'max:100'], 'page' => ['nullable', 'integer', 'min:1']]);
+            $rows = $item->recipients()->orderBy('identifier')->paginate($pagination['per_page'] ?? 50);
 
             return $this->successfulResponseJSON(['recipients' => collect($rows->items())->map(fn ($recipient) => $service->recipientDto($recipient))->all(), 'meta' => ['current_page' => $rows->currentPage(), 'last_page' => $rows->lastPage(), 'total' => $rows->total()]]);
         } catch (\Exception $e) {
@@ -80,8 +121,8 @@ class InstitutionalDistributionController extends Controller
     {
         try {
             $role = $roles->resolve($request, ['admin']);
-            $expectedSourceFileId = $request->validate(['source_file_id' => ['required', 'integer', 'min:1']])['source_file_id'];
-            $item = $service->publish($this->find($distributionId), $expectedSourceFileId, auth()->user(), $role, $request);
+            $payload = $request->validate(['source_file_id' => ['required', 'integer', 'min:1'], 'expected_updated_at' => ['nullable', 'date'], 'target_fingerprint' => ['nullable', 'string', 'size:64']]);
+            $item = $service->publish($this->find($distributionId), $payload['source_file_id'], auth()->user(), $role, $request, $payload['expected_updated_at'] ?? null, $payload['target_fingerprint'] ?? null);
 
             return $this->successfulResponseJSON(['distribution' => $service->distributionDto($item)], 'Distribusi dipublish.');
         } catch (\Exception $e) {

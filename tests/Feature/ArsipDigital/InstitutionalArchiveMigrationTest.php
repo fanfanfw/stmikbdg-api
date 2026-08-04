@@ -141,6 +141,39 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.files')->insert($this->file('invalid')));
     }
 
+    public function test_target_count_migration_supports_null_rejects_negative_and_rolls_back_and_remigrates(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        $this->assertTrue($db->getSchemaBuilder()->hasColumn('arsip_digital.distributions', 'target_count'));
+        $this->assertDatabaseObjectExists('constraint', 'distributions_target_count_check');
+        $legacy = $db->table('arsip_digital.distributions')->insertGetId($this->distribution([]), 'distribution_id');
+        $this->assertNull($db->table('arsip_digital.distributions')->where('distribution_id', $legacy)->value('target_count'));
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $legacy)->update(['target_count' => -1]));
+        $db->table('arsip_digital.distributions')->where('distribution_id', $legacy)->update(['target_count' => 1]);
+        try {
+            $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
+            $this->fail('Populated target count must block rollback.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('populated values exist', $e->getMessage());
+        }
+        $this->assertTrue($db->getSchemaBuilder()->hasColumn('arsip_digital.distributions', 'target_count'));
+        $this->assertSame(1, $db->table('arsip_digital.distributions')->where('distribution_id', $legacy)->value('target_count'));
+        $this->assertDatabaseObjectExists('constraint', 'distributions_target_count_check');
+        $db->table('arsip_digital.distributions')->where('distribution_id', $legacy)->update(['target_count' => null]);
+        try {
+            $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
+            $this->assertFalse($db->getSchemaBuilder()->hasColumn('arsip_digital.distributions', 'target_count'));
+            $this->migrationUp('2026_08_04_000016_add_institutional_distribution_target_count.php');
+            $this->assertTrue($db->getSchemaBuilder()->hasColumn('arsip_digital.distributions', 'target_count'));
+            $this->assertDatabaseObjectExists('constraint', 'distributions_target_count_check');
+        } finally {
+            if (! $db->getSchemaBuilder()->hasColumn('arsip_digital.distributions', 'target_count')) {
+                $this->migrationUp('2026_08_04_000016_add_institutional_distribution_target_count.php');
+            }
+        }
+    }
+
     public function test_upgrade_from_pre_phase_one_schema_preserves_existing_data(): void
     {
         $migrationFiles = glob(database_path('migrations/*.php'));
@@ -336,10 +369,12 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $unit = $this->unit('A');
         $archive = $this->archiveId($unit);
 
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
+        $this->migrationDown('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
+        $this->migrationDown('2026_08_03_000014_harden_institutional_distribution_source.php');
+        $this->migrationDown('2026_08_03_000013_allow_institutional_distribution_drafts.php');
         try {
-            Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
+            $this->migrationDown('2026_08_02_000012_create_institutional_archive_foundation.php');
             $this->fail('Rollback must fail while institutional data exists.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('institutional data exists', $exception->getMessage());
@@ -350,10 +385,12 @@ class InstitutionalArchiveMigrationTest extends TestCase
 
         $db->table('arsip_digital.institutional_archives')->delete();
         $db->table('arsip_digital.institutional_units')->delete();
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->migrationDown('2026_08_02_000012_create_institutional_archive_foundation.php');
         $this->assertFalse($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_archives'));
         $this->assertTrue($db->table('arsip_digital.categories')->where('name', 'Preserved')->exists());
-        $this->assertSame(0, Artisan::call('migrate', ['--database' => $this->connection, '--force' => true]));
+        foreach (['2026_08_02_000012_create_institutional_archive_foundation.php', '2026_08_03_000013_allow_institutional_distribution_drafts.php', '2026_08_03_000014_harden_institutional_distribution_source.php', '2026_08_04_000015_create_institutional_storage_reconciliation_reports.php', '2026_08_04_000016_add_institutional_distribution_target_count.php'] as $migration) {
+            $this->migrationUp($migration);
+        }
         $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_archives'));
     }
 
@@ -505,23 +542,26 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertNotNull($draft);
         $other = $this->archiveId($this->unit('Other'));
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $other, 'source_file_id' => $current])));
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
+        $this->migrationDown('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
+        $this->migrationDown('2026_08_03_000014_harden_institutional_distribution_source.php');
         foreach ([$published, $closed] as $immutable) {
             $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['source_file_id' => null]));
             $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['status' => 'draft']));
         }
         try {
-            Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
+            $this->migrationDown('2026_08_03_000013_allow_institutional_distribution_drafts.php');
             $this->fail('Rollback must fail while institutional drafts have null source.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('drafts with null source', $exception->getMessage());
         }
         $this->assertTrue($db->table('arsip_digital.distributions')->where('distribution_id', $draft)->exists());
         $db->table('arsip_digital.distributions')->where('distribution_id', $draft)->update(['source_file_id' => $current]);
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->migrationDown('2026_08_03_000013_allow_institutional_distribution_drafts.php');
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null])));
-        $this->assertSame(0, Artisan::call('migrate', ['--database' => $this->connection, '--force' => true]));
+        foreach (['2026_08_03_000013_allow_institutional_distribution_drafts.php', '2026_08_03_000014_harden_institutional_distribution_source.php', '2026_08_04_000015_create_institutional_storage_reconciliation_reports.php', '2026_08_04_000016_add_institutional_distribution_target_count.php'] as $migration) {
+            $this->migrationUp($migration);
+        }
         $this->assertNotNull($db->table('arsip_digital.distributions')->insertGetId($this->distribution(['institutional_archive_id' => $archive, 'source_file_id' => null]), 'distribution_id'));
     }
 
@@ -541,8 +581,9 @@ class InstitutionalArchiveMigrationTest extends TestCase
 
         for ($iteration = 1; $iteration <= 3; $iteration++) {
             $draft = app(InstitutionalDistributionService::class)->create($archive, ['title' => "Race $iteration", 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
-            $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, function () use ($draft): void {
-                app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/phase6-race/publish', 'POST'));
+            $targets = app(InstitutionalDistributionService::class)->draftTargets($draft);
+            $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, function () use ($draft, $targets): void {
+                app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/phase6-race/publish', 'POST'), $targets['updated_at'], $targets['target_fingerprint']);
             });
 
             $recipient = $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->first();
@@ -579,11 +620,12 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $service = app(InstitutionalDistributionService::class);
         $request = Request::create('/phase6-boundary', 'POST');
         $draft = $service->create(InstitutionalArchive::findOrFail($archiveId), ['title' => 'Delete race', 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
+        $targets = $service->draftTargets($draft);
         $this->runLockedChildren('arsip_digital.institutional_archives', 'institutional_archive_id', $archiveId, 2, [
             fn () => app(InstitutionalArchiveService::class)->delete($archiveId, 'Race', $this->actor()),
-            function () use ($draft): void {
+            function () use ($draft, $targets): void {
                 try {
-                    app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/publish', 'POST'));
+                    app(InstitutionalDistributionService::class)->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', Request::create('/publish', 'POST'), $targets['updated_at'], $targets['target_fingerprint']);
                 } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
                 }
             },
@@ -595,7 +637,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertFalse(app(DistributionService::class)->userQuery((object) ['id' => 2], 'mahasiswa')->whereKey($draft->distribution_id)->exists());
 
         app(InstitutionalArchiveService::class)->restore($archiveId, $this->actor());
-        $published = $service->publish($draft->fresh(), InstitutionalArchive::findOrFail($archiveId)->current_file_id, $this->actor(), 'admin', $request);
+        $published = $service->publish($draft->fresh(), InstitutionalArchive::findOrFail($archiveId)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
         $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, [
             fn () => app(InstitutionalDistributionService::class)->withdraw($published, 'Race', $this->actor(), 'admin', Request::create('/withdraw', 'POST')),
@@ -627,8 +669,9 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $request = Request::create('/phase6-audit', 'POST');
         $draft = $service->create(InstitutionalArchive::findOrFail($archiveId), ['title' => 'Audit', 'target_role' => 'mahasiswa', 'scope_type' => 'specific', 'target_identifiers' => ['22010001']], $this->actor(), 'admin', $request);
         $db->unprepared("CREATE FUNCTION arsip_digital.fail_distribution_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action IN ('institutional_distribution.published','institutional_distribution.withdrawn','institutional_distribution.downloaded') THEN RAISE EXCEPTION 'audit failed'; END IF; RETURN NEW; END $$; CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()");
+        $targets = $service->draftTargets($draft);
         try {
-            $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request);
+            $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
             $this->fail('Publish audit failure must rollback.');
         } catch (QueryException) {
         }
@@ -637,7 +680,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame(0, $db->table('arsip_digital.notifications')->count());
         $this->assertCount(1, Storage::disk('s3')->allFiles());
         $db->unprepared('DROP TRIGGER fail_distribution_audit ON arsip_digital.audit_logs');
-        $published = $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request);
+        $published = $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
         $db->unprepared('CREATE TRIGGER fail_distribution_audit BEFORE INSERT ON arsip_digital.audit_logs FOR EACH ROW EXECUTE FUNCTION arsip_digital.fail_distribution_audit()');
         try {
@@ -966,23 +1009,35 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.institutional_storage_reconciliation_reports')->insert($row));
         $db->table('arsip_digital.institutional_storage_reconciliation_reports')->update(['status' => 'running']);
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.institutional_storage_reconciliation_reports')->insert($row));
+        $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
 
         try {
-            Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
+            $this->migrationDown('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
             $this->fail('Report rows must block rollback.');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('while report rows exist', $e->getMessage());
         }
         $db->table('arsip_digital.institutional_storage_reconciliation_reports')->delete();
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->migrationDown('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
         $this->assertFalse($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_storage_reconciliation_reports'));
-        $this->assertSame(0, Artisan::call('migrate', ['--database' => $this->connection, '--force' => true]));
+        $this->migrationUp('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
+        $this->migrationUp('2026_08_04_000016_add_institutional_distribution_target_count.php');
         $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_storage_reconciliation_reports'));
     }
 
     private function migrateFresh(): void
     {
         $this->assertSame(0, Artisan::call('migrate:fresh', ['--database' => $this->connection, '--force' => true]));
+    }
+
+    private function migrationUp(string $file): void
+    {
+        (require database_path('migrations/'.$file))->up();
+    }
+
+    private function migrationDown(string $file): void
+    {
+        (require database_path('migrations/'.$file))->down();
     }
 
     private function unit(string $name): int

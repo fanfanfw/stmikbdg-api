@@ -7,6 +7,10 @@ use App\Models\ArsipDigital\AuditLog;
 use App\Models\ArsipDigital\Category;
 use App\Models\ArsipDigital\InstitutionalArchive;
 use App\Models\ArsipDigital\InstitutionalUnit;
+use App\Models\Users\Admin;
+use App\Models\Users\Dosen;
+use App\Models\Users\MahasiswaView;
+use App\Models\Users\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -259,19 +263,20 @@ class InstitutionalArchiveService
         InstitutionalArchive::withTrashed()->findOrFail($id);
         $allowed = ['institutional_archive.created', 'institutional_archive.metadata_updated', 'institutional_archive.file_version_uploaded', 'institutional_archive.moved', 'institutional_archive.deleted', 'institutional_archive.restored', 'institutional_archive.downloaded_by_admin'];
         $paginator = AuditLog::where('entity_type', 'institutional_archive')->where('entity_id', (string) $id)->whereIn('action', $allowed)->orderByDesc('created_at')->orderByDesc('audit_log_id')->paginate($perPage);
+        $actorNames = $this->actorDisplayNames($paginator->getCollection()->pluck('actor_user_id')->filter()->unique()->values()->all());
         $labels = [
             'institutional_archive.created' => 'Arsip dibuat', 'institutional_archive.metadata_updated' => 'Metadata diperbarui',
             'institutional_archive.file_version_uploaded' => 'Versi baru diupload', 'institutional_archive.moved' => 'Folder dipindahkan',
             'institutional_archive.deleted' => 'Arsip dihapus', 'institutional_archive.restored' => 'Arsip dipulihkan',
             'institutional_archive.downloaded_by_admin' => 'Arsip diunduh',
         ];
-        $paginator->setCollection($paginator->getCollection()->map(function (AuditLog $log) use ($labels): array {
+        $paginator->setCollection($paginator->getCollection()->map(function (AuditLog $log) use ($labels, $actorNames): array {
             $metadata = is_array($log->metadata) ? $log->metadata : [];
             $reason = $this->safeScalar($metadata['reason'] ?? $metadata['delete_reason'] ?? null);
 
             return [
                 'audit_log_id' => $log->audit_log_id, 'action' => $log->action, 'label' => $labels[$log->action],
-                'actor_user_id' => $log->actor_user_id, 'actor_role' => $log->actor_role, 'occurred_at' => $log->created_at,
+                'actor_display_name' => $actorNames[$log->actor_user_id] ?? null, 'actor_role' => $log->actor_role, 'occurred_at' => $log->created_at,
                 'reason' => $reason, 'changed_fields' => $this->safeChangedFields($metadata['changed_fields'] ?? null),
                 'before' => $this->safeAuditState($metadata['before'] ?? null), 'after' => $this->safeAuditState($metadata['after'] ?? null),
                 'version_number' => is_int($metadata['version_number'] ?? null) ? $metadata['version_number'] : null,
@@ -281,6 +286,47 @@ class InstitutionalArchiveService
         }));
 
         return $paginator;
+    }
+
+    private function actorDisplayNames(array $actorIds): array
+    {
+        if ($actorIds === []) {
+            return [];
+        }
+        $users = User::query()->whereIn('id', $actorIds)->get(['id', 'kd_user']);
+        $codes = ['ADM' => [], 'DSN' => [], 'MHS' => []];
+        foreach ($users as $user) {
+            [$prefix, $code] = array_pad(explode('-', (string) $user->kd_user, 2), 2, null);
+            if ($code && isset($codes[$prefix])) {
+                $codes[$prefix][] = $code;
+            }
+        }
+        $profiles = [];
+        try {
+            if ($codes['ADM']) {
+                foreach (Admin::query()->whereIn('kd_admin', $codes['ADM'])->get(['kd_admin', 'nm_admin']) as $profile) {
+                    $profiles['ADM-'.$profile->kd_admin] = $profile->nm_admin;
+                }
+            }
+            if ($codes['DSN']) {
+                foreach (Dosen::query()->whereIn('kd_dosen', $codes['DSN'])->get(['kd_dosen', 'nm_dosen']) as $profile) {
+                    $profiles['DSN-'.$profile->kd_dosen] = $profile->nm_dosen;
+                }
+            }
+            if ($codes['MHS']) {
+                foreach (MahasiswaView::query()->whereIn('nim', $codes['MHS'])->get(['nim', 'nm_mhs']) as $profile) {
+                    $profiles['MHS-'.$profile->nim] = $profile->nm_mhs;
+                }
+            }
+        } catch (QueryException) {
+            return [];
+        }
+
+        return $users->mapWithKeys(function (User $user) use ($profiles): array {
+            $name = trim((string) ($profiles[$user->kd_user] ?? ''));
+
+            return [$user->id => $name !== '' ? $name : null];
+        })->all();
     }
 
     public function auditDownload(InstitutionalArchive $archive, object $actor, ?ArchiveFile $file = null): void

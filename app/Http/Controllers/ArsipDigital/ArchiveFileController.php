@@ -4,6 +4,7 @@ namespace App\Http\Controllers\ArsipDigital;
 
 use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
+use App\Models\ArsipDigital\DistributionRecipient;
 use App\Services\ArsipDigital\ArchiveFileService;
 use App\Services\ArsipDigital\ArchivePermissionService;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
@@ -30,10 +31,66 @@ class ArchiveFileController extends Controller
             ]);
 
             $files = $fileService->queryFor(auth()->user(), $role, $filters)->get();
+            $payloads = $files->map(fn ($file): array => $this->filePayload($file));
 
-            return $this->successfulResponseJSON([
-                'files' => $files->map(fn ($file): array => $this->filePayload($file))->toArray(),
-            ]);
+            if ($role !== 'admin') {
+                $recipientIds = DistributionRecipient::query()
+                    ->where('target_user_id', auth()->id())
+                    ->where('target_role', $role)
+                    ->whereIn('file_id', $files->pluck('file_id'))
+                    ->pluck('recipient_id', 'file_id');
+                $payloads = $payloads->map(function (array $payload) use ($recipientIds): array {
+                    if ($payload['source_type'] === 'distribution' && isset($recipientIds[$payload['file_id']])) {
+                        $payload['recipient_id'] = $recipientIds[$payload['file_id']];
+                    }
+
+                    return $payload;
+                });
+            }
+
+            if ($role !== 'admin' && empty($filters['category_id'])) {
+                $recipients = DistributionRecipient::query()
+                    ->where('target_user_id', auth()->id())
+                    ->where('target_role', $role)
+                    ->whereIn('delivery_status', ['available', 'downloaded'])
+                    ->whereNotNull('file_id')
+                    ->whereHas('file', function ($query) use ($filters): void {
+                        if (! empty($filters['search'])) {
+                            $search = '%'.strtolower($filters['search']).'%';
+                            $query->where(function ($query) use ($search): void {
+                                $query->whereRaw('LOWER(display_filename) LIKE ?', [$search])
+                                    ->orWhereRaw('LOWER(original_filename) LIKE ?', [$search]);
+                            });
+                        }
+                    })
+                    ->whereHas('distribution', function ($query): void {
+                        $query->where('status', 'published')
+                            ->whereNotNull('institutional_archive_id')
+                            ->where(function ($query): void {
+                                $query->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                            })
+                            ->whereHas('institutionalArchive', fn ($query) => $query->where('status', 'active')->whereNull('deleted_at'));
+                    })
+                    ->with(['file', 'distribution'])
+                    ->get();
+
+                $payloads = $payloads->concat($recipients->map(fn ($recipient): array => [
+                    'row_id' => 'institutional-distribution-'.$recipient->recipient_id,
+                    'file_id' => $recipient->file_id,
+                    'recipient_id' => $recipient->recipient_id,
+                    'distribution_id' => $recipient->distribution_id,
+                    'source_type' => 'institutional_distribution',
+                    'display_filename' => $recipient->file->display_filename,
+                    'original_filename' => $recipient->file->original_filename,
+                    'extension' => $recipient->file->extension,
+                    'mime_type' => $recipient->file->mime_type,
+                    'file_size_bytes' => $recipient->file->file_size_bytes,
+                    'status' => 'active',
+                    'created_at' => $recipient->distribution->published_at,
+                ]));
+            }
+
+            return $this->successfulResponseJSON(['files' => $payloads->values()->all()]);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }
