@@ -71,6 +71,11 @@ class ArsipDigitalStorageService
         ];
     }
 
+    public function exists(string $disk, string $path): bool
+    {
+        return Storage::disk($disk)->exists($path);
+    }
+
     public function openPrivateStream(string $disk, string $path)
     {
         if (! Storage::disk($disk)->exists($path) || ($stream = Storage::disk($disk)->readStream($path)) === false) {

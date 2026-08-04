@@ -12,6 +12,8 @@ class ArsipDigitalSettingsService
         'default_max_file_size_mb' => 10,
         'default_allowed_extensions' => ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'],
         'storage_disk' => 's3',
+        // null or 0 disables institutional storage warning.
+        'institutional_storage_soft_limit_bytes' => null,
         'personal_quota_mb_by_role' => [
             'mahasiswa' => 50,
             'dosen' => 50,

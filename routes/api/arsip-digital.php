@@ -14,6 +14,7 @@ use App\Http\Controllers\ArsipDigital\FoundationController;
 use App\Http\Controllers\ArsipDigital\InstitutionalArchiveController;
 use App\Http\Controllers\ArsipDigital\InstitutionalCategoryController;
 use App\Http\Controllers\ArsipDigital\InstitutionalDistributionController;
+use App\Http\Controllers\ArsipDigital\InstitutionalStorageMonitoringController;
 use App\Http\Controllers\ArsipDigital\InstitutionalUnitController;
 use App\Http\Controllers\ArsipDigital\NotificationController;
 use App\Http\Controllers\ArsipDigital\ScholarshipController;
@@ -52,6 +53,11 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/settings', [FoundationController::class, 'settings']);
 
         Route::put('/admin/settings', [FoundationController::class, 'updateSettings']);
+
+        Route::get('/admin/institutional-storage/summary', [InstitutionalStorageMonitoringController::class, 'summary']);
+        Route::get('/admin/institutional-storage/files', [InstitutionalStorageMonitoringController::class, 'files']);
+        Route::post('/admin/institutional-storage/reconciliation-jobs', [InstitutionalStorageMonitoringController::class, 'trigger']);
+        Route::get('/admin/institutional-storage/reconciliation-jobs/{job_id}', [InstitutionalStorageMonitoringController::class, 'show'])->whereNumber('job_id');
 
         Route::get('/admin/institutional-units', [InstitutionalUnitController::class, 'index']);
         Route::post('/admin/institutional-units', [InstitutionalUnitController::class, 'store']);

@@ -506,6 +506,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $other = $this->archiveId($this->unit('Other'));
         $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->insert($this->distribution(['institutional_archive_id' => $other, 'source_file_id' => $current])));
         $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
         foreach ([$published, $closed] as $immutable) {
             $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['source_file_id' => null]));
             $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.distributions')->where('distribution_id', $immutable)->update(['status' => 'draft']));
@@ -859,6 +860,124 @@ class InstitutionalArchiveMigrationTest extends TestCase
             $item->isDir() ? rmdir($item->getPathname()) : unlink($item->getPathname());
         }
         rmdir($directory);
+    }
+
+    public function test_phase_seven_two_sessions_allow_one_active_report_and_one_worker_claim(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        DB::disconnect($this->connection);
+        DB::disconnect($this->maintenanceConnection);
+
+        $insertResults = $this->runConcurrentPhaseSevenChildren(function (): string {
+            try {
+                DB::connection($this->connection)->table('arsip_digital.institutional_storage_reconciliation_reports')->insert([
+                    'mode' => 'existence', 'status' => 'queued', 'requested_by_user_id' => 1, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+
+                return 'inserted';
+            } catch (QueryException $exception) {
+                return 'unique:'.$exception->getCode();
+            }
+        });
+        sort($insertResults);
+        $this->assertSame(['inserted', 'unique:23505'], $insertResults);
+        $this->assertSame(1, $db->table('arsip_digital.institutional_storage_reconciliation_reports')->whereIn('status', ['queued', 'running'])->count());
+
+        $reportId = $db->table('arsip_digital.institutional_storage_reconciliation_reports')->value('reconciliation_report_id');
+        $claimResults = $this->runConcurrentPhaseSevenChildren(fn (): string => 'claimed:'.DB::connection($this->connection)
+            ->table('arsip_digital.institutional_storage_reconciliation_reports')->where('reconciliation_report_id', $reportId)->where('status', 'queued')
+            ->update(['status' => 'running', 'started_at' => now(), 'updated_at' => now()]));
+        sort($claimResults);
+        $this->assertSame(['claimed:0', 'claimed:1'], $claimResults);
+        $this->assertSame('running', $db->table('arsip_digital.institutional_storage_reconciliation_reports')->where('reconciliation_report_id', $reportId)->value('status'));
+    }
+
+    private function runConcurrentPhaseSevenChildren(callable $operation): array
+    {
+        DB::disconnect($this->connection);
+        DB::disconnect($this->maintenanceConnection);
+        $gate = sys_get_temp_dir().'/arsip_phase7_gate_'.bin2hex(random_bytes(8));
+        $signals = [];
+        $children = [];
+        $this->temporarySignals[] = $gate;
+        try {
+            for ($index = 0; $index < 2; $index++) {
+                $signal = $gate.'.'.$index;
+                $signals[] = $signal;
+                $this->temporarySignals[] = $signal;
+                $pid = pcntl_fork();
+                $this->assertNotSame(-1, $pid);
+                if ($pid === 0) {
+                    try {
+                        while (! is_file($gate)) {
+                            usleep(10000);
+                        }
+                        DB::purge($this->connection);
+                        file_put_contents($signal, $operation());
+                        exit(0);
+                    } catch (\Throwable $exception) {
+                        file_put_contents($signal, 'error:'.$exception::class.':'.$exception->getCode());
+                        exit(1);
+                    }
+                }
+                $this->childPids[$pid] = true;
+                $children[] = $pid;
+            }
+            touch($gate);
+            foreach ($children as $index => $pid) {
+                $this->waitForPhaseSevenChild($pid, $signals[$index]);
+            }
+
+            return array_map(fn (string $signal): string => file_get_contents($signal), $signals);
+        } finally {
+            foreach ([$gate, ...$signals] as $path) {
+                @unlink($path);
+            }
+        }
+    }
+
+    private function waitForPhaseSevenChild(int $pid, string $signal): void
+    {
+        $deadline = microtime(true) + 10;
+        do {
+            if (pcntl_waitpid($pid, $status, WNOHANG) === $pid) {
+                unset($this->childPids[$pid]);
+                $this->assertSame(0, pcntl_wexitstatus($status), is_file($signal) ? file_get_contents($signal) : 'Child exited without signal.');
+
+                return;
+            }
+            usleep(50000);
+        } while (microtime(true) < $deadline);
+        $this->stopChild($pid);
+        $this->fail('Phase 7 contender exceeded 10 second timeout.');
+    }
+
+    public function test_phase_seven_report_guard_rollback_and_remigrate(): void
+    {
+        $this->migrateFresh();
+        $db = DB::connection($this->connection);
+        $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_storage_reconciliation_reports'));
+        $this->assertDatabaseObjectExists('constraint', 'institutional_storage_reconciliation_reports_status_check');
+        $this->assertDatabaseObjectExists('index', 'institutional_storage_reconciliation_reports_active_scope_mode_unique');
+
+        $row = ['mode' => 'existence', 'status' => 'queued', 'requested_by_user_id' => 1, 'created_at' => now(), 'updated_at' => now()];
+        $db->table('arsip_digital.institutional_storage_reconciliation_reports')->insert($row);
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.institutional_storage_reconciliation_reports')->insert($row));
+        $db->table('arsip_digital.institutional_storage_reconciliation_reports')->update(['status' => 'running']);
+        $this->expectDatabaseViolation(fn () => $db->table('arsip_digital.institutional_storage_reconciliation_reports')->insert($row));
+
+        try {
+            Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]);
+            $this->fail('Report rows must block rollback.');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('while report rows exist', $e->getMessage());
+        }
+        $db->table('arsip_digital.institutional_storage_reconciliation_reports')->delete();
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--database' => $this->connection, '--step' => 1, '--force' => true]));
+        $this->assertFalse($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_storage_reconciliation_reports'));
+        $this->assertSame(0, Artisan::call('migrate', ['--database' => $this->connection, '--force' => true]));
+        $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_storage_reconciliation_reports'));
     }
 
     private function migrateFresh(): void

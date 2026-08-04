@@ -74,6 +74,7 @@ class FoundationController extends Controller
                 'default_allowed_extensions' => ['sometimes', 'array', 'min:1'],
                 'default_allowed_extensions.*' => ['string', 'regex:/^[A-Za-z0-9]+$/'],
                 'storage_disk' => ['sometimes', 'string', 'max:50'],
+                'institutional_storage_soft_limit_bytes' => ['sometimes', 'nullable', 'integer', 'min:0'],
                 'personal_quota_mb_by_role' => ['sometimes', 'array'],
                 'personal_quota_mb_by_role.mahasiswa' => ['sometimes', 'integer', 'min:1', 'max:102400'],
                 'personal_quota_mb_by_role.dosen' => ['sometimes', 'integer', 'min:1', 'max:102400'],
