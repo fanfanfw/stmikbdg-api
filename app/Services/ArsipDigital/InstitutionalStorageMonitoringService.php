@@ -99,15 +99,16 @@ class InstitutionalStorageMonitoringService
 
     public function process(int $id): void
     {
-        if (! InstitutionalStorageReconciliationReport::whereKey($id)->where('status', 'queued')->update(['status' => 'running', 'started_at' => now(), 'total_files' => ArchiveFile::where('source_type', 'institutional')->count(), 'updated_at' => now()])) {
+        $files = ArchiveFile::withTrashed()->where('source_type', 'institutional')->whereHas('institutionalArchive', fn ($query) => $query->withTrashed());
+        if (! InstitutionalStorageReconciliationReport::whereKey($id)->where('status', 'queued')->update(['status' => 'running', 'started_at' => now(), 'total_files' => (clone $files)->count(), 'updated_at' => now()])) {
             return;
         }
         try {
-            ArchiveFile::where('source_type', 'institutional')->select(['file_id', 'storage_disk', 'storage_path'])->chunkById(100, function ($files) use ($id): void {
+            $files->select(['file_id', 'storage_disk', 'storage_path'])->chunkById(100, function ($files) use ($id): void {
                 foreach ($files as $file) {
                     try {
                         $available = $this->storage->exists($file->storage_disk, $file->storage_path);
-                        ArchiveFile::whereKey($file->file_id)->update(['storage_availability' => $available ? 'available' : 'missing']);
+                        ArchiveFile::withTrashed()->whereKey($file->file_id)->update(['storage_availability' => $available ? 'available' : 'missing']);
                         InstitutionalStorageReconciliationReport::whereKey($id)->increment($available ? 'available_files' : 'missing_files');
                     } catch (\Throwable) {
                         InstitutionalStorageReconciliationReport::whereKey($id)->increment('failed_files');

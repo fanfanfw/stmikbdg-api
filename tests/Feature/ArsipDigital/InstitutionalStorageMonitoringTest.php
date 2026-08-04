@@ -151,6 +151,44 @@ class InstitutionalStorageMonitoringTest extends ArsipDigitalFeatureTestCase
         $this->assertSame($report->error_message, $report->fresh()->error_message);
     }
 
+    public function test_worker_reconciles_active_and_soft_deleted_institutional_files_once_without_deleting_objects(): void
+    {
+        $active = $this->file('institutional', 10, ['storage_path' => 'active']);
+        $trashedAvailable = $this->file('institutional', 10, ['storage_path' => 'trashed-available', 'storage_availability' => 'unknown', 'deleted_at' => now()]);
+        $trashedMissing = $this->file('institutional', 10, ['storage_path' => 'trashed-missing', 'storage_availability' => 'available', 'deleted_at' => now()]);
+        $trashedFailed = $this->file('institutional', 10, ['storage_path' => 'trashed-failed', 'storage_availability' => 'available', 'deleted_at' => now()]);
+        $trashedArchive = DB::table('arsip_digital.institutional_archives')->insertGetId(['archive_uuid' => fake()->uuid(), 'unit_id' => $this->unit, 'title' => 'Arsip Terhapus', 'status' => 'deleted', 'created_by_user_id' => 1, 'deleted_at' => now()]);
+        $trashedArchiveFile = $this->file('institutional', 10, ['institutional_archive_id' => $trashedArchive, 'storage_path' => 'trashed-archive']);
+        $invalidRelation = $this->file('institutional', 10, ['institutional_archive_id' => null, 'storage_path' => 'invalid-relation']);
+        foreach (['personal', 'request', 'distribution', 'admin_upload', 'official'] as $source) {
+            $this->file($source, 10, ['storage_path' => "excluded-$source", 'deleted_at' => now()]);
+        }
+        $report = InstitutionalStorageReconciliationReport::create(['requested_by_user_id' => 1, 'mode' => 'existence', 'status' => 'queued']);
+        $storage = Mockery::mock(ArsipDigitalStorageService::class);
+        $storage->shouldReceive('exists')->with('s3', 'active')->once()->andReturnTrue();
+        $storage->shouldReceive('exists')->with('s3', 'trashed-available')->once()->andReturnTrue();
+        $storage->shouldReceive('exists')->with('s3', 'trashed-missing')->once()->andReturnFalse();
+        $storage->shouldReceive('exists')->with('s3', 'trashed-failed')->once()->andThrow(new \RuntimeException('provider failure'));
+        $storage->shouldReceive('exists')->with('s3', 'trashed-archive')->once()->andReturnTrue();
+        $storage->shouldNotReceive('exists')->with('s3', 'invalid-relation');
+        $storage->shouldNotReceive('deletePrivate');
+        $this->app->instance(ArsipDigitalStorageService::class, $storage);
+
+        $service = $this->app->make(InstitutionalStorageMonitoringService::class);
+        $service->process($report->getKey());
+        $service->process($report->getKey());
+        $report->refresh();
+
+        $this->assertSame([5, 5, 3, 1, 1], [$report->total_files, $report->checked_files, $report->available_files, $report->missing_files, $report->failed_files]);
+        $this->assertSame('available', DB::table('arsip_digital.files')->where('file_id', $active)->value('storage_availability'));
+        $this->assertSame('available', DB::table('arsip_digital.files')->where('file_id', $trashedAvailable)->value('storage_availability'));
+        $this->assertSame('missing', DB::table('arsip_digital.files')->where('file_id', $trashedMissing)->value('storage_availability'));
+        $this->assertSame('available', DB::table('arsip_digital.files')->where('file_id', $trashedFailed)->value('storage_availability'));
+        $this->assertSame('available', DB::table('arsip_digital.files')->where('file_id', $trashedArchiveFile)->value('storage_availability'));
+        $this->assertSame('unknown', DB::table('arsip_digital.files')->where('file_id', $invalidRelation)->value('storage_availability'));
+        $this->assertSame(11, DB::table('arsip_digital.files')->count());
+    }
+
     public function test_worker_distinguishes_missing_and_provider_failure_preserves_state_and_is_terminal_idempotent(): void
     {
         $available = $this->file('institutional', 10, ['storage_path' => 'available']);
