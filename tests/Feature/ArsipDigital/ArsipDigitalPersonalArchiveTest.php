@@ -567,10 +567,14 @@ class ArsipDigitalPersonalArchiveTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.file.status', 'active')
             ->json('data.file.file_id');
 
-        $this->actingAsMahasiswa()
+        $download = $this->actingAsMahasiswa()
             ->get('/api/arsip-digital/files/'.$fileId.'/download')
             ->assertOk()
-            ->assertHeader('content-disposition');
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition', 'attachment; filename=akta.pdf')
+            ->assertHeader('x-content-type-options', 'nosniff')
+            ->assertHeader('cache-control', 'no-store, private');
+        $this->assertSame('%PDF-1.4 test', $download->streamedContent());
 
         $this->actingAsMahasiswa()
             ->deleteJson('/api/arsip-digital/files/'.$fileId, ['reason' => 'test permanent delete'])

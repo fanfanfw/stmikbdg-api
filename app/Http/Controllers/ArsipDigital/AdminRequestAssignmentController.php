@@ -177,7 +177,7 @@ class AdminRequestAssignmentController extends Controller
                 $role
             );
 
-            return $storageService->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
+            return $storageService->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename, $file->mime_type);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

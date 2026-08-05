@@ -95,7 +95,7 @@ class ArsipDigitalStorageService
         }, $downloadName);
     }
 
-    public function downloadPrivate(string $disk, string $path, ?string $downloadName = null): StreamedResponse
+    public function downloadPrivate(string $disk, string $path, ?string $downloadName = null, ?string $mimeType = null): StreamedResponse
     {
         if (! Storage::disk($disk)->exists($path)) {
             abort(404, 'File tidak ditemukan di storage.');
@@ -113,7 +113,11 @@ class ArsipDigitalStorageService
             if (is_resource($stream)) {
                 fclose($stream);
             }
-        }, $downloadName ?: basename($path));
+        }, $downloadName ?: basename($path), [
+            'Content-Type' => $mimeType ?: 'application/octet-stream',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     public function streamPdfPrivate(string $disk, string $path, ?string $filename = null, bool $download = false): StreamedResponse
