@@ -64,7 +64,7 @@ class InstitutionalArchiveVersionTest extends ArsipDigitalFeatureTestCase
             ->assertJsonPath('data.versions.0.version_number', 3)->assertJsonPath('data.versions.0.version_reason', 'Tiga')
             ->assertJsonPath('data.versions.1.version_number', 2)->assertJsonPath('data.pagination.total', 3)
             ->assertJsonMissing(['metadata', 'storage_path', 'storage_disk', 'deleted_at', 'delete_reason', 'owner_identifier']);
-        $allowed = ['file_id', 'display_filename', 'mime_type', 'extension', 'file_size_bytes', 'checksum_sha256', 'version_number', 'is_current', 'status', 'storage_availability', 'uploaded_by_user_id', 'created_at', 'version_reason'];
+        $allowed = ['file_id', 'display_filename', 'mime_type', 'extension', 'file_size_bytes', 'checksum_sha256', 'version_number', 'is_current', 'status', 'storage_availability', 'uploaded_by_user_id', 'created_at', 'version_reason', 'verification'];
         $this->assertSame($allowed, array_keys($response->json('data.versions.0')));
         $this->actingAsAdmin()->getJson("/api/arsip-digital/admin/institutional-archives/{$this->archiveId}/versions?per_page=2&page=2")->assertJsonPath('data.versions.0.version_number', 1);
     }

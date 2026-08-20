@@ -25,13 +25,14 @@ class InstitutionalArchiveService
         private readonly ArsipDigitalStorageService $storage,
         private readonly ArsipDigitalSettingsService $settings,
         private readonly ArchiveUploadValidationService $validation,
+        private readonly InstitutionalArchiveVerificationService $verifications,
     ) {}
 
     public function paginate(array $filters): LengthAwarePaginator
     {
         $sorts = ['document_date' => 'document_date', 'created_at' => 'created_at', 'title' => 'title', 'file_size' => 'currentFile.file_size_bytes'];
         $sort = $filters['sort'] ?? 'created_at';
-        $query = InstitutionalArchive::query()->with(['unit', 'category', 'currentFile']);
+        $query = InstitutionalArchive::query()->with(['unit', 'category', 'currentFile', 'currentVerification']);
         if ($search = trim($filters['search'] ?? '')) {
             $term = '%'.mb_strtolower($search).'%';
             $query->where(fn ($q) => $q->whereRaw('lower(title) like ?', [$term])->orWhereRaw('lower(coalesce(document_number, \'\')) like ?', [$term])->orWhereRaw('lower(coalesce(description, \'\')) like ?', [$term])->orWhereHas('currentFile', fn ($f) => $f->whereRaw('lower(original_filename) like ?', [$term])));
@@ -79,6 +80,8 @@ class InstitutionalArchiveService
                 $file = ArchiveFile::create([...$stored, 'category_id' => $archive->category_id, 'owner_user_id' => $actor->id, 'owner_role' => 'admin', 'owner_identifier' => (string) ($actor->kd_user ?? $actor->id), 'owner_name_snapshot' => $actor->name ?? null, 'uploaded_by_user_id' => $actor->id, 'uploaded_by_role' => 'admin', 'source_type' => 'institutional', 'institutional_archive_id' => $archive->institutional_archive_id, 'version_group_uuid' => (string) Str::uuid(), 'version_number' => 1, 'is_current' => true, 'status' => 'active', 'storage_availability' => 'available']);
                 $archive->current_file_id = $file->file_id;
                 $archive->save();
+                $archive->load('unit');
+                $this->verifications->create($archive, $file, $actor);
                 $this->audit('institutional_archive.created', $archive, $actor, ['unit_id' => $archive->unit_id, 'category_id' => $archive->category_id, 'file_id' => $file->file_id]);
 
                 return $this->find($archive->institutional_archive_id);
@@ -95,7 +98,7 @@ class InstitutionalArchiveService
 
     public function find(int $id, bool $withDeleted = false): InstitutionalArchive
     {
-        $query = InstitutionalArchive::with(['unit', 'category', 'currentFile']);
+        $query = InstitutionalArchive::with(['unit', 'category', 'currentFile', 'currentVerification']);
         if ($withDeleted) {
             $query->withTrashed();
         }
@@ -159,6 +162,9 @@ class InstitutionalArchiveService
                 $current->fill(['is_current' => false, 'status' => 'replaced'])->save();
                 $file = ArchiveFile::create([...$stored, 'category_id' => $archive->category_id, 'owner_user_id' => $actor->id, 'owner_role' => 'admin', 'owner_identifier' => (string) ($actor->kd_user ?? $actor->id), 'owner_name_snapshot' => $actor->name ?? null, 'uploaded_by_user_id' => $actor->id, 'uploaded_by_role' => 'admin', 'source_type' => 'institutional', 'institutional_archive_id' => $id, 'version_group_uuid' => $current->version_group_uuid, 'version_number' => $maxVersion + 1, 'is_current' => true, 'status' => 'active', 'storage_availability' => 'available', 'metadata' => ['version_reason' => trim($reason)]]);
                 $archive->fill(['current_file_id' => $file->file_id, 'updated_by_user_id' => $actor->id])->save();
+                $archive->load('unit');
+                $newVerification = $this->verifications->create($archive, $file, $actor);
+                \App\Models\ArsipDigital\InstitutionalArchiveVerification::where('source_file_id', $current->file_id)->whereNotIn('status', ['replaced', 'revoked'])->update(['status' => 'replaced', 'replaced_at' => now(), 'replaced_by_verification_id' => $newVerification->getKey()]);
                 $this->audit('institutional_archive.file_version_uploaded', $archive, $actor, ['file_id' => $file->file_id, 'previous_file_id' => $current->file_id, 'version_number' => $file->version_number, 'reason' => trim($reason)]);
 
                 return $this->find($id);
@@ -176,7 +182,7 @@ class InstitutionalArchiveService
     public function versions(int $id, int $perPage): LengthAwarePaginator
     {
         InstitutionalArchive::findOrFail($id);
-        $paginator = ArchiveFile::where('institutional_archive_id', $id)
+        $paginator = ArchiveFile::with('institutionalVerification')->where('institutional_archive_id', $id)
             ->orderByDesc('version_number')->orderByDesc('file_id')->paginate($perPage);
         $paginator->setCollection($paginator->getCollection()->map(fn (ArchiveFile $file): array => [
             'file_id' => $file->file_id,
@@ -192,6 +198,7 @@ class InstitutionalArchiveService
             'uploaded_by_user_id' => $file->uploaded_by_user_id,
             'created_at' => $file->created_at,
             'version_reason' => $file->metadata['version_reason'] ?? null,
+            'verification' => $file->institutionalVerification?->verification_summary,
         ]));
 
         return $paginator;
@@ -239,6 +246,7 @@ class InstitutionalArchiveService
         return $this->transaction(function () use ($id, $reason, $actor): InstitutionalArchive {
             $archive = InstitutionalArchive::whereKey($id)->lockForUpdate()->firstOrFail();
             $archive->fill(['status' => 'deleted', 'deleted_by_user_id' => $actor->id, 'delete_reason' => trim($reason), 'deleted_at' => now(), 'updated_by_user_id' => $actor->id])->save();
+            \App\Models\ArsipDigital\InstitutionalArchiveVerification::where('institutional_archive_id', $id)->whereNotIn('status', ['replaced', 'revoked'])->update(['status' => 'revoked', 'revoked_at' => now()]);
             $this->audit('institutional_archive.deleted', $archive, $actor, ['reason' => trim($reason), 'before' => ['status' => 'active'], 'after' => ['status' => 'deleted']]);
 
             return $this->find($id, true);

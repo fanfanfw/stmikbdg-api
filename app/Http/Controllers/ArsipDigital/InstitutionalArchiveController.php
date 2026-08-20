@@ -6,6 +6,7 @@ use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
 use App\Services\ArsipDigital\InstitutionalArchiveService;
+use App\Services\ArsipDigital\InstitutionalArchiveVerificationService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -204,12 +205,13 @@ class InstitutionalArchiveController extends Controller
         }
     }
 
-    public function download(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives)
+    public function download(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives, InstitutionalArchiveVerificationService $verifications)
     {
         try {
             $roles->resolve($request, ['admin']);
             $archive = $archives->find($id);
-            $file = $archive->currentFile;
+            $master = $archive->currentFile;
+            $file = $verifications->readyForSource($master->file_id);
             if (! \Storage::disk($file->storage_disk)->exists($file->storage_path)) {
                 abort(404, 'File tidak ditemukan di storage.');
             }
@@ -233,6 +235,51 @@ class InstitutionalArchiveController extends Controller
                     fclose($stream);
                 }
             }, $file->display_filename, ['Content-Type' => $file->mime_type ?: 'application/octet-stream', 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store']);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function retryVerification(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives, InstitutionalArchiveVerificationService $verifications)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $archive = $archives->find($id);
+            $verification = $archive->currentVerification;
+            if (! $verification) {
+                throw new HttpException(409, 'Registry verifikasi belum tersedia.');
+            }
+            $verification = $verifications->retry($verification->getKey());
+
+            return $this->successfulResponseJSON(['verification' => $verification->verification_summary], 'Pemrosesan ulang dijadwalkan.', 202);
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function downloadMaster(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives, ArsipDigitalStorageService $storage)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $archive = $archives->find($id);
+            $file = $archive->currentFile;
+            $response = $storage->downloadPrivate($file->storage_disk, $file->storage_path, $file->display_filename, $file->mime_type);
+            $archives->auditDownload($archive, auth()->user(), $file);
+
+            return $response;
+        } catch (\Exception $e) {
+            return ErrorHandler::handle($e);
+        }
+    }
+
+    public function previewVerified(Request $request, int $id, RoleResolverService $roles, InstitutionalArchiveService $archives, InstitutionalArchiveVerificationService $verifications, ArsipDigitalStorageService $storage)
+    {
+        try {
+            $roles->resolve($request, ['admin']);
+            $archive = $archives->find($id);
+            $file = $verifications->readyForSource($archive->current_file_id);
+
+            return $storage->streamPdfPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
         } catch (\Exception $e) {
             return ErrorHandler::handle($e);
         }

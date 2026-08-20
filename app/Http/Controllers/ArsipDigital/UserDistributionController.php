@@ -6,6 +6,7 @@ use App\Exceptions\ErrorHandler;
 use App\Http\Controllers\Controller;
 use App\Services\ArsipDigital\ArsipDigitalStorageService;
 use App\Services\ArsipDigital\DistributionService;
+use App\Services\ArsipDigital\InstitutionalArchiveVerificationService;
 use App\Services\ArsipDigital\RoleResolverService;
 use Illuminate\Http\Request;
 
@@ -60,6 +61,9 @@ class UserDistributionController extends Controller
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
             $recipient = $distributionService->findDownloadableRecipientByFile($recipient_id, auth()->user(), $role);
             $file = $recipient->file;
+            if ($file->source_type === 'institutional') {
+                $file = app(InstitutionalArchiveVerificationService::class)->readyForSource($file->file_id);
+            }
 
             return $storageService->streamPdfPrivate($file->storage_disk, $file->storage_path, $file->display_filename);
         } catch (\Exception $e) {
@@ -77,6 +81,9 @@ class UserDistributionController extends Controller
         try {
             $role = $roleResolver->resolve($request, ['mahasiswa', 'dosen']);
             $file = $distributionService->findDownloadableRecipient($recipient_id, auth()->user(), $role)->file;
+            if ($file->source_type === 'institutional') {
+                $file = app(InstitutionalArchiveVerificationService::class)->readyForSource($file->file_id);
+            }
             if (! in_array($file->mime_type, ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'], true)) {
                 abort(415, 'Format file tidak mendukung preview browser.');
             }
@@ -127,6 +134,9 @@ class UserDistributionController extends Controller
                 ? $distributionService->findDownloadableRecipient($id, auth()->user(), $role)
                 : $distributionService->findDownloadableRecipientByFile($id, auth()->user(), $role);
             $file = $recipient->file;
+            if ($recipient->distribution?->institutional_archive_id) {
+                $file = app(InstitutionalArchiveVerificationService::class)->readyForSource($file->file_id);
+            }
             $stream = $storageService->openPrivateStream($file->storage_disk, $file->storage_path);
             try {
                 $distributionService->markDownloaded($recipient, auth()->user(), $role, $request);

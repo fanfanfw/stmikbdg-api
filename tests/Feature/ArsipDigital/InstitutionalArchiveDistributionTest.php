@@ -23,6 +23,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         ], ['Accept' => 'application/json'])->assertCreated()->json('data.archive');
         $this->archiveId = $archive['institutional_archive_id'];
         $this->fileId = $archive['current_file_id'];
+        $this->markInstitutionalVerificationReady($this->fileId);
     }
 
     public function test_management_requires_admin_and_is_shared_between_admins(): void
@@ -217,6 +218,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $stale = $this->fileId;
         $this->actingAsAdmin()->post("/api/arsip-digital/admin/institutional-archives/$this->archiveId/versions", ['file' => $this->pdfUpload('v2.pdf'), 'reason' => 'V2'], ['Accept' => 'application/json'])->assertCreated();
         $current = DB::table('arsip_digital.institutional_archives')->where('institutional_archive_id', $this->archiveId)->value('current_file_id');
+        $this->markInstitutionalVerificationReady($current);
         $this->actingAsAdmin()->postJson("/api/arsip-digital/admin/institutional-distributions/$draft/publish", $this->publishPayload($draft, $stale))->assertStatus(409);
         $this->assertDatabaseHas('arsip_digital.distributions', ['distribution_id' => $draft, 'status' => 'draft', 'source_file_id' => null]);
         $this->assertSame(0, DB::table('arsip_digital.distribution_recipients')->where('distribution_id', $draft)->count());
@@ -320,7 +322,7 @@ class InstitutionalArchiveDistributionTest extends ArsipDigitalFeatureTestCase
         $this->assertSame([$recipient->recipient_id], collect($pageTwo->json('data.distributions.0.recipients'))->pluck('recipient_id')->all());
         $this->actingAsDosen()->getJson('/api/arsip-digital/distributions')->assertOk()->assertJsonCount(0, 'data.distributions');
         $this->actingAsMahasiswa()->getJson('/api/arsip-digital/distributions?per_page=101')->assertUnprocessable();
-        Storage::disk('s3')->delete(DB::table('arsip_digital.files')->where('file_id', $this->fileId)->value('storage_path'));
+        Storage::disk('s3')->delete(DB::table('arsip_digital.institutional_archive_verifications')->where('source_file_id', $this->fileId)->value('storage_path'));
         $count = DB::table('arsip_digital.distribution_recipients')->where('recipient_id', $recipient->recipient_id)->value('download_count');
         $audits = DB::table('arsip_digital.audit_logs')->where('action', 'institutional_distribution.downloaded')->count();
         $this->actingAsMahasiswa()->get("/api/arsip-digital/distribution-recipients/$recipient->recipient_id/download")->assertNotFound();

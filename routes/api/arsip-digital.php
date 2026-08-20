@@ -80,7 +80,10 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/institutional-archives/{id}/versions', [InstitutionalArchiveController::class, 'versions'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/versions/{fileId}/download', [InstitutionalArchiveController::class, 'downloadVersion'])->whereNumber('id')->whereNumber('fileId');
         Route::get('/admin/institutional-archives/{id}/preview', [InstitutionalArchiveController::class, 'preview'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/preview-verified', [InstitutionalArchiveController::class, 'previewVerified'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/download', [InstitutionalArchiveController::class, 'download'])->whereNumber('id');
+        Route::get('/admin/institutional-archives/{id}/download-master', [InstitutionalArchiveController::class, 'downloadMaster'])->whereNumber('id');
+        Route::post('/admin/institutional-archives/{id}/verification/retry', [InstitutionalArchiveController::class, 'retryVerification'])->whereNumber('id');
         Route::get('/admin/institutional-archives/{id}/timeline', [InstitutionalArchiveController::class, 'timeline'])->whereNumber('id');
         Route::delete('/admin/institutional-archives/{id}', [InstitutionalArchiveController::class, 'destroy'])->whereNumber('id');
         Route::post('/admin/institutional-archives/{id}/restore', [InstitutionalArchiveController::class, 'restore'])->whereNumber('id');

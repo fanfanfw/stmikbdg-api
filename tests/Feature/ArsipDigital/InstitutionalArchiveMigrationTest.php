@@ -369,6 +369,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $unit = $this->unit('A');
         $archive = $this->archiveId($unit);
 
+        $this->migrationDown('2026_08_20_000019_create_institutional_archive_verifications.php');
         $this->migrationDown('2026_08_04_000016_add_institutional_distribution_target_count.php');
         $this->migrationDown('2026_08_04_000015_create_institutional_storage_reconciliation_reports.php');
         $this->migrationDown('2026_08_03_000014_harden_institutional_distribution_source.php');
@@ -388,7 +389,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->migrationDown('2026_08_02_000012_create_institutional_archive_foundation.php');
         $this->assertFalse($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_archives'));
         $this->assertTrue($db->table('arsip_digital.categories')->where('name', 'Preserved')->exists());
-        foreach (['2026_08_02_000012_create_institutional_archive_foundation.php', '2026_08_03_000013_allow_institutional_distribution_drafts.php', '2026_08_03_000014_harden_institutional_distribution_source.php', '2026_08_04_000015_create_institutional_storage_reconciliation_reports.php', '2026_08_04_000016_add_institutional_distribution_target_count.php'] as $migration) {
+        foreach (['2026_08_02_000012_create_institutional_archive_foundation.php', '2026_08_03_000013_allow_institutional_distribution_drafts.php', '2026_08_03_000014_harden_institutional_distribution_source.php', '2026_08_04_000015_create_institutional_storage_reconciliation_reports.php', '2026_08_04_000016_add_institutional_distribution_target_count.php', '2026_08_20_000019_create_institutional_archive_verifications.php'] as $migration) {
             $this->migrationUp($migration);
         }
         $this->assertTrue($db->getSchemaBuilder()->hasTable('arsip_digital.institutional_archives'));
@@ -467,7 +468,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame(2, $files->where('is_current', false)->where('status', 'replaced')->count());
         $this->assertSame(3, $files->where('file_id', DB::connection($this->connection)->table('arsip_digital.institutional_archives')->where('institutional_archive_id', $archive)->value('current_file_id'))->first()->version_number);
         $this->assertSame(2, DB::connection($this->connection)->table('arsip_digital.audit_logs')->where('action', 'institutional_archive.file_version_uploaded')->count());
-        $this->assertCount(3, Storage::disk('s3')->allFiles());
+        $this->assertCount(4, Storage::disk('s3')->allFiles());
         foreach ($files as $file) {
             $this->assertTrue(Storage::disk($file->storage_disk)->exists($file->storage_path), "Version {$file->version_number} object missing.");
         }
@@ -637,7 +638,16 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertFalse(app(DistributionService::class)->userQuery((object) ['id' => 2], 'mahasiswa')->whereKey($draft->distribution_id)->exists());
 
         app(InstitutionalArchiveService::class)->restore($archiveId, $this->actor());
-        $published = $service->publish($draft->fresh(), InstitutionalArchive::findOrFail($archiveId)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
+        try {
+            $service->publish($draft->fresh(), InstitutionalArchive::findOrFail($archiveId)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
+            $this->fail('Restore must not reactivate revoked verification.');
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException) {
+        }
+        $archive = app(InstitutionalArchiveService::class)->uploadVersion($archiveId, UploadedFile::fake()->createWithContent('restored.pdf', '%PDF-1.4 restored'), 'Versi setelah restore', $this->actor());
+        $path = 'arsip-digital/testing/institutional-verified/'.$archive->current_file_id.'.pdf';
+        Storage::disk('s3')->put($path, '%PDF-1.4 restored verified');
+        $db->table('arsip_digital.institutional_archive_verifications')->where('source_file_id', $archive->current_file_id)->update(['status' => 'ready', 'verified_checksum_sha256' => hash('sha256', '%PDF-1.4 restored verified'), 'storage_disk' => 's3', 'storage_path' => $path, 'original_filename' => 'restored.pdf', 'display_filename' => 'restored.pdf', 'mime_type' => 'application/pdf', 'file_size_bytes' => 26, 'processed_at' => now(), 'updated_at' => now()]);
+        $published = $service->publish($draft->fresh(), $archive->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
         $this->runLockedChildren('arsip_digital.distributions', 'distribution_id', $draft->distribution_id, 2, [
             fn () => app(InstitutionalDistributionService::class)->withdraw($published, 'Race', $this->actor(), 'admin', Request::create('/withdraw', 'POST')),
@@ -678,7 +688,7 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $this->assertSame('draft', $db->table('arsip_digital.distributions')->where('distribution_id', $draft->distribution_id)->value('status'));
         $this->assertSame(0, $db->table('arsip_digital.distribution_recipients')->where('distribution_id', $draft->distribution_id)->count());
         $this->assertSame(0, $db->table('arsip_digital.notifications')->count());
-        $this->assertCount(1, Storage::disk('s3')->allFiles());
+        $this->assertCount(2, Storage::disk('s3')->allFiles());
         $db->unprepared('DROP TRIGGER fail_distribution_audit ON arsip_digital.audit_logs');
         $published = $service->publish($draft, InstitutionalArchive::findOrFail($draft->institutional_archive_id)->current_file_id, $this->actor(), 'admin', $request, $targets['updated_at'], $targets['target_fingerprint']);
         $recipient = \App\Models\ArsipDigital\DistributionRecipient::where('distribution_id', $draft->distribution_id)->firstOrFail();
@@ -770,7 +780,15 @@ class InstitutionalArchiveMigrationTest extends TestCase
         $db->table('arsip_digital.settings')->where('key', 'archive_defaults')->update(['value' => json_encode(['default_max_file_size_mb' => 10, 'default_allowed_extensions' => ['pdf'], 'storage_disk' => 's3'])]);
         $unit = $db->table('arsip_digital.institutional_units')->insertGetId(['name' => 'Concurrency', 'created_by_user_id' => 1], 'unit_id');
 
-        return app(InstitutionalArchiveService::class)->create(UploadedFile::fake()->createWithContent('v1.pdf', '%PDF-1.4 v1'), ['title' => 'Concurrent archive', 'unit_id' => $unit], $this->actor())->institutional_archive_id;
+        $archive = app(InstitutionalArchiveService::class)->create(UploadedFile::fake()->createWithContent('v1.pdf', '%PDF-1.4 v1'), ['title' => 'Concurrent archive', 'unit_id' => $unit], $this->actor());
+        $path = 'arsip-digital/testing/institutional-verified/'.$archive->current_file_id.'.pdf';
+        Storage::disk('s3')->put($path, '%PDF-1.4 verified');
+        $db->table('arsip_digital.institutional_archive_verifications')->where('source_file_id', $archive->current_file_id)->update([
+            'status' => 'ready', 'verified_checksum_sha256' => hash('sha256', '%PDF-1.4 verified'), 'storage_disk' => 's3', 'storage_path' => $path,
+            'original_filename' => 'v1.pdf', 'display_filename' => 'v1.pdf', 'mime_type' => 'application/pdf', 'file_size_bytes' => 17, 'processed_at' => now(), 'updated_at' => now(),
+        ]);
+
+        return $archive->institutional_archive_id;
     }
 
     private function runLockedChildren(string $table, string $key, int $id, int $count, callable|array $operation): void

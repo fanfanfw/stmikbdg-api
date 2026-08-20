@@ -8,6 +8,7 @@ use App\Models\ArsipDigital\ArchiveRequest;
 use App\Models\ArsipDigital\Distribution;
 use App\Models\ArsipDigital\DistributionRecipient;
 use App\Models\ArsipDigital\ExportJob;
+use App\Models\ArsipDigital\InstitutionalArchiveVerification;
 use App\Models\ArsipDigital\RequestAssignment;
 use App\Models\ArsipDigital\RequestFile;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,8 +23,7 @@ class ExportJobService
     public function __construct(
         private readonly ArsipDigitalSettingsService $settings,
         private readonly AuditLogService $auditLog,
-    ) {
-    }
+    ) {}
 
     public function adminQuery(array $filters = []): Builder
     {
@@ -210,7 +210,7 @@ class ExportJobService
         }
 
         if (! empty($filters['download_filename'])) {
-            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']) . '.zip';
+            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']).'.zip';
         }
 
         if (! empty($filters['statuses'])) {
@@ -288,7 +288,7 @@ class ExportJobService
         }
 
         if (! empty($filters['download_filename'])) {
-            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']) . '.zip';
+            $normalized['download_filename'] = $this->safeZipSegment((string) $filters['download_filename']).'.zip';
         }
 
         return $normalized;
@@ -296,12 +296,12 @@ class ExportJobService
 
     public function zipRootName(ArchiveRequest $request): string
     {
-        return $this->safeZipSegment($request->title . '-' . $request->request_id);
+        return $this->safeZipSegment($request->title.'-'.$request->request_id);
     }
 
     public function recipientFolderName(RequestAssignment $assignment): string
     {
-        return $this->safeZipSegment(trim($assignment->identifier . ' - ' . ($assignment->name_snapshot ?: 'Tanpa Nama')));
+        return $this->safeZipSegment(trim($assignment->identifier.' - '.($assignment->name_snapshot ?: 'Tanpa Nama')));
     }
 
     private function generateRequestZip(ExportJob $exportJob): array
@@ -313,12 +313,12 @@ class ExportJobService
         $filters = $this->normalizeRequestFilters($exportJob->filters ?? []);
         $request = ArchiveRequest::findOrFail($filters['request_id']);
         $disk = $this->settings->getDefaults()['storage_disk'];
-        $tempDirectory = storage_path('app/arsip-digital/tmp/export-' . $exportJob->export_job_id . '-' . Str::uuid());
-        $zipPath = $tempDirectory . '/export.zip';
+        $tempDirectory = storage_path('app/arsip-digital/tmp/export-'.$exportJob->export_job_id.'-'.Str::uuid());
+        $zipPath = $tempDirectory.'/export.zip';
 
         File::ensureDirectoryExists($tempDirectory);
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zipOpen = false;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new HttpException(500, 'Gagal membuat file ZIP export.');
@@ -359,11 +359,12 @@ class ExportJobService
                         ->filter(fn (RequestFile $requestFile): bool => $requestFile->file !== null && $requestFile->file->deleted_at === null);
 
                     if ($requestFiles->isEmpty()) {
-                        $missing[] = $assignment->identifier . ' - ' . ($assignment->name_snapshot ?: 'Tanpa Nama') . ' (' . $assignment->status . ')';
+                        $missing[] = $assignment->identifier.' - '.($assignment->name_snapshot ?: 'Tanpa Nama').' ('.$assignment->status.')';
+
                         continue;
                     }
 
-                    $folderName = $rootName . '/' . $this->recipientFolderName($assignment);
+                    $folderName = $rootName.'/'.$this->recipientFolderName($assignment);
                     $zip->addEmptyDir($folderName);
                     $usedNames = [];
 
@@ -372,13 +373,13 @@ class ExportJobService
                         $entryName = $this->uniqueZipEntryName($usedNames, $file->display_filename);
                         $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
                         $tempFiles[] = $localFile;
-                        $zip->addFile($localFile, $folderName . '/' . $entryName);
+                        $zip->addFile($localFile, $folderName.'/'.$entryName);
                     }
                 }
             });
 
             if (! empty($missing)) {
-                $zip->addFromString($rootName . '/README.txt', "Target belum memiliki file current sesuai filter:\n" . implode("\n", $missing) . "\n");
+                $zip->addFromString($rootName.'/README.txt', "Target belum memiliki file current sesuai filter:\n".implode("\n", $missing)."\n");
             }
 
             $zip->close();
@@ -439,12 +440,12 @@ class ExportJobService
 
         $filters = $this->normalizeArchiveBrowserFilters($exportJob->filters ?? []);
         $disk = $this->settings->getDefaults()['storage_disk'];
-        $tempDirectory = storage_path('app/arsip-digital/tmp/export-' . $exportJob->export_job_id . '-' . Str::uuid());
-        $zipPath = $tempDirectory . '/export.zip';
+        $tempDirectory = storage_path('app/arsip-digital/tmp/export-'.$exportJob->export_job_id.'-'.Str::uuid());
+        $zipPath = $tempDirectory.'/export.zip';
 
         File::ensureDirectoryExists($tempDirectory);
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zipOpen = false;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new HttpException(500, 'Gagal membuat file ZIP export.');
@@ -454,7 +455,7 @@ class ExportJobService
         $tempFiles = [];
 
         try {
-            $rootName = 'arsip-pengguna-' . now()->format('Ymd-His');
+            $rootName = 'arsip-pengguna-'.now()->format('Ymd-His');
             $zip->addEmptyDir($rootName);
 
             $query = ArchiveFile::query()
@@ -489,18 +490,24 @@ class ExportJobService
 
             $query->chunk(100, function ($files) use ($rootName, $zip, &$tempFiles, &$totalFiles, &$missing, &$usedNames): void {
                 foreach ($files as $file) {
-                    $ownerFolder = $this->safeZipSegment($file->owner_role) . '/' . $this->safeZipSegment($file->owner_identifier . ' - ' . ($file->owner_name_snapshot ?: 'Tanpa Nama'));
-                    $entryName = $this->uniqueZipEntryName($usedNames, $ownerFolder . '/' . $file->display_filename);
+                    $ownerFolder = $this->safeZipSegment($file->owner_role).'/'.$this->safeZipSegment($file->owner_identifier.' - '.($file->owner_name_snapshot ?: 'Tanpa Nama'));
+                    $entryName = $this->uniqueZipEntryName($usedNames, $ownerFolder.'/'.$file->display_filename);
 
                     try {
-                        $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                        if ($file->source_type === 'institutional') {
+                            $verified = InstitutionalArchiveVerification::where('source_file_id', $file->file_id)->where('status', 'ready')->firstOrFail();
+                            $localFile = $this->copyStorageFileToTemp($verified->storage_disk, $verified->storage_path);
+                        } else {
+                            $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                        }
                     } catch (\Throwable $e) {
-                        $missing[] = $file->file_id . ' - ' . $file->display_filename . ': ' . $e->getMessage();
+                        $missing[] = $file->file_id.' - '.$file->display_filename.': '.$e->getMessage();
+
                         continue;
                     }
 
                     $tempFiles[] = $localFile;
-                    $zip->addFile($localFile, $rootName . '/' . $entryName);
+                    $zip->addFile($localFile, $rootName.'/'.$entryName);
                     $totalFiles++;
                 }
             });
@@ -510,7 +517,7 @@ class ExportJobService
             }
 
             if (! empty($missing)) {
-                $zip->addFromString($rootName . '/README.txt', "File yang gagal dimasukkan ke ZIP:\n" . implode("\n", $missing) . "\n");
+                $zip->addFromString($rootName.'/README.txt', "File yang gagal dimasukkan ke ZIP:\n".implode("\n", $missing)."\n");
             }
 
             $zip->close();
@@ -572,12 +579,12 @@ class ExportJobService
         $filters = $this->normalizeDistributionFilters($exportJob->filters ?? []);
         $distribution = Distribution::findOrFail($filters['distribution_id']);
         $disk = $this->settings->getDefaults()['storage_disk'];
-        $tempDirectory = storage_path('app/arsip-digital/tmp/export-' . $exportJob->export_job_id . '-' . Str::uuid());
-        $zipPath = $tempDirectory . '/export.zip';
+        $tempDirectory = storage_path('app/arsip-digital/tmp/export-'.$exportJob->export_job_id.'-'.Str::uuid());
+        $zipPath = $tempDirectory.'/export.zip';
 
         File::ensureDirectoryExists($tempDirectory);
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         $zipOpen = false;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new HttpException(500, 'Gagal membuat file ZIP export.');
@@ -587,11 +594,11 @@ class ExportJobService
         $tempFiles = [];
 
         try {
-            $rootName = $this->safeZipSegment($distribution->title . '-' . $distribution->distribution_id);
+            $rootName = $this->safeZipSegment($distribution->title.'-'.$distribution->distribution_id);
             $zip->addEmptyDir($rootName);
 
             $query = DistributionRecipient::where('distribution_id', $distribution->distribution_id)
-                ->with('file')
+                ->with(['file', 'distribution'])
                 ->orderBy('identifier');
 
             if (! empty($filters['recipient_ids'])) {
@@ -608,29 +615,36 @@ class ExportJobService
             $query->chunk(100, function ($recipients) use ($rootName, $zip, &$tempFiles, &$missing, &$usedNamesByFolder): void {
                 foreach ($recipients as $recipient) {
                     if (! in_array($recipient->delivery_status, ['available', 'downloaded'], true) || ! $recipient->file) {
-                        $missing[] = $recipient->identifier . ' - ' . ($recipient->name_snapshot ?: 'Tanpa Nama') . ' (' . $recipient->delivery_status . ')';
+                        $missing[] = $recipient->identifier.' - '.($recipient->name_snapshot ?: 'Tanpa Nama').' ('.$recipient->delivery_status.')';
+
                         continue;
                     }
 
                     $file = $recipient->file;
-                    $folderName = $this->safeZipSegment($recipient->identifier . ' - ' . ($recipient->name_snapshot ?: 'Tanpa Nama'));
+                    $folderName = $this->safeZipSegment($recipient->identifier.' - '.($recipient->name_snapshot ?: 'Tanpa Nama'));
                     $usedNamesByFolder[$folderName] ??= [];
                     $entryName = $this->uniqueZipEntryName($usedNamesByFolder[$folderName], $file->display_filename);
 
                     try {
-                        $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                        if ($recipient->distribution?->institutional_archive_id) {
+                            $verified = InstitutionalArchiveVerification::where('source_file_id', $file->file_id)->where('status', 'ready')->firstOrFail();
+                            $localFile = $this->copyStorageFileToTemp($verified->storage_disk, $verified->storage_path);
+                        } else {
+                            $localFile = $this->copyStorageFileToTemp($file->storage_disk, $file->storage_path);
+                        }
                     } catch (\Throwable $e) {
-                        $missing[] = $recipient->identifier . ' - ' . $file->display_filename . ': ' . $e->getMessage();
+                        $missing[] = $recipient->identifier.' - '.$file->display_filename.': '.$e->getMessage();
+
                         continue;
                     }
 
                     $tempFiles[] = $localFile;
-                    $zip->addFile($localFile, $rootName . '/' . $folderName . '/' . $entryName);
+                    $zip->addFile($localFile, $rootName.'/'.$folderName.'/'.$entryName);
                 }
             });
 
             if (! empty($missing)) {
-                $zip->addFromString($rootName . '/README.txt', "Recipient tanpa file export:\n" . implode("\n", $missing) . "\n");
+                $zip->addFromString($rootName.'/README.txt', "Recipient tanpa file export:\n".implode("\n", $missing)."\n");
             }
 
             $zip->close();
@@ -732,8 +746,8 @@ class ExportJobService
 
         while (isset($usedNames[$candidate])) {
             $candidate = $extension !== ''
-                ? $baseName . ' (' . $index . ').' . $extension
-                : $baseName . ' (' . $index . ')';
+                ? $baseName.' ('.$index.').'.$extension
+                : $baseName.' ('.$index.')';
             $index++;
         }
 

@@ -67,6 +67,41 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
         return UploadedFile::fake()->createWithContent($name, $content);
     }
 
+    protected function importablePdfUpload(string $name = 'dokumen.pdf', string $text = 'Dokumen Test'): UploadedFile
+    {
+        $fontPath = resource_path('pdf-fonts');
+        if (! defined('K_PATH_FONTS')) {
+            define('K_PATH_FONTS', $fontPath);
+        }
+        $pdf = new \Com\Tecnick\Pdf\Tcpdf(fileOptions: ['allowedPaths' => [$fontPath]]);
+        $pdf->addPage(['format' => 'A4', 'orientation' => 'P']);
+        $font = $pdf->font->insert($pdf->pon, 'dejavusans', '', 11);
+        $pdf->page->addContent($font['out']);
+        $pdf->addHTMLCell(html: e($text), posx: 20, posy: 20, width: 170);
+
+        return UploadedFile::fake()->createWithContent($name, $pdf->getOutPDFString());
+    }
+
+    protected function markInstitutionalVerificationReady(int $fileId, string $bytes = '%PDF-1.4 verified derivative'): void
+    {
+        $path = "arsip-digital/testing/institutional-verified/$fileId.pdf";
+        Storage::disk('s3')->put($path, $bytes);
+        $filename = DB::table('arsip_digital.files')->where('file_id', $fileId)->value('display_filename') ?: "verified-$fileId.pdf";
+        DB::table('arsip_digital.institutional_archive_verifications')->where('source_file_id', $fileId)->update([
+            'status' => 'ready',
+            'failure_message' => null,
+            'verified_checksum_sha256' => hash('sha256', $bytes),
+            'storage_disk' => 's3',
+            'storage_path' => $path,
+            'original_filename' => $filename,
+            'display_filename' => $filename,
+            'mime_type' => 'application/pdf',
+            'file_size_bytes' => strlen($bytes),
+            'processed_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
     protected function createPublishedRequestForMahasiswa(bool $requiresVerification = true): array
     {
         $requestId = DB::table('arsip_digital.requests')->insertGetId([
@@ -147,6 +182,7 @@ abstract class ArsipDigitalFeatureTestCase extends TestCase
         DB::statement('CREATE TABLE arsip_digital.institutional_units (unit_id integer primary key autoincrement, code varchar, name varchar, description text, is_active integer default 1, created_by_user_id integer, updated_by_user_id integer, created_at datetime, updated_at datetime, deleted_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.institutional_archives (institutional_archive_id integer primary key autoincrement, archive_uuid varchar unique, unit_id integer not null, category_id integer, title varchar, document_number varchar, document_number_normalized varchar, document_year integer, document_date date, received_date date, description text, access_level varchar default "internal", retention_note text, tags text, current_file_id integer, status varchar default "active", created_by_user_id integer, updated_by_user_id integer, deleted_by_user_id integer, delete_reason text, created_at datetime, updated_at datetime, deleted_at datetime, unique(unit_id, document_year, document_number_normalized))');
         DB::statement('CREATE TABLE arsip_digital.files (file_id integer primary key autoincrement, institutional_archive_id integer, category_id integer, owner_user_id integer not null, owner_role varchar not null, owner_identifier varchar not null, owner_name_snapshot varchar, owner_status_snapshot varchar, uploaded_by_user_id integer not null, uploaded_by_role varchar not null, source_type varchar not null, original_filename varchar not null, display_filename varchar not null, storage_disk varchar not null, storage_path text not null, mime_type varchar, extension varchar not null, file_size_bytes integer not null, checksum_sha256 varchar, version_group_uuid varchar not null, version_number integer not null default 1, is_current integer not null default 1, status varchar not null default "active", storage_availability varchar not null default "unknown", metadata text, created_at datetime, updated_at datetime, deleted_at datetime, deleted_by_user_id integer, deleted_by_role varchar, delete_source varchar, delete_reason text)');
+        DB::statement('CREATE TABLE arsip_digital.institutional_archive_verifications (institutional_archive_verification_id integer primary key autoincrement, institutional_archive_id integer not null, source_file_id integer not null unique, token_hash varchar not null unique, status varchar not null, failure_message varchar, public_metadata text not null, source_checksum_sha256 varchar not null, verified_checksum_sha256 varchar, version_number integer not null, issuer_user_id integer not null, issuer_name_snapshot varchar not null, storage_disk varchar, storage_path text, original_filename varchar, display_filename varchar, mime_type varchar, file_size_bytes integer, issued_at datetime not null, processed_at datetime, replaced_at datetime, revoked_at datetime, replaced_by_verification_id integer, created_at datetime, updated_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.scholarship_types (scholarship_type_id integer primary key autoincrement, code varchar, name varchar, description text, is_active integer default 1, source varchar default "manual", created_at datetime, updated_at datetime, deleted_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.student_scholarships (student_scholarship_id integer primary key autoincrement, student_user_id integer, nim varchar, student_name_snapshot varchar, angkatan_snapshot varchar, scholarship_type_id integer, status varchar default "active", period_label varchar, start_date date, end_date date, source varchar default "manual", metadata text, created_at datetime, updated_at datetime, deleted_at datetime)');
         DB::statement('CREATE TABLE arsip_digital.segments (segment_id integer primary key autoincrement, name varchar, description text, target_role varchar, source varchar default "manual", is_active integer default 1, created_by_user_id integer, created_at datetime, updated_at datetime, deleted_at datetime)');

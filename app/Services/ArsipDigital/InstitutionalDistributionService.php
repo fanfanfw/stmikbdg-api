@@ -12,7 +12,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class InstitutionalDistributionService
 {
-    public function __construct(private readonly RequestTargetPreviewService $targets) {}
+    public function __construct(
+        private readonly RequestTargetPreviewService $targets,
+        private readonly InstitutionalArchiveVerificationService $verifications,
+    ) {}
 
     public function preview(array $payload): array
     {
@@ -145,6 +148,7 @@ class InstitutionalDistributionService
             }
             $expectedTargets = collect($preview['valid_targets'])->unique(fn ($target) => $target['target_role'].'|'.$target['identifier'])->map(fn ($target): string => implode('|', [$target['target_user_id'], $target['target_role'], $target['identifier']]))->sort()->values()->all();
             $fileId = $archive->current_file_id;
+            $this->verifications->readyForSource($fileId);
             $now = now();
             foreach (collect($preview['valid_targets'])->unique(fn ($target) => $target['target_role'].'|'.$target['identifier']) as $target) {
                 DistributionRecipient::firstOrCreate([

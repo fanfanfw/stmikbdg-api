@@ -36,6 +36,11 @@ class InstitutionalArchive extends ArsipDigitalModel
         return $this->belongsTo(ArchiveFile::class, 'current_file_id', 'file_id');
     }
 
+    public function currentVerification()
+    {
+        return $this->hasOne(InstitutionalArchiveVerification::class, 'source_file_id', 'current_file_id');
+    }
+
     public function files()
     {
         return $this->hasMany(ArchiveFile::class, 'institutional_archive_id', 'institutional_archive_id');

@@ -42,4 +42,9 @@ class ArchiveFile extends ArsipDigitalModel
     {
         return $this->belongsTo(InstitutionalArchive::class, 'institutional_archive_id', 'institutional_archive_id');
     }
+
+    public function institutionalVerification()
+    {
+        return $this->hasOne(InstitutionalArchiveVerification::class, 'source_file_id', 'file_id');
+    }
 }

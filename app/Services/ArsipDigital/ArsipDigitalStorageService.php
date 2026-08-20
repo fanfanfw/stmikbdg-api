@@ -187,6 +187,13 @@ class ArsipDigitalStorageService
                 $context['owner_user_id'] ?? 'unassigned',
                 $uuid
             ),
+            'institutional-verified' => sprintf(
+                'arsip-digital/%s/institutional-verified/%s/%s/%s',
+                $environment,
+                $context['archive_id'] ?? 'unassigned',
+                $context['source_file_id'] ?? 'unassigned',
+                $uuid
+            ),
             'official' => sprintf(
                 'arsip-digital/%s/official/%s/%s/%s',
                 $environment,

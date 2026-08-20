@@ -195,7 +195,7 @@ class InstitutionalArchiveManagementTest extends ArsipDigitalFeatureTestCase
     {
         $archive = $this->upload()->json('data.archive');
         $row = DB::table('arsip_digital.files')->where('file_id', $archive['current_file_id'])->first();
-        Storage::disk('s3')->delete($row->storage_path);
+        Storage::disk('s3')->delete(DB::table('arsip_digital.institutional_archive_verifications')->where('source_file_id', $row->file_id)->value('storage_path'));
         $this->actingAsAdmin()->get('/api/arsip-digital/admin/institutional-archives/'.$archive['institutional_archive_id'].'/download')->assertNotFound()->assertDontSee('storage_path')->assertDontSee('storage_disk')->assertDontSee($row->storage_path);
         $this->assertDatabaseMissing('arsip_digital.audit_logs', ['action' => 'institutional_archive.downloaded_by_admin']);
         DB::statement("CREATE TRIGGER arsip_digital.fail_archive_change BEFORE INSERT ON audit_logs WHEN NEW.action IN ('institutional_archive.metadata_updated','institutional_archive.moved') BEGIN SELECT RAISE(FAIL, 'audit failed'); END");
@@ -206,7 +206,12 @@ class InstitutionalArchiveManagementTest extends ArsipDigitalFeatureTestCase
 
     private function upload(array $overrides = [])
     {
-        return $this->actingAsAdmin()->post('/api/arsip-digital/admin/institutional-archives', array_merge(['file' => $this->pdfUpload('dokumen.pdf', '%PDF-1.4 institutional'), 'title' => 'Dokumen', 'unit_id' => $this->unitId, 'category_id' => $this->categoryId], $overrides), ['Accept' => 'application/json']);
+        $response = $this->actingAsAdmin()->post('/api/arsip-digital/admin/institutional-archives', array_merge(['file' => $this->pdfUpload('dokumen.pdf', '%PDF-1.4 institutional'), 'title' => 'Dokumen', 'unit_id' => $this->unitId, 'category_id' => $this->categoryId], $overrides), ['Accept' => 'application/json']);
+        if ($response->getStatusCode() === 201) {
+            $this->markInstitutionalVerificationReady($response->json('data.archive.current_file_id'));
+        }
+
+        return $response;
     }
 
     private function adminUser(int $id): UserView
