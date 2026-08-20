@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ArsipDigital\AdminAuditLogController;
+use App\Http\Controllers\ArsipDigital\AdminAuditLogNoteController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionBulkUploadController;
 use App\Http\Controllers\ArsipDigital\AdminDistributionController;
 use App\Http\Controllers\ArsipDigital\AdminExportJobController;
@@ -164,6 +165,9 @@ Route::prefix('/arsip-digital')
         Route::get('/admin/export-jobs/{export_job_id}/download', [AdminExportJobController::class, 'download']);
 
         Route::get('/admin/audit-logs', [AdminAuditLogController::class, 'index']);
+        Route::get('/admin/audit-logs/{auditLogId}/note', [AdminAuditLogNoteController::class, 'show'])->whereNumber('auditLogId');
+        Route::post('/admin/audit-logs/{auditLogId}/note', [AdminAuditLogNoteController::class, 'store'])->whereNumber('auditLogId');
+        Route::put('/admin/audit-logs/{auditLogId}/note', [AdminAuditLogNoteController::class, 'update'])->whereNumber('auditLogId');
 
         Route::get('/admin/scholarship-types', [ScholarshipController::class, 'types']);
         Route::post('/admin/scholarship-types', [ScholarshipController::class, 'storeType']);

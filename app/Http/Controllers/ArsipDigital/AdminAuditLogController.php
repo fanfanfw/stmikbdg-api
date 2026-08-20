@@ -28,7 +28,18 @@ class AdminAuditLogController extends Controller
                 'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
             ]);
 
-            $query = AuditLog::query();
+            $query = AuditLog::with(['note' => fn ($query) => $query->select([
+                'audit_log_note_id',
+                'audit_log_id',
+                'note',
+                'creator_user_id',
+                'creator_name_snapshot',
+                'last_editor_user_id',
+                'last_editor_name_snapshot',
+                'current_version',
+                'created_at',
+                'updated_at',
+            ])]);
 
             foreach (['action', 'entity_type', 'entity_id', 'actor_role'] as $field) {
                 if (! empty($filters[$field])) {
